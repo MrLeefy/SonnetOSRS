@@ -36,6 +36,31 @@ async function test(name,fn){await fn();results.push(name);console.log('PASS '+n
      await a.evaluate(()=>{window.badMotion=[];const receive=Online.applySnapshot;Online.applySnapshot=msg=>{for(const p of msg.players||[]){const m=p.motion||[];for(let i=1;i<m.length;i++){const x=m[i-1],y=m[i];if(!canStep(x.x,x.y,y.x-x.x,y.y-x.y))badMotion.push([x,y]);}}receive(msg);};});
      await go(a,48,58);await go(a,48,42);assert.deepEqual(await a.evaluate(()=>badMotion),[]);
    });
+   await test('each buffered tile segment has the exact eight-direction facing before translation',async()=>{
+     const v=await a.evaluate(()=>{
+       const actor={x:10,y:10,netMotion:{segments:[
+         {from:[10.5,10.5],to:[11.5,10.5],t0:100,t1:400,face:Math.PI/2,tick:1,run:true},
+         {from:[11.5,10.5],to:[11.5,11.5],t0:400,t1:700,face:0,tick:1,run:true}
+       ],lastTick:1}};
+       return{east:Online.sampleMotion(actor,250),north:Online.sampleMotion(actor,550)};
+     });
+     assert.ok(Math.abs(v.east.face-Math.PI/2)<1e-8);assert.ok(Math.abs(v.north.face)<1e-8);
+     assert.ok(v.east.p[0]>10.5&&Math.abs(v.east.p[1]-10.5)<1e-8);
+     assert.ok(v.north.p[1]>10.5&&Math.abs(v.north.p[0]-11.5)<1e-8);
+   });
+   await test('local and remote bodies face their current travel vector through real server turns',async()=>{
+     await go(a,48,42);const aid=await a.evaluate(()=>Online.id);await b.waitForFunction(id=>Online.remotes.has(id),aid);
+     const arm=async(page,kind,id)=>page.evaluate(({kind,id})=>{
+       const actor=kind==='local'?G.player:Online.remotes.get(id);window.motionFacingAudit=[];const until=performance.now()+9000;
+       const loop=()=>{const now=performance.now(),q=Online.sampleMotion(actor,now),q2=Online.sampleMotion(actor,now+2);Online.renderPosition(actor);
+         if(q.moving&&q2.moving&&q.i===q2.i&&Number.isFinite(q.face)){const dx=q2.p[0]-q.p[0],dy=q2.p[1]-q.p[1],d=Math.hypot(dx,dy);if(d>.00001){const dot=(dx*Math.sin(q.face)+dy*Math.cos(q.face))/d;if(dot<.999)motionFacingAudit.push({dx,dy,face:q.face,dot});}
+           if(Math.abs(angDiff(actor.netMoveFace,q.face))>.00001)motionFacingAudit.push({faceMismatch:[actor.netMoveFace,q.face]});}
+         if(performance.now()<until)requestAnimationFrame(loop);};requestAnimationFrame(loop);
+     },{kind,id});
+     await arm(a,'local',aid);await arm(b,'remote',aid);await a.evaluate(()=>cmdWalk(43,54));
+     await a.waitForFunction(()=>G.player.x===43&&G.player.y===54&&!G.player.path.length,{},{timeout:18000});await delay(900);
+     assert.deepEqual(await a.evaluate(()=>motionFacingAudit),[]);assert.deepEqual(await b.evaluate(()=>motionFacingAudit),[]);
+   });
    await test('rapid retargeting is latest-command-wins rather than speed boosts or queued old routes',async()=>{
      await a.evaluate(()=>{for(const [x,y]of [[43,54],[54,42],[43,42],[54,54],[48,42]])cmdWalk(x,y);});
      await a.waitForFunction(()=>G.player.x===48&&G.player.y===42&&!G.player.path.length,{},{timeout:12000});

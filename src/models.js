@@ -67,8 +67,9 @@ function drawWeapon(m, model, item) {
 /* --- pose / animation --- */
 function poseFor(a, now, mb, ph) {
   const p = { rArm: -0.28, rArmZ: -0.05, lArm: 0.05, lArmZ: 0.05, lLeg: 0, rLeg: 0, bob: 0, lean: 0, fwd: 0, twist: 0, down: 0, fall: 0 };
-  const sw = Math.sin(ph) * 0.75 * mb;
-  p.lLeg = sw; p.rLeg = -sw; p.rArm += sw * 0.7; p.lArm += -sw * 0.8; p.bob = Math.abs(Math.cos(ph)) * 0.035 * mb;
+  const netRun=typeof Online!=='undefined'&&Online.active&&(a.isPlayer||a.onlineRemote)&&a.netRunSegment;
+  const sw=Math.sin(ph)*(netRun?.92:.75)*mb;
+  p.lLeg=sw;p.rLeg=-sw;p.rArm+=sw*(netRun?.82:.7);p.lArm+=-sw*(netRun?.9:.8);p.bob=Math.abs(Math.cos(ph))*(netRun?.045:.035)*mb;
   const w = a.eq.weapon ? ITEMS[a.eq.weapon.id] : null;
   if (mb < 0.1) p.bob = Math.sin(now / 520 + a.id) * 0.006;
   const an = a.anim;
@@ -92,9 +93,19 @@ function poseFor(a, now, mb, ph) {
 function drawActor(a, frac, dt, cam) {
   const now = G.now; const rp = renderPos(a, frac); const gx = rp[0], gy = rp[1];
   const gh = groundH(gx, gy);
-  let d = angDiff(a.faceR, a.face); const mt = dt * 8; a.faceR += clamp(d, -mt, mt);
-  const targetMB = ((typeof Online!=='undefined'&&Online.active&&(a.isPlayer||a.onlineRemote)?Online.isMoving(a):a.seg.length>0)&&!a.dead)?1:0; a.mb = a.mb === undefined ? 0 : a.mb; a.mb += clamp(targetMB - a.mb, -dt * 9, dt * 9);
-  a.walkPh += dt * (a.seg.length > 1 ? 15 : 9.5) * (a.mb > 0.05 ? 1 : 0);
+  const netActor=typeof Online!=='undefined'&&Online.active&&(a.isPlayer||a.onlineRemote),netMoving=netActor&&Online.isMoving(a);
+  if(netMoving&&Number.isFinite(a.netMoveFace)){
+    // Classic tile locomotion: orientation changes at the tile-segment boundary,
+    // before translation along that segment. Never ease facing behind the feet.
+    a.face=a.netMoveFace;a.faceR=a.netMoveFace;
+  }else{
+    let d=angDiff(a.faceR,a.face),mt=dt*(netActor?12:8);a.faceR+=clamp(d,-mt,mt);
+  }
+  const targetMB=((netActor?netMoving:a.seg.length>0)&&!a.dead)?1:0;a.mb=a.mb===undefined?0:a.mb;
+  if(netActor)a.mb=targetMB;else a.mb+=clamp(targetMB-a.mb,-dt*9,dt*9);
+  const runStride=netActor?a.netRunSegment:a.seg.length>1;
+  if(netActor&&Number.isFinite(a.netStepPhase))a.walkPh=a.netStepPhase*Math.PI;
+  else a.walkPh+=dt*(runStride?15:9.5)*(a.mb>0.05?1:0);
   const p = poseFor(a, now, a.mb, a.walkPh);
   let body = M4.mul(M4.trans(gx, gh + p.bob - p.down, -gy), M4.rotY(Math.PI - a.faceR));
   if (p.fwd) body = M4.mul(body, M4.trans(0, 0, p.fwd));
