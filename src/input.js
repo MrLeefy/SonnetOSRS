@@ -2,7 +2,14 @@
 /* ==========================================================================
    input.js  -  mouse/keyboard, context menus, player commands, dialogues
    ========================================================================== */
-const INP = { keys: {}, mmb: false, mmbX: 0, cam: null, canvas: null };
+const INP = {
+  keys: {}, mmb: false, mmbX: 0, cam: null, canvas: null,
+  touch: {
+    points: new Map(), worldGesture: false, primary: null,
+    startX: 0, startY: 0, lastX: 0, lastY: 0,
+    moved: false, longFired: false, longTimer: null, pinchDist: 0
+  }
+};
 const NAMECOL = { npc: 'ffff00', item: 'ff9040', obj: '00ffff', player: 'ffffff' };
 function col(c, s) { return '<col=' + c + '>' + s + '</col>'; }
 function playerTag(a) {
@@ -203,6 +210,130 @@ function setBotCount(n) {
 /* ---------------- mouse handling ---------------- */
 function clientPos(e) {
   const r = INP.canvas.getBoundingClientRect(); return { x: Math.floor((e.clientX - r.left) * W / r.width), y: Math.floor((e.clientY - r.top) * H / r.height) };
+}
+
+function touchEventAt(clientX, clientY, button) {
+  return { clientX, clientY, button: button || 0, preventDefault() { } };
+}
+function clearTouchLongPress() {
+  const t = INP.touch;
+  if (t.longTimer) { clearTimeout(t.longTimer); t.longTimer = null; }
+}
+function resetTouchGesture() {
+  const t = INP.touch;
+  clearTouchLongPress();
+  t.worldGesture = false; t.primary = null; t.moved = false; t.longFired = false; t.pinchDist = 0;
+}
+function touchPointDistance() {
+  const pts = Array.from(INP.touch.points.values());
+  if (pts.length < 2) return 0;
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+/*
+ * Touch interaction for the 3D viewport:
+ *   tap        -> normal left click
+ *   drag       -> rotate / tilt camera
+ *   pinch      -> zoom camera
+ *   long press -> classic right-click context menu
+ *
+ * UI panels keep their existing press/drag behavior so inventory dragging,
+ * prayers, spells, minimap taps, etc. continue to use the desktop code path.
+ */
+function onPointerDown(e) {
+  if (e.pointerType !== 'touch') { onDown(e); return; }
+  e.preventDefault();
+  if (App.mode !== 'game') { onDown(e); return; }
+
+  const t = INP.touch, p = clientPos(e);
+  UI.mouse = p;
+  t.points.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  const inWorld = inRect(p.x, p.y, { x: VX, y: VY, w: VW, h: VH });
+  if (t.points.size === 1 && inWorld) {
+    t.worldGesture = true; t.primary = e.pointerId;
+    t.startX = t.lastX = e.clientX; t.startY = t.lastY = e.clientY;
+    t.moved = false; t.longFired = false; t.pinchDist = 0;
+    clearTouchLongPress();
+    t.longTimer = setTimeout(() => {
+      if (!t.worldGesture || t.moved || t.points.size !== 1 || !t.points.has(t.primary)) return;
+      const pt = t.points.get(t.primary);
+      t.longFired = true;
+      onDown(touchEventAt(pt.x, pt.y, 2));
+    }, 480);
+    try { if (INP.canvas.setPointerCapture) INP.canvas.setPointerCapture(e.pointerId); } catch (_) { }
+    return;
+  }
+
+  if (t.worldGesture && t.points.size >= 2) {
+    clearTouchLongPress();
+    t.moved = true;
+    t.pinchDist = touchPointDistance();
+    return;
+  }
+
+  // Non-world UI keeps the existing click/drag path.
+  onDown(e);
+}
+function onPointerMove(e) {
+  if (e.pointerType !== 'touch') { onMove(e); return; }
+  const t = INP.touch, old = t.points.get(e.pointerId);
+  if (!old) { onMove(e); return; }
+  t.points.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  UI.mouse = clientPos(e);
+
+  if (!t.worldGesture || App.mode !== 'game') { onMove(e); return; }
+  e.preventDefault();
+
+  if (t.points.size >= 2) {
+    const d = touchPointDistance();
+    if (t.pinchDist > 0) INP.cam.dist = clamp(INP.cam.dist - (d - t.pinchDist) * 0.025, 8, 26);
+    t.pinchDist = d; t.moved = true; clearTouchLongPress();
+    return;
+  }
+
+  if (e.pointerId === t.primary) {
+    const total = Math.hypot(e.clientX - t.startX, e.clientY - t.startY);
+    if (total > 7) { t.moved = true; clearTouchLongPress(); }
+    if (t.moved) {
+      INP.cam.yaw += (e.clientX - t.lastX) * 0.006;
+      INP.cam.pitch = clamp(INP.cam.pitch + (e.clientY - t.lastY) * 0.004, 0.25, 1.35);
+    }
+    t.lastX = e.clientX; t.lastY = e.clientY;
+  }
+}
+function onPointerUp(e) {
+  if (e.pointerType !== 'touch') { onUp(e); return; }
+  const t = INP.touch, wasTracked = t.points.has(e.pointerId);
+  if (!wasTracked) { onUp(e); return; }
+
+  const wasWorld = t.worldGesture;
+  if (wasWorld) {
+    e.preventDefault();
+    clearTouchLongPress();
+    const isPrimary = e.pointerId === t.primary;
+    if (isPrimary && t.points.size === 1 && !t.moved && !t.longFired) {
+      const ev = touchEventAt(e.clientX, e.clientY, 0);
+      onDown(ev); onUp(ev);
+    }
+    t.points.delete(e.pointerId);
+
+    if (!t.points.size) resetTouchGesture();
+    else {
+      const [id, pt] = t.points.entries().next().value;
+      t.primary = id; t.startX = t.lastX = pt.x; t.startY = t.lastY = pt.y;
+      t.pinchDist = 0; t.moved = true;
+    }
+    return;
+  }
+
+  t.points.delete(e.pointerId);
+  onUp(e);
+  if (!t.points.size) resetTouchGesture();
+}
+function onPointerCancel(e) {
+  if (e.pointerType !== 'touch') { onUp(e); return; }
+  INP.touch.points.delete(e.pointerId);
+  if (!INP.touch.points.size) resetTouchGesture();
 }
 function chatClick(mx, my) {
   for (let i = 0; i < 6; i++) { const bx = 5 + i * 56; if (mx >= bx && mx < bx + 54 && my >= 482 && my < 502) { if (i < 3) UI.chatTab = i; return true; } }

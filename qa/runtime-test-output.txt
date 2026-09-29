@@ -1,0 +1,66 @@
+PASS non-stack insertion is atomic when inventory is full
+PASS all invalid quantities are rejected
+PASS unknown and prototype item names are rejected
+PASS stack overflow preserves the previous amount
+PASS stack merges into a completely full inventory
+PASS remove is all-or-nothing
+PASS potions preserve their doses and reject impossible doses
+PASS two-handed equip cannot lose gear with 28 full slots
+PASS two-handed equip succeeds with room for both displaced items
+PASS equipping shield returns the two-handed weapon once
+PASS ammo equip overflow rolls back
+PASS unequip with full bag cannot lose equipment
+PASS unequipping ammo can merge into an existing full-bag stack
+PASS invalid consume actions do not destroy gear
+PASS dead characters cannot consume or equip
+PASS stale context menu cannot drop a replacement item
+PASS invalid prayer IDs are ignored
+PASS invalid combat styles fall back safely
+PASS tile lookup rejects invalid coordinates
+PASS diagonal movement cannot cut a blocked corner
+PASS movement cannot teleport through injected paths
+PASS pathfinding invalid start returns null
+PASS BFS paths obey adjacency and obstacles
+PASS pathfinding stamp rollover is safe
+PASS line of sight blocks diagonal corner shots
+PASS delayed hits cannot damage a new actor life
+PASS removed actors cannot deliver queued damage
+PASS spawn protection is enforced at hit resolution
+PASS attacking forfeits spawn protection
+PASS single-arrow ranged special cannot create a second projectile
+PASS blood projectiles cannot revive a dead caster
+PASS kill accounting is idempotent
+PASS bank deposit preserves 2-dose and 4-dose potions separately
+PASS bank withdrawal keeps potion doses
+PASS full-bag withdrawal rolls back the bank
+PASS full-bank deposit is atomic
+PASS banking is denied remotely and during combat
+PASS XP thresholds roundtrip every supported level
+PASS expedition provides nodes, enemies and a valid starter profile
+PASS safe camp rejects combat both ways
+PASS gathering grants an item and XP after four ticks
+PASS gathering stops without rewards on a full inventory
+PASS walking cancels gathering
+PASS depleted nodes recover on their timer
+PASS crafting missing ingredients changes nothing
+PASS smithing consumes the complete recipe and grants output
+PASS contract rewards cannot be claimed twice
+PASS full inventory leaves a completed contract unclaimed
+PASS merchant refuses invented pricing
+PASS boss telegraph resolves once and can be dodged
+PASS boss telegraph cannot survive a new source lifetime
+PASS expedition respawn keeps carried gear and clears combat state
+PASS profile roundtrip preserves items, bank and progression
+PASS invalid profile item is rejected before changing current state
+PASS XP/stat mismatches are rejected
+PASS foreign mode imports are refused
+PASS future save versions are refused without silent downgrade
+PASS valid previous backup recovers a corrupt main save
+PASS fully corrupt saves are preserved and autosave is blocked
+PASS unavailable localStorage does not throw out of save
+PASS invalid inventory length and potion doses are rejected
+PASS dynamic vertex packing reuses capacity
+PASS render interpolation reaches the exact endpoint
+PASS camera projection and picking remain aligned at wide aspect
+PASS PvM kills do not inflate Arena kill streak records
+RUNTIME_TESTS_PASSED=65

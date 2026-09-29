@@ -1,0 +1,31 @@
+PASS desktop expedition boots the existing renderer and full world
+PASS all gathering stations and monster homes are reachable in the actual map
+PASS welcome screen accepts a profile without asking for a password
+PASS opening a modal pauses simulation and animation time
+PASS native settings inputs do not leak keystrokes into game chat
+PASS gathering uses the normal world click, path and tick loop
+PASS native bank deposits and withdraws an actual inventory item
+PASS forge UI completes a real recipe and awards XP
+PASS contract reward UI records exactly one claim
+PASS save and page reload retain equipment, bank, XP and claims
+PASS Arena stays separate from Expedition and accepts bots zero
+PASS classic mouse inventory click and middle-mouse orbit still work
+PASS blur releases held camera keys
+PASS render quality changes physical pixels without changing hit-test space
+PASS 1,200 Arena simulation ticks preserve actor, inventory and queue invariants
+PASS 900 Expedition ticks keep leashes, boss respawn and save validation healthy
+PASS portrait touch layout keeps world and inventory on screen
+PASS native mobile bag/equipment/prayer tabs select the original panels
+PASS genuine touchscreen inventory tap consumes food exactly once
+PASS pointer cancellation cannot eat a held inventory item
+PASS inventory touch-drag rearranges without equipping or consuming
+PASS long-press opens a tappable menu without activating the item
+PASS real two-finger pinch changes zoom but issues no walk command
+PASS one-finger world drag rotates the camera without walking
+PASS a second finger cannot accidentally click a combat or item panel
+PASS reduced motion suppresses added particles
+PASS landscape touch layout retains visible world and inventory
+PASS a small phone viewport does not clip the right-hand inventory
+PASS mode switches remove old expedition collision and actors cleanly
+PASS WebGL context loss saves and presents a recovery action
+BROWSER_TESTS_PASSED=30
