@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — World 1 residents, combat presentation and exact tile facing
+
+- Online movement samples position and facing from the same authoritative tile segment; eight-direction turns happen at tile boundaries before translation.
+- World 1 starts with 20 clearly identifiable simulated residents: ten social players inside the GE safe area and ten PvP residents outside.
+- Simulated residents use normal player models and are marked as simulated in Examine/chat metadata rather than being presented as real humans.
+- Server snapshots carry loadout, weapon, style, spell, overhead prayer, spec energy and combat level for online actors.
+- Added ranged/magic attack ranges and line-of-sight pathing, weapon attack speeds, server-owned eating, protection-prayer reduction, ice freezes and weapon special state.
+- Added attack-visual events so ranged bolts, magic projectiles, melee animations and special effects occur at attack timing instead of only showing a late hitsplat.
+- Added crowd QA that boots the real Rust server with residents enabled and verifies the 10-safe/10-PvP split, unique residents, simulated chat, combat visuals, finite rendering and zero online movement errors.
+
 ## 0.5.2 — Tile-locked online locomotion
 
 - Replaced the online renderer's catch-up interpolation with a queued sequence of exact server tile segments. Walk segments remain 600 ms; two-tile run ticks render as two 300 ms segments.

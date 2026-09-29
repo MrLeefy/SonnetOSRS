@@ -125,7 +125,94 @@ impl Collision {
     pub fn melee_clear(&self, a: Tile, b: Tile) -> bool {
         let dx = b.x - a.x;
         let dy = b.y - a.y;
-        (dx == 0 && dy == 0) || self.can_step(a.x, a.y, dx, dy)
+        (dx == 0 && dy == 0) || (dx.abs() <= 1 && dy.abs() <= 1 && self.can_step(a.x, a.y, dx, dy))
+    }
+    pub fn has_los(&self, a: Tile, b: Tile) -> bool {
+        let mut x = a.x;
+        let mut y = a.y;
+        let dx = (b.x - a.x).abs();
+        let sx = if a.x < b.x { 1 } else { -1 };
+        let dy = -(b.y - a.y).abs();
+        let sy = if a.y < b.y { 1 } else { -1 };
+        let mut err = dx + dy;
+        loop {
+            if x == b.x && y == b.y {
+                return true;
+            }
+            let e2 = 2 * err;
+            if e2 >= dy {
+                err += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                err += dx;
+                y += sy;
+            }
+            if x == b.x && y == b.y {
+                return true;
+            }
+            if self.blocked(x, y) {
+                return false;
+            }
+        }
+    }
+    pub fn path_to_range(&self, from: Tile, target: Tile, range: i32) -> Option<VecDeque<Tile>> {
+        if self.blocked(from.x, from.y)
+            || target.x < 0
+            || target.y < 0
+            || target.x >= self.n as i32
+            || target.y >= self.n as i32
+        {
+            return None;
+        }
+        let goal = |p: Tile| {
+            let d = (p.x - target.x).abs().max((p.y - target.y).abs());
+            d >= 1 && d <= range && self.has_los(p, target)
+        };
+        if goal(from) {
+            return Some(VecDeque::new());
+        }
+        let idx = |p: Tile| p.y as usize * self.n + p.x as usize;
+        let start = idx(from);
+        let mut parents = vec![usize::MAX; self.n * self.n];
+        parents[start] = start;
+        let mut q = VecDeque::from([from]);
+        let mut found = None;
+        const DIRS: [(i32, i32); 8] = [
+            (0, -1),
+            (1, 0),
+            (0, 1),
+            (-1, 0),
+            (1, -1),
+            (1, 1),
+            (-1, 1),
+            (-1, -1),
+        ];
+        'search: while let Some(p) = q.pop_front() {
+            for (dx, dy) in DIRS {
+                if !self.can_step(p.x, p.y, dx, dy) {
+                    continue;
+                }
+                let n = Tile::new(p.x + dx, p.y + dy);
+                let i = idx(n);
+                if parents[i] != usize::MAX {
+                    continue;
+                }
+                parents[i] = idx(p);
+                if goal(n) {
+                    found = Some(i);
+                    break 'search;
+                }
+                q.push_back(n);
+            }
+        }
+        let mut i = found?;
+        let mut route = VecDeque::new();
+        while i != start {
+            route.push_front(Tile::new((i % self.n) as i32, (i / self.n) as i32));
+            i = parents[i];
+        }
+        Some(route)
     }
 }
 #[cfg(test)]

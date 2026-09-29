@@ -10,7 +10,7 @@ async function test(name,fn){await fn();results.push(name);console.log('PASS '+n
 (async()=>{
  const webPort=await port(),rustPort=await port(),origin='http://127.0.0.1:'+webPort,ws='ws://127.0.0.1:'+rustPort+'/ws',state=fs.mkdtempSync(path.join(os.tmpdir(),'oldskool-repair-'));
  const binary=process.env.OLDSKOOL_SERVER_BIN||path.join(root,'server/target/release/oldskool-server');
- backend=cp.spawn(binary,[],{env:{...process.env,SONNET_BIND:'127.0.0.1:'+rustPort,SONNET_STATE:path.join(state,'profiles.json'),OLDSKOOL_COLLISION:path.join(root,'server/data/world_collision.json'),OLDSKOOL_ALLOWED_ORIGINS:origin,RUST_LOG:'error'},stdio:['ignore','ignore','pipe']});
+ backend=cp.spawn(binary,[],{env:{...process.env,SONNET_BIND:'127.0.0.1:'+rustPort,SONNET_STATE:path.join(state,'profiles.json'),OLDSKOOL_COLLISION:path.join(root,'server/data/world_collision.json'),OLDSKOOL_ALLOWED_ORIGINS:origin,OLDSKOOL_RESIDENTS:'0',RUST_LOG:'error'},stdio:['ignore','ignore','pipe']});
  backend.on('error',e=>{console.error(e);process.exitCode=1;});let stderr='';backend.stderr.on('data',b=>stderr+=b);
  server=http.createServer((req,res)=>{res.setHeader('content-type','text/html');res.end(fs.readFileSync(path.join(root,'dist/index.html')));});await new Promise(r=>server.listen(webPort,'127.0.0.1',r));
  browser=await chromium.launch({headless:true});ctx1=await browser.newContext({...devices['Pixel 7'],viewport:{width:412,height:839},deviceScaleFactor:1});ctx2=await browser.newContext({viewport:{width:1440,height:800}});
