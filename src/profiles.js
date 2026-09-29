@@ -93,6 +93,11 @@ const Profiles = (() => {
     if(typeof Polish!=='undefined')Polish.snapCamera=true;
   };
   P.save = (notify=false) => {
+    if(typeof Online!=='undefined'&&Online.active){
+      P.status='World 1 progress is stored by the OLDSKOOL server';
+      if(notify&&G.player)gameMsg(P.status+'.');
+      return true;
+    }
     if(!G.player||P.blocked)return false;
     try{
       const raw=JSON.stringify(P.capture()),s=store(),previous=s.getItem(key());

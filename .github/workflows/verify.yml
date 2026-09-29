@@ -1,7 +1,7 @@
 name: Verify game
 on:
   push:
-    branches: [main, leefy-foundation]
+    branches: [main, leefy-foundation, oldskool-online]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -26,6 +26,11 @@ jobs:
         shell: bash
         run: |
           if [ -f package-lock.json ]; then echo 'ready=true' >> "$GITHUB_OUTPUT"; else echo 'ready=false' >> "$GITHUB_OUTPUT"; fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.source.outputs.ready == 'true'
+      - name: Verify Rust authoritative server
+        if: steps.source.outputs.ready == 'true'
+        run: cargo test --manifest-path server/Cargo.toml && cargo build --release --manifest-path server/Cargo.toml
       - name: Check and build original foundation
         if: steps.source.outputs.ready != 'true'
         run: |
@@ -39,6 +44,9 @@ jobs:
         run: npx playwright install --with-deps chromium
       - if: steps.source.outputs.ready == 'true'
         run: npm run test:browser
+      - name: Two-client Rust multiplayer integration
+        if: steps.source.outputs.ready == 'true'
+        run: npm run test:online
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -140,6 +140,7 @@ const Polish = (() => {
     DYN.clear();BLD.clear();SHADOW.clear();
     for(const a of G.actors)if(dist2(a.x,a.y,G.player.x,G.player.y)<42){drawActor(a,frac,dt,cam);shadow(a,frac);}
     drawGround();drawProjectiles();
+    if(typeof Online!=='undefined'&&Online.active)Online.drawBoundary(BLD);
     if(Expedition.active){
       for(const o of Expedition.nodes)if(dist2(o.x,o.y,G.player.x,G.player.y)<32)drawNode(o);
       for(const w of Expedition.warnings){const pulse=settings().reduceMotion?1:.75+.25*Math.sin(G.now/80);ring(BLD,w.x,w.y,w.radius,.13,w.enraged?0xffc46d:0xe99b76,Math.floor(210*pulse));}

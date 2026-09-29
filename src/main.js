@@ -2,7 +2,7 @@
 /* Boot, bounded fixed-step simulation, and lifecycle. No pretend network login. */
 const App={mode:'load',progress:0,status:'Preparing the world',ctx:null,R:null,cam:null,glCanvas:null,
   scale:1,prev:0,contextLost:false,manualPause:false,error:null,
-  logout(){if(!Profiles.save()&&!Profiles.blocked&&!window.confirm('The save failed. Leave the current session anyway?'))return;this.mode='login';Controls.cancelAll();Client.open('welcome');},
+  logout(){if(!Profiles.save()&&!Profiles.blocked&&!window.confirm('The save failed. Leave the current session anyway?'))return;if(typeof Online!=='undefined')Online.stop(true);this.mode='login';Controls.cancelAll();Client.open('welcome');},
   onDown(){},onKey(){}};
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 /* extra player loadouts (bank restock) */
@@ -21,6 +21,8 @@ LOADOUTS.pmage = {
 
 
 function startGame(name,mode='arena',options={}){
+  if(mode==='online'&&!options.onlineBootstrap){Online.start(name);return;}
+  if(typeof Online!=='undefined'&&Online.active&&!options.onlineBootstrap)Online.stop(true);
   if(App.mode==='game'&&!options.skipSave){
     const ok=Profiles.save();
     if(!ok&&!window.confirm('Your current profile could not be saved. Continue anyway? Export a backup to keep it.'))return;
@@ -32,23 +34,23 @@ function startGame(name,mode='arena',options={}){
   Profiles.select(name,mode);createPlayer();G.player.name=Profiles.name;G.player.loadoutKind='main';createClerks();UI.botCount=0;
   Expedition.begin(Profiles.mode);
   if(!Expedition.active)setBotCount(6);
-  const saved=Profiles.read();if(saved)Profiles.apply(saved);
+  const saved=options.onlineBootstrap?null:Profiles.read();if(saved)Profiles.apply(saved);
   UI.tab=3;UI.menu=null;UI.drag=null;UI.chatInput='';UI.bonusWin=false;UI.mouse={x:-100,y:-100};
   G.player.protectUntil=G.tick+25;App.mode='game';App.manualPause=false;App.prev=performance.now();
   Polish.snapCamera=true;Polish.particles.length=0;App.cam._visibleDist=App.cam.dist;
   Client.close();Client.layout();
-  gameMsg('Welcome, '+Profiles.name+'. '+(Expedition.active?'Your expedition begins at the safe camp.':'You are in the offline PvP practice arena.'));
-  gameMsg(Expedition.active?'Journal marks gathering spots and enemy camps. Bank your supplies; craft at the forge.':'Free combat kits are available at bank booths. Bots and specials use the 600 ms game tick.');
+  if(!options.onlineBootstrap){gameMsg('Welcome, '+Profiles.name+'. '+(Expedition.active?'Your expedition begins at the safe camp.':'You are in the offline PvP practice arena.'));
+  gameMsg(Expedition.active?'Journal marks gathering spots and enemy camps. Bank your supplies; craft at the forge.':'Free combat kits are available at bank booths. Bots and specials use the 600 ms game tick.');}
   if(Profiles.blocked)gameMsg(Profiles.status);
 }
 function respawnNow(a){respawn(a);}
 function fit(){Client.layout();}
 function drawLoading(ctx){
-  ctx.fillStyle='#14211b';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#211a10';ctx.fillRect(0,0,W,H);
   if(!Fonts.b12)return;
-  drawTextC(ctx,'q16','SONNET / LEEFY',W/2,210,0xe9d099,true);
-  drawTextC(ctx,'p11',App.status,W/2,246,0xc7d7c8,true);
-  fillR(ctx,W/2-150,268,300,7,0x344b3b);fillR(ctx,W/2-150,268,Math.round(App.progress*300),7,0xb7ca94);
+  drawTextC(ctx,'q16','OLDSKOOL',W/2,210,0xe9d099,true);
+  drawTextC(ctx,'p11',App.status,W/2,246,0xcab98b,true);
+  fillR(ctx,W/2-150,268,300,7,0x3c3221);frameR(ctx,W/2-150,268,300,7,0x7f704c);fillR(ctx,W/2-149,269,Math.round(App.progress*298),5,0xb99b54);
 }
 function fatal(err){
   if(App.error)return;App.error=err;console.error(err);App.mode='error';Controls.cancelAll();

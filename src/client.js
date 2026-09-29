@@ -22,6 +22,7 @@ const Client = (() => {
     #client-panel h1{font-size:29px;font-weight:normal;color:#e8cf8c;text-align:center;text-shadow:2px 2px #100b04;margin:4px 45px 20px}#client-panel h2{font-size:18px;font-weight:normal;margin:15px 0 10px;color:#f0d691;text-shadow:1px 1px #000}#client-panel p{line-height:1.55;margin:10px 0;color:#d4c59f}.client-close{position:absolute;right:10px;top:8px;min-width:36px;min-height:32px!important;background:linear-gradient(#863e2e,#4e1e14);padding:2px 10px}
     .client-lead{text-align:center;font-size:12px;color:#ae9b6b;letter-spacing:1.5px}.client-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}.client-card{background:var(--paper-texture,#c5b080);border:3px ridge #81704c;padding:14px;border-radius:0;box-shadow:inset 0 0 14px #49311466;color:#332513}.client-card h2{color:#462a12!important;text-shadow:none!important;margin-top:0!important}.client-card small{display:block;color:#49351c;margin:7px 0 12px;line-height:1.5;font-size:13px}.client-card progress{width:100%;height:12px;accent-color:#807037}.client-card label{display:block;color:#49351c;margin:10px 0 5px;font-size:14px}.client-controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.client-help{font-size:13px;color:#bbac86!important}
     .client-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}.client-items button{font-size:12px;min-height:82px;padding:5px;overflow-wrap:anywhere;background:var(--brown-texture,#3e3529)}.client-items canvas{display:block;position:static!important;width:32px;height:32px;margin:0 auto 6px;image-rendering:pixelated}.client-message{padding:10px;border:2px groove #8d7b53;background:#2a2115;color:#e1c68e;font-size:14px;margin:12px 0}
+    .oldskool-logo{text-align:center;font-family:Georgia,'Times New Roman',serif;font-size:clamp(34px,7vw,74px);font-weight:bold;letter-spacing:-3px;color:#d8c081;text-shadow:0 3px #23170b,2px 0 #5a4524,-2px 0 #5a4524,0 -2px #f0dfaa;margin:4px 0 3px}.oldskool-sub{text-align:center;color:#9e8d68;font-size:12px;letter-spacing:4px;margin-bottom:18px}.world-online{border-color:#9d8445!important;box-shadow:inset 0 0 18px #6c4a1d55}.world-status{display:flex;align-items:center;gap:8px;justify-content:center;color:#d7c58d;font-size:13px;margin:6px 0 14px}.world-dot{width:9px;height:9px;border-radius:50%;background:#8d2b22;box-shadow:0 0 5px #000}.world-dot.online{background:#63a33f;box-shadow:0 0 6px #89d65b}
     #client-context{position:fixed;z-index:35;display:none;max-width:calc(100vw - 12px);width:max-content;min-width:160px;max-height:65dvh;overflow:auto;background:#5d5447;border:2px solid #100d09;box-shadow:0 3px 12px #0008;padding:1px;color:#fff;font-size:14px;scrollbar-color:#a39168 #2d2519}#client-context strong{display:block;background:#100d09;color:#c4b79a;padding:5px 8px;font-family:Georgia,serif;font-weight:normal}#client-context button{display:block;width:100%;text-align:left;border:0;background:transparent;box-shadow:none;border-radius:0;padding:4px 9px;color:#fff;min-height:30px;font-family:Georgia,serif;white-space:nowrap}#client-context button:hover{color:#ffef60;background:#746856}
     #client-dialog{position:fixed;z-index:34;display:none;background:var(--paper-texture,#c9b586);color:#2e2011;border:6px ridge #76674b;padding:12px;max-height:60dvh;overflow:auto}#client-dialog strong{display:block;text-align:center;font-weight:normal;color:#623b15;font-size:18px}#client-dialog p{font-size:15px;text-align:center;margin:6px 0}#client-dialog button{display:block;width:100%;box-shadow:none;border:0;border-radius:0;min-height:32px;background:none;color:#25248b;text-shadow:none;margin:2px 0;padding:4px}
     #classic-tooltip{position:fixed;pointer-events:none;z-index:36;display:none;max-width:min(300px,calc(100vw - 16px));overflow-wrap:anywhere;padding:8px;color:#211809;background:#c8b88a;border:1px solid #130e07;font-size:14px}
@@ -144,6 +145,10 @@ const Client = (() => {
     for(const other of G.actors){if(other===a||other.dead)continue;const s=mapPoint(other.x+.5,other.y+.5);if(!s.inside)continue;p.fillStyle='#211a0c';p.fillRect(s.x-2,s.y-2,4,4);p.fillStyle=other.npc?'#fff369':other.monster?'#eabd6b':'#f4f0d6';p.fillRect(s.x-1,s.y-1,3,3);}
     for(const g of G.ground){const s=mapPoint(g.x+.5,g.y+.5);if(s.inside){p.fillStyle='#ce4530';p.fillRect(s.x-1,s.y-1,2,2);}}
     if(Expedition.waypoint){const s=mapPoint(Expedition.waypoint.x+.5,Expedition.waypoint.y+.5);if(s.inside){p.strokeStyle='#ffe86e';p.lineWidth=2;p.beginPath();p.arc(s.x,s.y,5,0,TAU);p.stroke();}}
+    if(typeof Online!=='undefined'&&Online.active){
+      const z=Online.safeZone,a=z.apothem,k=Math.SQRT2-1,pts=[[a,k*a],[k*a,a],[-k*a,a],[-a,k*a],[-a,-k*a],[-k*a,-a],[k*a,-a],[a,-k*a]].map(([dx,dy])=>mapPoint(z.center_x+dx,z.center_y+dy));
+      p.strokeStyle=Online.zone==='pvp'?'#d74a34':'#e6d186';p.lineWidth=1.5;p.beginPath();pts.forEach((q,i)=>i?p.lineTo(q.x,q.y):p.moveTo(q.x,q.y));p.closePath();p.stroke();
+    }
     p.fillStyle='#fff';p.fillRect(122,82,4,4);p.restore();Classic.ring(p,124,84,81,8);
     // Compass and resource orbs are stateful; numeric plaques do not cover glyphs.
     p.fillStyle='#b8ab81';p.beginPath();p.arc(27,23,19,0,TAU);p.fill();Classic.ring(p,27,23,24,5);
@@ -212,7 +217,13 @@ const Client = (() => {
     if(UI.tab===3)C.drawInventory(p);else {const r=C.panelContent;p.drawImage(INP.canvas,PANEL.x,PANEL.y,PANEL.w,PANEL.h,r.x,r.y,r.w,r.h);}
     C.drawMap(p);L.tabs.forEach((r,i)=>{Classic.stone(p,r,UI.tab===i,C.hover===C.tabButtons[i][0].title);const sz=Math.round(Math.min(r.w*.75,r.h*.78,48));p.drawImage(Classic.icon(TAB_ID[i]),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);C.tabButtons[i][0].setAttribute('aria-pressed',String(UI.tab===i));});
     C.drawChat(p);
-    if(L.quick){Classic.text(p,Expedition.active?'Expedition':'Arena',L.quick.x+L.quick.w/2,L.quick.y+14,12,0xd3bf89,true,'center');for(const {key,r}of C.quickButtons){Classic.stone(p,r);const id=key==='Save'?'save':key==='Chat'?'chat':key==='Menu'?'menu':key==='Run'?'run':key==='Special'?'combat':'full',sz=Math.min(27,r.h-6);p.drawImage(key==='Eat'?itemIcon('cookedFish'):key==='Potion'?itemIcon('prayer'):Classic.icon(id),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);}}
+    if(typeof Online!=='undefined'&&Online.active){
+      const safe=Online.zone==='safe',bw=clamp(L.world.w*.12,84,132),badge={x:L.world.x+L.world.w-bw-10,y:L.world.y+9,w:bw,h:32};
+      Classic.stone(p,badge,!safe);p.drawImage(Classic.icon(safe?'bank':'combat'),badge.x+5,badge.y+4,24,24);
+      Classic.text(p,safe?'SAFE ZONE':'PVP ZONE',badge.x+34,badge.y+21,12,safe?0xb9e38f:0xff8b69,true);
+      Classic.text(p,Online.connected?'W1':'OFFLINE',badge.x+badge.w-7,badge.y+21,9,Online.connected?0x83dc68:0xd77b62,true,'right');
+    }
+    if(L.quick){Classic.text(p,Online.active?'World 1':Expedition.active?'Expedition':'Arena',L.quick.x+L.quick.w/2,L.quick.y+14,12,0xd3bf89,true,'center');for(const {key,r}of C.quickButtons){Classic.stone(p,r);const id=key==='Save'?'save':key==='Chat'?'chat':key==='Menu'?'menu':key==='Run'?'run':key==='Special'?'combat':'full',sz=Math.min(27,r.h-6);p.drawImage(key==='Eat'?itemIcon('cookedFish'):key==='Potion'?itemIcon('prayer'):Classic.icon(id),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);}}
     const action=C.hover||UI.hoverText;
     if(action&&!UI.menu){p.save();p.beginPath();p.rect(L.world.x+4,L.world.y+3,L.world.w-8,50);p.clip();Classic.text(p,action+(!C.hover&&UI.hoverMore?' / '+UI.hoverMore:''),L.world.x+7,L.world.y+clamp(C.width/90,14,21),clamp(C.width/90,13,19),0xffffff,true,'left',true);p.restore();}
     if(G.spellSel)Classic.text(p,'Cast '+SPELL_BY_ID[G.spellSel].name+' on...',L.world.x+7,L.world.y+40,14,0x8ebde8,true);
@@ -249,16 +260,24 @@ const Client = (() => {
   C.renderPanel=()=>{
     if(!C.panel)return;const root=C.root;root.replaceChildren();
     if(App.mode==='game')button('×',C.close,root).className='client-close';
-    el('div',{class:'client-lead',text:'SONNETOSRS - CLASSIC CLIENT'},root);
-    const titles={welcome:'Choose your adventure',menu:'Your local world',journal:'Expedition journal',skills:'Character progression',bank:'Camp bank',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
+    el('div',{class:'client-lead',text:'OLDSKOOL · CLASSIC WEBGL CLIENT'},root);
+    const titles={welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:'Camp bank',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
     el('h1',{text:titles[C.panel]||'SonnetOSRS'},root);
     if(C.panel==='welcome'||C.panel==='menu'){
-      el('p',{text:'The original PvP sandbox, plus a persistent gathering and PvM expedition. Everything runs locally. No RuneScape account or password is needed.'},root);
-      const label=el('label',{text:'Local profile name'},root);label.htmlFor='profile-name';const name=el('input',{id:'profile-name',value:Profiles.name,maxLength:12,placeholder:'Your name',autocomplete:'off'},root);
+      if(C.panel==='welcome'){root.querySelector('h1')?.remove();el('div',{class:'oldskool-logo',text:'OLDSKOOL'},root);el('div',{class:'oldskool-sub',text:'GRAND EXCHANGE · WORLD 1'},root);}
+      el('p',{text:'A classic WebGL Grand Exchange world. World 1 is multiplayer: the bank interior is protected and PvP begins outside the visible stone boundary. Arena and Expedition remain available as offline modes.'},root);
+      const status=el('div',{class:'world-status'},root),dot=el('span',{class:'world-dot'},status),statusText=el('span',{text:Online.status},status);
+      if(!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))Online.checkHealth().then(info=>{if(statusText.isConnected){statusText.textContent=Online.status;dot.classList.toggle('online',!!info);}});
+      else statusText.textContent='World 1 health check is skipped on local/offline builds';
+      const label=el('label',{text:'Character name'},root);label.htmlFor='profile-name';const name=el('input',{id:'profile-name',value:Profiles.name,maxLength:12,placeholder:'Character name',autocomplete:'off'},root);
       const cards=el('div',{class:'client-grid'},root);
-      for(const [mode,title,desc]of [['arena','Arena','Practice PvP against tactical bots. Free kits, specials, prayers and magic.'],['expedition','Expedition','Gather, cook, smith, fight, bank your loot and complete six contracts.']]){
-        const card=el('div',{class:'client-card'},cards);el('h2',{text:title},card);el('small',{text:desc},card);
-        const b=button('Play '+title,()=>startGame(name.value,mode),card);b.dataset.mode=mode;
+      for(const [mode,title,desc]of [
+        ['online','World 1 · Online PvP','Persistent Rust world. Safe inside the Grand Exchange; server-authoritative PvP outside the stone boundary.'],
+        ['arena','Arena · Offline','Practice against tactical bots with free kits, specials, prayers and magic.'],
+        ['expedition','Expedition · Offline','Gather, cook, smith, fight, bank loot and complete contracts.']
+      ]){
+        const card=el('div',{class:'client-card'+(mode==='online'?' world-online':'')},cards);el('h2',{text:title},card);el('small',{text:desc},card);
+        const b=button(mode==='online'?'Enter World 1':'Play '+title.replace(' · Offline',''),()=>startGame(name.value,mode),card);b.dataset.mode=mode;
       }
       el('h2',{text:'Display & comfort'},root);const settings=el('div',{class:'client-grid'},root);
       for(const [key,title,options]of [['quality','Render quality',['low','balanced','high']],['layout','Interface',['auto','classic','touch']]]){
@@ -278,7 +297,7 @@ const Client = (() => {
         button('Reset this profile',()=>{if(Profiles.reset())startGame(Profiles.name,Profiles.mode,{skipSave:true});},row);
       }
       el('div',{class:'client-message',text:Profiles.status},root);
-      el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause this offline simulation.'},root);
+      el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause local simulation; the online world continues on the server.'},root);
     }else if(C.panel==='journal'){
       if(!Expedition.active){el('p',{text:'Arena is the free-kit combat sandbox. Open Menu → Expedition for persistent gathering, crafting, enemies and contracts.'},root);}
       else{

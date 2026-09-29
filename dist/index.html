@@ -1,6 +1,7 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#342d21"><title>SonnetOSRS - Classic Client</title>
+<meta name="theme-color" content="#2b2419"><title>OLDSKOOL - Grand Exchange PvP</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%278%27 fill=%27%232b2419%27/%3E%3Cpath d=%27M15 49L45 13l6 6-30 36z%27 fill=%27%23d9d2b7%27 stroke=%27%236c5937%27 stroke-width=%273%27/%3E%3Cpath d=%27M11 42l11 11M37 18l9 9%27 stroke=%27%23b58437%27 stroke-width=%276%27/%3E%3C/svg%3E">
 <style>html,body{margin:0;width:100%;height:100%;background:#342d21;overflow:hidden;user-select:none}#wrap{position:absolute;left:0;top:0;transform-origin:0 0;width:765px;height:503px}canvas{position:absolute;image-rendering:pixelated}</style></head><body>
 <div id="wrap"><canvas id="gl" width="512" height="334" style="left:4px;top:4px;width:512px;height:334px"></canvas><canvas id="ui" width="765" height="503" style="left:0;top:0"></canvas></div>
 <script>
@@ -3232,6 +3233,7 @@ const Engine = (() => {
     old.togglePrayer(a, id, quiet); return true;
   };
   stepActor = a => {
+    if (a.onlineRemote) return;
     if (!a.npc && G.tick % 100 === 0) for (const id of Object.keys(a.attackedBy)) if (G.tick - a.attackedBy[id] > 120) delete a.attackedBy[id];
     if (a.monster && !a.dead && typeof Expedition !== 'undefined') Expedition.think(a);
     old.stepActor(a);
@@ -3239,6 +3241,7 @@ const Engine = (() => {
   gameTick = () => {
     old.gameTick();
     if (typeof Expedition !== 'undefined') Expedition.tick();
+    if (typeof Online !== 'undefined') Online.tick();
     // Bounded off-screen lifetimes, independent of the renderer.
     G.effects = G.effects.filter(e => G.now < e.t0 + e.dur).slice(-160);
     G.projs = G.projs.filter(p => G.now < p.t1 + 30 && G.actors.includes(p.tgt)).slice(-160);
@@ -3246,7 +3249,7 @@ const Engine = (() => {
   };
   cmdWalk = (x, y) => { if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdWalk(x, y); };
   cmdFollow = a => { if (!G.player || !alive(G.player) || !a) return; if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdFollow(a); };
-  cmdAttack = a => { if (!G.player || !alive(a) || a.npc) return; if (typeof Expedition !== 'undefined') { Expedition.cancelGather(); if (!Expedition.canFight(G.player, a)) return; } old.cmdAttack(a); };
+  cmdAttack = a => { if (!G.player || !alive(a) || a.npc) return; if (typeof Online !== 'undefined' && Online.active && a.onlineRemote) { Online.attack(a); return; } if (typeof Expedition !== 'undefined') { Expedition.cancelGather(); if (!Expedition.canFight(G.player, a)) return; } old.cmdAttack(a); };
   cmdJob = (x, y, near, run, label) => { if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdJob(x, y, near, run, label); };
   setBotCount = n => {
     n = Number.isFinite(Number(n)) ? clamp(Math.floor(Number(n)), 0, 14) : 0;
@@ -3265,7 +3268,11 @@ const Engine = (() => {
   openBank = obj => { if (typeof Client !== 'undefined') Client.open('bank'); else old.openBank(obj); };
   talkClerk = npc => { if (typeof Expedition !== 'undefined' && Expedition.active) { Client.open('journal'); return; } old.talkClerk(npc); };
   contextMenuFor = (mx, my) => {
-    const out = old.contextMenuFor(mx, my);
+    let out = old.contextMenuFor(mx, my);
+    if (typeof Online !== 'undefined' && Online.active && inRect(mx, my, {x:VX,y:VY,w:VW,h:VH})) {
+      const a = pickActor(mx - VX, my - VY);
+      if (a && a.onlineRemote && !Online.canAttack(a)) out = out.filter(e => !stripTags(e.text).startsWith('Attack '));
+    }
     if (typeof Expedition !== 'undefined' && Expedition.active && inRect(mx, my, {x:VX,y:VY,w:VW,h:VH})) {
       const obj = pickObject(mx - VX, my - VY, INP.cam);
       if (obj && obj.expedition) {
@@ -3670,6 +3677,11 @@ const Profiles = (() => {
     if(typeof Polish!=='undefined')Polish.snapCamera=true;
   };
   P.save = (notify=false) => {
+    if(typeof Online!=='undefined'&&Online.active){
+      P.status='World 1 progress is stored by the OLDSKOOL server';
+      if(notify&&G.player)gameMsg(P.status+'.');
+      return true;
+    }
     if(!G.player||P.blocked)return false;
     try{
       const raw=JSON.stringify(P.capture()),s=store(),previous=s.getItem(key());
@@ -3698,6 +3710,171 @@ const Profiles = (() => {
   P.key=key;P.cleanName=cleanName;
   return P;
 })();
+
+/* ---- network.js ---- */
+'use strict';
+/* OLDSKOOL online-world bridge.
+ * The browser predicts walking for responsiveness, but the Rust server owns
+ * accepted position, PvP eligibility, hit resolution, HP and respawn.
+ */
+const Online = (() => {
+  const O={
+    active:false,connected:false,connecting:false,id:null,ws:null,
+    endpoint:'wss://oldskool-api.129.146.39.132.sslip.io/ws',
+    healthEndpoint:'https://oldskool-api.129.146.39.132.sslip.io/health',
+    serverVersion:null,status:'Online world not connected',zone:'safe',
+    safeZone:{center_x:48,center_y:48,apothem:9,shape:'octagon'},
+    remotes:new Map(),lastX:null,lastY:null,lastPing:0,lastSnapshot:0,
+    reconnectTimer:null,manualClose:false,lastCombat:null,lastError:null
+  };
+  const tokenKey=name=>'oldskool.resume.'+String(name||'player').toLowerCase().replace(/[^a-z0-9_-]/g,'').slice(0,20);
+  const stableKit=id=>{
+    let h=2166136261;for(const c of String(id)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}
+    const pick=(arr,n)=>arr[Math.abs((h>>n)%arr.length)];
+    return {skin:pick(SKIN,0),hair:pick(HAIR,4),shirt:pick(SHIRT,8),pants:pick([0x3a3a2a,0x2a3a5a,0x5a3a2a,0x2a2a2a,0x4a4a5a],12),boots:0x3a2a1a,hairStyle:Math.abs(h)%3};
+  };
+  const zoneAt=(x,y)=>{
+    const z=O.safeZone||{center_x:48,center_y:48,apothem:9},dx=x-z.center_x,dy=y-z.center_y,k=Math.SQRT1_2;
+    const d=Math.max(Math.abs(dx),Math.abs(dy),Math.abs((dx+dy)*k),Math.abs((dx-dy)*k));
+    return d<=z.apothem?'safe':'pvp';
+  };
+  O.zoneAt=zoneAt;
+  O.canAttack=a=>O.active&&O.connected&&a&&a.onlineRemote&&O.zone==='pvp'&&(a.netZone||zoneAt(a.x,a.y))==='pvp';
+  O.checkHealth=async()=>{
+    try{
+      const c=new AbortController(),timer=setTimeout(()=>c.abort(),3000);
+      const r=await fetch(O.healthEndpoint,{cache:'no-store',signal:c.signal});clearTimeout(timer);
+      if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();
+      O.status='World online · '+j.players+' player'+(j.players===1?'':'s')+' · '+j.tick_ms+' ms tick';
+      O.serverVersion=j.version;return j;
+    }catch(_){O.status='Online world unavailable';return null;}
+  };
+  O.start=name=>{
+    O.stop(true);
+    startGame(name,'arena',{onlineBootstrap:true,skipSave:true});
+    setBotCount(0);
+    O.active=true;O.manualClose=false;O.status='Connecting to OLDSKOOL World 1…';
+    G.player.x=48;G.player.y=42;G.player.path.length=0;G.player.seg.length=0;G.player.protectUntil=0;
+    Profiles.status='OLDSKOOL online profile · local gear backup enabled';
+    gameMsg('Connecting to OLDSKOOL World 1…');
+    gameMsg('Grand Exchange interior is safe. PvP is enabled beyond the stone boundary.');
+    O.connect();
+  };
+  O.connect=()=>{
+    if(!O.active||O.connecting||O.connected)return;
+    O.connecting=true;O.status='Connecting to OLDSKOOL World 1…';
+    let ws;
+    try{ws=new WebSocket(O.endpoint);}catch(_){O.connecting=false;O.status='Could not open the online world';return;}
+    O.ws=ws;
+    ws.addEventListener('open',()=>{
+      if(ws!==O.ws)return;O.connecting=false;
+      let resume_token=null;try{resume_token=localStorage.getItem(tokenKey(G.player.name));}catch(_){}
+      ws.send(JSON.stringify({type:'hello',name:G.player.name,resume_token}));
+    });
+    ws.addEventListener('message',ev=>{if(ws===O.ws)O.handle(ev.data);});
+    ws.addEventListener('close',()=>{
+      if(ws!==O.ws)return;O.connected=false;O.connecting=false;O.id=null;O.ws=null;O.clearRemotes();
+      if(!O.active||O.manualClose)return;
+      O.status='Connection lost · retrying…';gameMsg('Connection to OLDSKOOL was lost. Reconnecting…');
+      clearTimeout(O.reconnectTimer);O.reconnectTimer=setTimeout(()=>O.connect(),1800);
+    });
+    ws.addEventListener('error',()=>{if(ws===O.ws)O.status='Online connection error';});
+  };
+  O.stop=silent=>{
+    O.manualClose=true;clearTimeout(O.reconnectTimer);O.reconnectTimer=null;
+    if(O.ws){try{O.ws.close(1000,'leaving world');}catch(_){}}
+    O.ws=null;O.connected=false;O.connecting=false;O.id=null;O.active=false;O.clearRemotes();
+    if(!silent)O.status='Online world not connected';
+  };
+  O.clearRemotes=()=>{
+    for(const a of O.remotes.values()){const i=G.actors.indexOf(a);if(i>=0)G.actors.splice(i,1);}
+    O.remotes.clear();
+  };
+  O.actorFor=p=>{
+    let a=O.remotes.get(p.id);
+    if(!a){
+      a=newActor({name:p.name,isBot:false,x:Math.round(p.x),y:Math.round(p.y),stats:PROFILES.main,kit:stableKit(p.id)});
+      a.onlineRemote=true;a.netId=p.id;a.netZone=p.zone;a.autoRetal=false;a.runOn=true;applyLoadout(a,'main');
+      a.inv=new Array(28).fill(null);a.prayers.clear();G.actors.push(a);O.remotes.set(p.id,a);
+    }
+    return a;
+  };
+  O.applySnapshot=msg=>{
+    O.lastSnapshot=performance.now();const seen=new Set();
+    for(const p of msg.players||[]){
+      if(p.id===O.id){
+        const me=G.player,dx=p.x-me.x,dy=p.y-me.y;
+        if(Math.hypot(dx,dy)>.75){me.seg=[{fx:me.x,fy:me.y,tx:p.x,ty:p.y}];me.x=Math.round(p.x);me.y=Math.round(p.y);me.path.length=0;}
+        me.hp=clamp(p.hp,0,me.maxHp);me.kills=p.kills;me.deaths=p.deaths;O.zone=p.zone||zoneAt(p.x,p.y);continue;
+      }
+      seen.add(p.id);const a=O.actorFor(p),oldX=a.x,oldY=a.y,nx=Math.round(p.x),ny=Math.round(p.y);
+      a.seg=(oldX===nx&&oldY===ny)?[]:[{fx:oldX,fy:oldY,tx:nx,ty:ny}];a.x=nx;a.y=ny;a.hp=clamp(p.hp,0,a.maxHp);a.kills=p.kills;a.deaths=p.deaths;a.netZone=p.zone||zoneAt(nx,ny);a.dead=false;
+    }
+    for(const [id,a] of [...O.remotes])if(!seen.has(id)){const i=G.actors.indexOf(a);if(i>=0)G.actors.splice(i,1);O.remotes.delete(id);}
+  };
+  O.handle=raw=>{
+    let msg;try{msg=JSON.parse(raw);}catch(_){return;}
+    if(msg.type==='welcome'){
+      O.id=msg.id;O.connected=true;O.connecting=false;O.serverVersion=msg.version;O.safeZone=msg.safe_zone||O.safeZone;O.status='OLDSKOOL World 1 · connected';
+      G.player.netId=msg.id;O.lastX=G.player.x;O.lastY=G.player.y;
+      try{localStorage.setItem(tokenKey(G.player.name),msg.resume_token);}catch(_){}
+      gameMsg('Connected to OLDSKOOL World 1.');return;
+    }
+    if(msg.type==='snapshot'){O.applySnapshot(msg);return;}
+    if(msg.type==='zone_transition'){
+      O.zone=msg.zone;gameMsg(msg.zone==='pvp'?'You have crossed into the PvP zone. Other players can attack you.':'You are inside the Grand Exchange safe zone.');return;
+    }
+    if(msg.type==='combat'){
+      O.lastCombat=msg;
+      const target=msg.target_id===O.id?G.player:O.remotes.get(msg.target_id),attacker=msg.attacker_id===O.id?G.player:O.remotes.get(msg.attacker_id);
+      if(target){
+        target.hp=clamp(msg.target_hp,0,target.maxHp);addSplat(target,msg.damage||0);target.hpBarUntil=G.now+4200;
+        if(msg.killed){target.anim={type:'death',t0:G.now,dur:900};if(target===G.player)gameMsg('You were defeated and returned to the Grand Exchange.');}
+      }
+      if(attacker&&target){attacker.face=Math.atan2(target.x-attacker.x,target.y-attacker.y);attacker.anim={type:'slash',t0:G.now,dur:450};}
+      return;
+    }
+    if(msg.type==='chat'){const a=msg.player_id===O.id?G.player:O.remotes.get(msg.player_id);if(a)a.chat={text:msg.text,until:G.now+3400};publicMsg(msg.name,msg.text,msg.player_id===O.id);return;}
+    if(msg.type==='error'){O.lastError=msg;gameMsg('Server: '+msg.message);if(msg.code==='move_rejected')O.requestResync();return;}
+  };
+  O.tick=()=>{
+    if(!O.active||!O.connected||!O.ws||O.ws.readyState!==WebSocket.OPEN)return;
+    const p=G.player;
+    if(p.x!==O.lastX||p.y!==O.lastY){
+      O.ws.send(JSON.stringify({type:'move',x:p.x,y:p.y,seq:G.tick}));O.lastX=p.x;O.lastY=p.y;
+    }
+    if(G.now-O.lastPing>5000){O.lastPing=G.now;O.ws.send(JSON.stringify({type:'ping',nonce:G.tick}));}
+  };
+  O.requestResync=()=>{O.lastX=null;O.lastY=null;};
+  O.attack=a=>{
+    if(!O.connected||!a?.netId)return;
+    if(!O.canAttack(a)){gameMsg('Players are protected inside the Grand Exchange stone boundary.');return;}
+    O.ws.send(JSON.stringify({type:'attack',target_id:a.netId}));
+  };
+  O.sendChat=text=>{
+    text=String(text||'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,120);if(!text)return;
+    if(O.connected&&O.ws?.readyState===WebSocket.OPEN)O.ws.send(JSON.stringify({type:'chat',text}));
+    else gameMsg('You are not connected to the online world.');
+  };
+  O.drawBoundary=mesh=>{
+    if(!O.active)return;
+    const z=O.safeZone,a=z.apothem,k=Math.SQRT2-1,cx=z.center_x,cy=z.center_y;
+    const pts=[[a,k*a],[k*a,a],[-k*a,a],[-a,k*a],[-a,-k*a],[-k*a,-a],[k*a,-a],[a,-k*a]].map(([x,y])=>[cx+x,cy+y]);
+    const col=O.zone==='pvp'?0xd0442f:0xd8c273,alpha=O.zone==='pvp'?190:135,w=.055;
+    for(let i=0;i<8;i++){
+      const [x1,y1]=pts[i],[x2,y2]=pts[(i+1)%8],dx=x2-x1,dy=y2-y1,l=Math.hypot(dx,dy)||1,nx=-dy/l*w,ny=dx/l*w;
+      const v=(x,y)=>[x,groundH(x,y)+.035,-y];
+      mesh.quad(v(x1+nx,y1+ny),v(x2+nx,y2+ny),v(x2-nx,y2-ny),v(x1-nx,y1-ny),col,false,null,alpha);
+    }
+  };
+  return O;
+})();
+
+const onlineChatCommand=chatCommand;
+chatCommand=t=>{
+  if(Online.active&&!String(t).startsWith('::')){Online.sendChat(t);return;}
+  onlineChatCommand(t);
+};
 
 /* ---- classic.js ---- */
 'use strict';
@@ -3851,6 +4028,7 @@ const Client = (() => {
     #client-panel h1{font-size:29px;font-weight:normal;color:#e8cf8c;text-align:center;text-shadow:2px 2px #100b04;margin:4px 45px 20px}#client-panel h2{font-size:18px;font-weight:normal;margin:15px 0 10px;color:#f0d691;text-shadow:1px 1px #000}#client-panel p{line-height:1.55;margin:10px 0;color:#d4c59f}.client-close{position:absolute;right:10px;top:8px;min-width:36px;min-height:32px!important;background:linear-gradient(#863e2e,#4e1e14);padding:2px 10px}
     .client-lead{text-align:center;font-size:12px;color:#ae9b6b;letter-spacing:1.5px}.client-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}.client-card{background:var(--paper-texture,#c5b080);border:3px ridge #81704c;padding:14px;border-radius:0;box-shadow:inset 0 0 14px #49311466;color:#332513}.client-card h2{color:#462a12!important;text-shadow:none!important;margin-top:0!important}.client-card small{display:block;color:#49351c;margin:7px 0 12px;line-height:1.5;font-size:13px}.client-card progress{width:100%;height:12px;accent-color:#807037}.client-card label{display:block;color:#49351c;margin:10px 0 5px;font-size:14px}.client-controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.client-help{font-size:13px;color:#bbac86!important}
     .client-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}.client-items button{font-size:12px;min-height:82px;padding:5px;overflow-wrap:anywhere;background:var(--brown-texture,#3e3529)}.client-items canvas{display:block;position:static!important;width:32px;height:32px;margin:0 auto 6px;image-rendering:pixelated}.client-message{padding:10px;border:2px groove #8d7b53;background:#2a2115;color:#e1c68e;font-size:14px;margin:12px 0}
+    .oldskool-logo{text-align:center;font-family:Georgia,'Times New Roman',serif;font-size:clamp(34px,7vw,74px);font-weight:bold;letter-spacing:-3px;color:#d8c081;text-shadow:0 3px #23170b,2px 0 #5a4524,-2px 0 #5a4524,0 -2px #f0dfaa;margin:4px 0 3px}.oldskool-sub{text-align:center;color:#9e8d68;font-size:12px;letter-spacing:4px;margin-bottom:18px}.world-online{border-color:#9d8445!important;box-shadow:inset 0 0 18px #6c4a1d55}.world-status{display:flex;align-items:center;gap:8px;justify-content:center;color:#d7c58d;font-size:13px;margin:6px 0 14px}.world-dot{width:9px;height:9px;border-radius:50%;background:#8d2b22;box-shadow:0 0 5px #000}.world-dot.online{background:#63a33f;box-shadow:0 0 6px #89d65b}
     #client-context{position:fixed;z-index:35;display:none;max-width:calc(100vw - 12px);width:max-content;min-width:160px;max-height:65dvh;overflow:auto;background:#5d5447;border:2px solid #100d09;box-shadow:0 3px 12px #0008;padding:1px;color:#fff;font-size:14px;scrollbar-color:#a39168 #2d2519}#client-context strong{display:block;background:#100d09;color:#c4b79a;padding:5px 8px;font-family:Georgia,serif;font-weight:normal}#client-context button{display:block;width:100%;text-align:left;border:0;background:transparent;box-shadow:none;border-radius:0;padding:4px 9px;color:#fff;min-height:30px;font-family:Georgia,serif;white-space:nowrap}#client-context button:hover{color:#ffef60;background:#746856}
     #client-dialog{position:fixed;z-index:34;display:none;background:var(--paper-texture,#c9b586);color:#2e2011;border:6px ridge #76674b;padding:12px;max-height:60dvh;overflow:auto}#client-dialog strong{display:block;text-align:center;font-weight:normal;color:#623b15;font-size:18px}#client-dialog p{font-size:15px;text-align:center;margin:6px 0}#client-dialog button{display:block;width:100%;box-shadow:none;border:0;border-radius:0;min-height:32px;background:none;color:#25248b;text-shadow:none;margin:2px 0;padding:4px}
     #classic-tooltip{position:fixed;pointer-events:none;z-index:36;display:none;max-width:min(300px,calc(100vw - 16px));overflow-wrap:anywhere;padding:8px;color:#211809;background:#c8b88a;border:1px solid #130e07;font-size:14px}
@@ -3973,6 +4151,10 @@ const Client = (() => {
     for(const other of G.actors){if(other===a||other.dead)continue;const s=mapPoint(other.x+.5,other.y+.5);if(!s.inside)continue;p.fillStyle='#211a0c';p.fillRect(s.x-2,s.y-2,4,4);p.fillStyle=other.npc?'#fff369':other.monster?'#eabd6b':'#f4f0d6';p.fillRect(s.x-1,s.y-1,3,3);}
     for(const g of G.ground){const s=mapPoint(g.x+.5,g.y+.5);if(s.inside){p.fillStyle='#ce4530';p.fillRect(s.x-1,s.y-1,2,2);}}
     if(Expedition.waypoint){const s=mapPoint(Expedition.waypoint.x+.5,Expedition.waypoint.y+.5);if(s.inside){p.strokeStyle='#ffe86e';p.lineWidth=2;p.beginPath();p.arc(s.x,s.y,5,0,TAU);p.stroke();}}
+    if(typeof Online!=='undefined'&&Online.active){
+      const z=Online.safeZone,a=z.apothem,k=Math.SQRT2-1,pts=[[a,k*a],[k*a,a],[-k*a,a],[-a,k*a],[-a,-k*a],[-k*a,-a],[k*a,-a],[a,-k*a]].map(([dx,dy])=>mapPoint(z.center_x+dx,z.center_y+dy));
+      p.strokeStyle=Online.zone==='pvp'?'#d74a34':'#e6d186';p.lineWidth=1.5;p.beginPath();pts.forEach((q,i)=>i?p.lineTo(q.x,q.y):p.moveTo(q.x,q.y));p.closePath();p.stroke();
+    }
     p.fillStyle='#fff';p.fillRect(122,82,4,4);p.restore();Classic.ring(p,124,84,81,8);
     // Compass and resource orbs are stateful; numeric plaques do not cover glyphs.
     p.fillStyle='#b8ab81';p.beginPath();p.arc(27,23,19,0,TAU);p.fill();Classic.ring(p,27,23,24,5);
@@ -4041,7 +4223,13 @@ const Client = (() => {
     if(UI.tab===3)C.drawInventory(p);else {const r=C.panelContent;p.drawImage(INP.canvas,PANEL.x,PANEL.y,PANEL.w,PANEL.h,r.x,r.y,r.w,r.h);}
     C.drawMap(p);L.tabs.forEach((r,i)=>{Classic.stone(p,r,UI.tab===i,C.hover===C.tabButtons[i][0].title);const sz=Math.round(Math.min(r.w*.75,r.h*.78,48));p.drawImage(Classic.icon(TAB_ID[i]),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);C.tabButtons[i][0].setAttribute('aria-pressed',String(UI.tab===i));});
     C.drawChat(p);
-    if(L.quick){Classic.text(p,Expedition.active?'Expedition':'Arena',L.quick.x+L.quick.w/2,L.quick.y+14,12,0xd3bf89,true,'center');for(const {key,r}of C.quickButtons){Classic.stone(p,r);const id=key==='Save'?'save':key==='Chat'?'chat':key==='Menu'?'menu':key==='Run'?'run':key==='Special'?'combat':'full',sz=Math.min(27,r.h-6);p.drawImage(key==='Eat'?itemIcon('cookedFish'):key==='Potion'?itemIcon('prayer'):Classic.icon(id),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);}}
+    if(typeof Online!=='undefined'&&Online.active){
+      const safe=Online.zone==='safe',bw=clamp(L.world.w*.12,84,132),badge={x:L.world.x+L.world.w-bw-10,y:L.world.y+9,w:bw,h:32};
+      Classic.stone(p,badge,!safe);p.drawImage(Classic.icon(safe?'bank':'combat'),badge.x+5,badge.y+4,24,24);
+      Classic.text(p,safe?'SAFE ZONE':'PVP ZONE',badge.x+34,badge.y+21,12,safe?0xb9e38f:0xff8b69,true);
+      Classic.text(p,Online.connected?'W1':'OFFLINE',badge.x+badge.w-7,badge.y+21,9,Online.connected?0x83dc68:0xd77b62,true,'right');
+    }
+    if(L.quick){Classic.text(p,Online.active?'World 1':Expedition.active?'Expedition':'Arena',L.quick.x+L.quick.w/2,L.quick.y+14,12,0xd3bf89,true,'center');for(const {key,r}of C.quickButtons){Classic.stone(p,r);const id=key==='Save'?'save':key==='Chat'?'chat':key==='Menu'?'menu':key==='Run'?'run':key==='Special'?'combat':'full',sz=Math.min(27,r.h-6);p.drawImage(key==='Eat'?itemIcon('cookedFish'):key==='Potion'?itemIcon('prayer'):Classic.icon(id),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);}}
     const action=C.hover||UI.hoverText;
     if(action&&!UI.menu){p.save();p.beginPath();p.rect(L.world.x+4,L.world.y+3,L.world.w-8,50);p.clip();Classic.text(p,action+(!C.hover&&UI.hoverMore?' / '+UI.hoverMore:''),L.world.x+7,L.world.y+clamp(C.width/90,14,21),clamp(C.width/90,13,19),0xffffff,true,'left',true);p.restore();}
     if(G.spellSel)Classic.text(p,'Cast '+SPELL_BY_ID[G.spellSel].name+' on...',L.world.x+7,L.world.y+40,14,0x8ebde8,true);
@@ -4078,16 +4266,24 @@ const Client = (() => {
   C.renderPanel=()=>{
     if(!C.panel)return;const root=C.root;root.replaceChildren();
     if(App.mode==='game')button('×',C.close,root).className='client-close';
-    el('div',{class:'client-lead',text:'SONNETOSRS - CLASSIC CLIENT'},root);
-    const titles={welcome:'Choose your adventure',menu:'Your local world',journal:'Expedition journal',skills:'Character progression',bank:'Camp bank',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
+    el('div',{class:'client-lead',text:'OLDSKOOL · CLASSIC WEBGL CLIENT'},root);
+    const titles={welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:'Camp bank',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
     el('h1',{text:titles[C.panel]||'SonnetOSRS'},root);
     if(C.panel==='welcome'||C.panel==='menu'){
-      el('p',{text:'The original PvP sandbox, plus a persistent gathering and PvM expedition. Everything runs locally. No RuneScape account or password is needed.'},root);
-      const label=el('label',{text:'Local profile name'},root);label.htmlFor='profile-name';const name=el('input',{id:'profile-name',value:Profiles.name,maxLength:12,placeholder:'Your name',autocomplete:'off'},root);
+      if(C.panel==='welcome'){root.querySelector('h1')?.remove();el('div',{class:'oldskool-logo',text:'OLDSKOOL'},root);el('div',{class:'oldskool-sub',text:'GRAND EXCHANGE · WORLD 1'},root);}
+      el('p',{text:'A classic WebGL Grand Exchange world. World 1 is multiplayer: the bank interior is protected and PvP begins outside the visible stone boundary. Arena and Expedition remain available as offline modes.'},root);
+      const status=el('div',{class:'world-status'},root),dot=el('span',{class:'world-dot'},status),statusText=el('span',{text:Online.status},status);
+      if(!/^(localhost|127\.0\.0\.1)$/.test(location.hostname))Online.checkHealth().then(info=>{if(statusText.isConnected){statusText.textContent=Online.status;dot.classList.toggle('online',!!info);}});
+      else statusText.textContent='World 1 health check is skipped on local/offline builds';
+      const label=el('label',{text:'Character name'},root);label.htmlFor='profile-name';const name=el('input',{id:'profile-name',value:Profiles.name,maxLength:12,placeholder:'Character name',autocomplete:'off'},root);
       const cards=el('div',{class:'client-grid'},root);
-      for(const [mode,title,desc]of [['arena','Arena','Practice PvP against tactical bots. Free kits, specials, prayers and magic.'],['expedition','Expedition','Gather, cook, smith, fight, bank your loot and complete six contracts.']]){
-        const card=el('div',{class:'client-card'},cards);el('h2',{text:title},card);el('small',{text:desc},card);
-        const b=button('Play '+title,()=>startGame(name.value,mode),card);b.dataset.mode=mode;
+      for(const [mode,title,desc]of [
+        ['online','World 1 · Online PvP','Persistent Rust world. Safe inside the Grand Exchange; server-authoritative PvP outside the stone boundary.'],
+        ['arena','Arena · Offline','Practice against tactical bots with free kits, specials, prayers and magic.'],
+        ['expedition','Expedition · Offline','Gather, cook, smith, fight, bank loot and complete contracts.']
+      ]){
+        const card=el('div',{class:'client-card'+(mode==='online'?' world-online':'')},cards);el('h2',{text:title},card);el('small',{text:desc},card);
+        const b=button(mode==='online'?'Enter World 1':'Play '+title.replace(' · Offline',''),()=>startGame(name.value,mode),card);b.dataset.mode=mode;
       }
       el('h2',{text:'Display & comfort'},root);const settings=el('div',{class:'client-grid'},root);
       for(const [key,title,options]of [['quality','Render quality',['low','balanced','high']],['layout','Interface',['auto','classic','touch']]]){
@@ -4107,7 +4303,7 @@ const Client = (() => {
         button('Reset this profile',()=>{if(Profiles.reset())startGame(Profiles.name,Profiles.mode,{skipSave:true});},row);
       }
       el('div',{class:'client-message',text:Profiles.status},root);
-      el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause this offline simulation.'},root);
+      el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause local simulation; the online world continues on the server.'},root);
     }else if(C.panel==='journal'){
       if(!Expedition.active){el('p',{text:'Arena is the free-kit combat sandbox. Open Menu → Expedition for persistent gathering, crafting, enemies and contracts.'},root);}
       else{
@@ -4421,6 +4617,7 @@ const Polish = (() => {
     DYN.clear();BLD.clear();SHADOW.clear();
     for(const a of G.actors)if(dist2(a.x,a.y,G.player.x,G.player.y)<42){drawActor(a,frac,dt,cam);shadow(a,frac);}
     drawGround();drawProjectiles();
+    if(typeof Online!=='undefined'&&Online.active)Online.drawBoundary(BLD);
     if(Expedition.active){
       for(const o of Expedition.nodes)if(dist2(o.x,o.y,G.player.x,G.player.y)<32)drawNode(o);
       for(const w of Expedition.warnings){const pulse=settings().reduceMotion?1:.75+.25*Math.sin(G.now/80);ring(BLD,w.x,w.y,w.radius,.13,w.enraged?0xffc46d:0xe99b76,Math.floor(210*pulse));}
@@ -4517,7 +4714,7 @@ const ClassicPresenter = (() => {
 /* Boot, bounded fixed-step simulation, and lifecycle. No pretend network login. */
 const App={mode:'load',progress:0,status:'Preparing the world',ctx:null,R:null,cam:null,glCanvas:null,
   scale:1,prev:0,contextLost:false,manualPause:false,error:null,
-  logout(){if(!Profiles.save()&&!Profiles.blocked&&!window.confirm('The save failed. Leave the current session anyway?'))return;this.mode='login';Controls.cancelAll();Client.open('welcome');},
+  logout(){if(!Profiles.save()&&!Profiles.blocked&&!window.confirm('The save failed. Leave the current session anyway?'))return;if(typeof Online!=='undefined')Online.stop(true);this.mode='login';Controls.cancelAll();Client.open('welcome');},
   onDown(){},onKey(){}};
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 /* extra player loadouts (bank restock) */
@@ -4536,6 +4733,8 @@ LOADOUTS.pmage = {
 
 
 function startGame(name,mode='arena',options={}){
+  if(mode==='online'&&!options.onlineBootstrap){Online.start(name);return;}
+  if(typeof Online!=='undefined'&&Online.active&&!options.onlineBootstrap)Online.stop(true);
   if(App.mode==='game'&&!options.skipSave){
     const ok=Profiles.save();
     if(!ok&&!window.confirm('Your current profile could not be saved. Continue anyway? Export a backup to keep it.'))return;
@@ -4547,23 +4746,23 @@ function startGame(name,mode='arena',options={}){
   Profiles.select(name,mode);createPlayer();G.player.name=Profiles.name;G.player.loadoutKind='main';createClerks();UI.botCount=0;
   Expedition.begin(Profiles.mode);
   if(!Expedition.active)setBotCount(6);
-  const saved=Profiles.read();if(saved)Profiles.apply(saved);
+  const saved=options.onlineBootstrap?null:Profiles.read();if(saved)Profiles.apply(saved);
   UI.tab=3;UI.menu=null;UI.drag=null;UI.chatInput='';UI.bonusWin=false;UI.mouse={x:-100,y:-100};
   G.player.protectUntil=G.tick+25;App.mode='game';App.manualPause=false;App.prev=performance.now();
   Polish.snapCamera=true;Polish.particles.length=0;App.cam._visibleDist=App.cam.dist;
   Client.close();Client.layout();
-  gameMsg('Welcome, '+Profiles.name+'. '+(Expedition.active?'Your expedition begins at the safe camp.':'You are in the offline PvP practice arena.'));
-  gameMsg(Expedition.active?'Journal marks gathering spots and enemy camps. Bank your supplies; craft at the forge.':'Free combat kits are available at bank booths. Bots and specials use the 600 ms game tick.');
+  if(!options.onlineBootstrap){gameMsg('Welcome, '+Profiles.name+'. '+(Expedition.active?'Your expedition begins at the safe camp.':'You are in the offline PvP practice arena.'));
+  gameMsg(Expedition.active?'Journal marks gathering spots and enemy camps. Bank your supplies; craft at the forge.':'Free combat kits are available at bank booths. Bots and specials use the 600 ms game tick.');}
   if(Profiles.blocked)gameMsg(Profiles.status);
 }
 function respawnNow(a){respawn(a);}
 function fit(){Client.layout();}
 function drawLoading(ctx){
-  ctx.fillStyle='#14211b';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#211a10';ctx.fillRect(0,0,W,H);
   if(!Fonts.b12)return;
-  drawTextC(ctx,'q16','SONNET / LEEFY',W/2,210,0xe9d099,true);
-  drawTextC(ctx,'p11',App.status,W/2,246,0xc7d7c8,true);
-  fillR(ctx,W/2-150,268,300,7,0x344b3b);fillR(ctx,W/2-150,268,Math.round(App.progress*300),7,0xb7ca94);
+  drawTextC(ctx,'q16','OLDSKOOL',W/2,210,0xe9d099,true);
+  drawTextC(ctx,'p11',App.status,W/2,246,0xcab98b,true);
+  fillR(ctx,W/2-150,268,300,7,0x3c3221);frameR(ctx,W/2-150,268,300,7,0x7f704c);fillR(ctx,W/2-149,269,Math.round(App.progress*298),5,0xb99b54);
 }
 function fatal(err){
   if(App.error)return;App.error=err;console.error(err);App.mode='error';Controls.cancelAll();

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — OLDSKOOL World 1
+
+- Branded the playable client OLDSKOOL and added a classic brown/gold loading and world-selection experience.
+- Added a persistent Rust/Axum backend on a 600 ms authoritative world tick.
+- Added an actual Vercel-hosted Online World alongside preserved offline Arena and Expedition modes.
+- Exported the procedural client collision grid and validate online movement against that exact map, including diagonal corner rules.
+- Added server-issued resume tokens, reconnectable position/kill/death profiles and atomic persistence.
+- Added two-client snapshots and real public online chat.
+- Added a server-owned GE octagonal safe zone aligned to the visible stone ring: protected bank/GE interior and PvP outside.
+- Client draws the authoritative boundary in the 3D scene and minimap, shows SAFE ZONE / PVP ZONE state, and hides Attack options while protected.
+- Server independently rejects forged safe-zone attacks, illegal/off-grid movement and attack cooldown violations.
+- Added strict WebSocket Origin policy for the deployed Vercel frontend.
+- Oracle production process is loopback-only behind Caddy TLS and a hardened systemd service.
+- Added tests/online.cjs for two-browser Rust integration plus deployment templates/documentation.
+- Existing local gameplay remains available. Inventory/equipment/economy are not yet fully migrated into server authority; that is the next multiplayer phase.
+
 ## 0.3.0 — Classic client presentation
 
 - Replaced the modern green header and mobile app shell with an integrated stone/bronze client matching the approved reference composition.

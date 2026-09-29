@@ -176,6 +176,7 @@ const Engine = (() => {
     old.togglePrayer(a, id, quiet); return true;
   };
   stepActor = a => {
+    if (a.onlineRemote) return;
     if (!a.npc && G.tick % 100 === 0) for (const id of Object.keys(a.attackedBy)) if (G.tick - a.attackedBy[id] > 120) delete a.attackedBy[id];
     if (a.monster && !a.dead && typeof Expedition !== 'undefined') Expedition.think(a);
     old.stepActor(a);
@@ -183,6 +184,7 @@ const Engine = (() => {
   gameTick = () => {
     old.gameTick();
     if (typeof Expedition !== 'undefined') Expedition.tick();
+    if (typeof Online !== 'undefined') Online.tick();
     // Bounded off-screen lifetimes, independent of the renderer.
     G.effects = G.effects.filter(e => G.now < e.t0 + e.dur).slice(-160);
     G.projs = G.projs.filter(p => G.now < p.t1 + 30 && G.actors.includes(p.tgt)).slice(-160);
@@ -190,7 +192,7 @@ const Engine = (() => {
   };
   cmdWalk = (x, y) => { if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdWalk(x, y); };
   cmdFollow = a => { if (!G.player || !alive(G.player) || !a) return; if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdFollow(a); };
-  cmdAttack = a => { if (!G.player || !alive(a) || a.npc) return; if (typeof Expedition !== 'undefined') { Expedition.cancelGather(); if (!Expedition.canFight(G.player, a)) return; } old.cmdAttack(a); };
+  cmdAttack = a => { if (!G.player || !alive(a) || a.npc) return; if (typeof Online !== 'undefined' && Online.active && a.onlineRemote) { Online.attack(a); return; } if (typeof Expedition !== 'undefined') { Expedition.cancelGather(); if (!Expedition.canFight(G.player, a)) return; } old.cmdAttack(a); };
   cmdJob = (x, y, near, run, label) => { if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdJob(x, y, near, run, label); };
   setBotCount = n => {
     n = Number.isFinite(Number(n)) ? clamp(Math.floor(Number(n)), 0, 14) : 0;
@@ -209,7 +211,11 @@ const Engine = (() => {
   openBank = obj => { if (typeof Client !== 'undefined') Client.open('bank'); else old.openBank(obj); };
   talkClerk = npc => { if (typeof Expedition !== 'undefined' && Expedition.active) { Client.open('journal'); return; } old.talkClerk(npc); };
   contextMenuFor = (mx, my) => {
-    const out = old.contextMenuFor(mx, my);
+    let out = old.contextMenuFor(mx, my);
+    if (typeof Online !== 'undefined' && Online.active && inRect(mx, my, {x:VX,y:VY,w:VW,h:VH})) {
+      const a = pickActor(mx - VX, my - VY);
+      if (a && a.onlineRemote && !Online.canAttack(a)) out = out.filter(e => !stripTags(e.text).startsWith('Attack '));
+    }
     if (typeof Expedition !== 'undefined' && Expedition.active && inRect(mx, my, {x:VX,y:VY,w:VW,h:VH})) {
       const obj = pickObject(mx - VX, my - VY, INP.cam);
       if (obj && obj.expedition) {

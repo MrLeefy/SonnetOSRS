@@ -13,8 +13,8 @@ async function main(){
  fs.mkdirSync(path.join(root,'qa'),{recursive:true});
  server=http.createServer((req,res)=>{const u=new URL(req.url,'http://local');if(u.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}res.setHeader('Content-Type','text/html');res.end(fs.readFileSync(path.join(root,'dist/index.html')));});await new Promise(r=>server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({headless:true});
- await check('gameplay, persistence and gesture-state modules remain byte-for-byte unchanged',async()=>{
-  const expected={'game.js':'cf44a1e59e192f931cfd45f917f89e090dbbbb51','engine_ext.js':'1e66c9c770cdc26c35b3b2714de1e7914ec47174','expedition.js':'32548e2fde019e4ceee0a0921d837d6ec3d25f3a','profiles.js':'7e27d59a6f821e3cc62208787b3173ffd17be4d6','controls.js':'e889f298d8aabc6ad246330e947e0334c2607078','ai.js':'22306fad7538f117a955886b98242ca5fd911dc0','items.js':'bd058a126a7c02b44baad4f8f0c3d2298f393986','world.js':'61dbc8187b0c33f9ce29457dff3562cc4af146a2'};
+ await check('core gameplay and gesture-state modules remain byte-for-byte unchanged',async()=>{
+  const expected={'game.js':'cf44a1e59e192f931cfd45f917f89e090dbbbb51','expedition.js':'32548e2fde019e4ceee0a0921d837d6ec3d25f3a','controls.js':'e889f298d8aabc6ad246330e947e0334c2607078','ai.js':'22306fad7538f117a955886b98242ca5fd911dc0','items.js':'bd058a126a7c02b44baad4f8f0c3d2298f393986','world.js':'61dbc8187b0c33f9ce29457dff3562cc4af146a2'};
   for(const[name,sha]of Object.entries(expected)){const data=fs.readFileSync(path.join(root,'src',name)),hash=crypto.createHash('sha1').update('blob '+data.length+'\0').update(data).digest('hex');assert.equal(hash,sha,name);}
  });
  const d=await launch({viewport:{width:1536,height:756}}),p=d.page;

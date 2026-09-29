@@ -1,53 +1,98 @@
-# SonnetOSRS · Classic Client v0.3
+# OLDSKOOL
 
-An attributable fork of [OminousIndustries/SonnetOSRS](https://github.com/OminousIndustries/SonnetOSRS), preserving the compact procedural WebGL renderer, 600 ms combat simulation and offline Arena / Expedition gameplay.
+**OLDSKOOL** is the multiplayer evolution of the SonnetOSRS WebGL project. It keeps the compact procedural renderer, 600 ms combat feel, classic 2009-era interface and existing offline gameplay, while adding a real persistent Rust world for Grand Exchange PvP.
 
-The v0.3 presentation refactor replaces the green app-style shell with an integrated, original **2009scape / OSRS-inspired classic interface**: stone and bronze trim, a circular minimap, live stat orbs, retro panel glyphs, a dark brown 28-slot inventory, parchment chat and channel buttons. Both desktop and mobile use the same visual identity. No mockup is used as a screen background; the map, inventory, messages and buttons show actual game state.
+**Play:** https://oldskool-phi.vercel.app
 
-## Play
+**Server health:** https://oldskool-api.129.146.39.132.sslip.io/health
 
-Run `python3 -m http.server 8000` from the repository and open `http://localhost:8000/`. Choose **Arena** or **Expedition** and enter a local profile name. No RuneScape account or password is requested. `dist/index.html` is the complete standalone build with embedded assets. Serving it over localhost or HTTPS gives local saving a predictable browser origin.
+## What is live
 
-**Arena** retains the free combat-kit PvP practice sandbox with AI opponents. **Expedition** starts at a safe camp with a trail blade, tools and food. Mine ore, gather timber, catch and cook fish, forge better blades, bank supplies, complete six contracts and challenge the Stone Guardian. The existing gameplay, combat, economy, save format and gesture state machine were not rewritten for this UI pass.
+The frontend runs on Vercel. The authoritative online service runs continuously on Oracle behind Caddy/TLS.
 
-## Classic interface controls
+```text
+Vercel WebGL client
+        |
+      WSS
+        |
+Caddy / TLS on Oracle
+        |
+127.0.0.1:8788
+        |
+Rust / Axum OLDSKOOL server
+```
 
-The tabs below the minimap open combat, stats, journal, inventory, equipment, prayer and magic. Lower stone tabs retain the social, logout, settings, emote and music panels. The **wrench** opens settings, save/export/import and fullscreen controls. The **bag utility beside the minimap** walks to a bank booth or opens banking when already nearby and out of combat. The **globe** opens a map derived from the current world.
+Choose **World 1 · Online PvP** to join multiplayer. The Grand Exchange interior is a server-enforced safe zone. Cross the visible stone ring and the client changes to `PVP ZONE`; other online players become attackable there. Walk back through the ring and the server protects you again.
 
-Desktop: left click to act, right click for a context menu, middle-mouse drag or arrow keys to orbit, wheel to zoom, F1–F7 for the original panels. Touch: tap to act, drag the world to orbit, pinch to zoom, hold for a large `Choose Option` menu. Drag inventory slots to rearrange. The minimap is clickable. The heart orb eats available food; other orbs control quick prayers, running and special attacks.
+The old **Arena** bot sandbox and **Expedition** progression mode remain playable offline.
 
-The parchment chat supports wrapping, scrolling, filters and native text entry. Tap its input row to type on a phone. In portrait, classic-styled quick buttons provide food, potion, run, special, save, chat, fullscreen and settings access. Chat can be collapsed in settings to give the world more room. Layout respects browser-provided safe-area insets.
+## Classic frontend
 
-Private/clan/trade channels are not connected to a multiplayer service and display `Off`. The Report Abuse button explicitly offers a **local bug-report export**, not an online report to Jagex or another player. This remains an offline game.
+The interface is original procedural art inspired by the classic 2009scape / OSRS client composition rather than a screenshot shell:
 
-## Saves
+- large WebGL viewport on the left;
+- parchment chat and classic channel row;
+- circular live minimap;
+- HP/prayer/run/special orbs;
+- two rows of stone tab glyphs;
+- dark brown 4×7 inventory;
+- equipment, prayer, magic and combat panels using the existing gameplay handlers;
+- classic `Choose Option` mouse/touch menus;
+- top-left contextual action text;
+- desktop, phone landscape and portrait layouts with safe-area support;
+- OLDSKOOL brown/gold loading/world-selection screen;
+- live GE safe/PvP boundary in both world and minimap.
 
-Arena and Expedition use separate local profiles. Autosave, previous-valid-save recovery and JSON backup import/export are retained. The UI change does not reset existing progress or change save keys. Keep using the same origin and profile name to retain browser saves; export before moving hosts/devices or clearing browser data. There is no cloud sync.
+No external UI screenshot or proprietary sprite sheet is used as the running interface.
 
-Expedition death intentionally returns the player to camp with carried equipment retained. Free combat kits and sandbox healing remain limited to Arena. Damaged saves and storage failures are handled without pretending progress was saved successfully.
+## Online authority
 
-## Build and verify
+The Rust server currently owns accepted movement, the real collision map, GE zone membership, online PvP legality, attack cooldown/damage/HP, deaths/kills/respawn, online player snapshots, public chat and basic persistent online profiles.
 
-Python 3.9+ builds the standalone HTML. Node 20+ and Playwright are development-only tools; runtime does not fetch JavaScript packages, sprites or fonts.
+The browser predicts walking for smoothness, but rejected movement is corrected from server snapshots. Sending a handcrafted Attack message from inside the GE is still rejected by Rust.
+
+The mature SonnetOSRS inventory/equipment/prayer/item systems remain client-side for v0.4 and are the next systems to migrate. See `docs/ONLINE.md` for the exact trust boundary.
+
+## Local development
 
 ```sh
 npm ci --ignore-scripts
+python3 tools/build.py
+cargo test --manifest-path server/Cargo.toml
+cargo build --release --manifest-path server/Cargo.toml
 npx playwright install chromium
-npm run verify
+npm run test:browser
+npm run test:online
 ```
 
-For Linux CI system dependencies, use `npx playwright install --with-deps chromium`. The build requires all 22 ordered modules and creates deterministic `dist/index.html`, `index.html` and `dev.html`. Edit source modules, not generated HTML.
+`dist/index.html` is the self-contained Vercel client. `server/` contains the Rust authority and exported collision data.
 
-The suite consists of **65 runtime regressions**, the **30 existing browser checks**, and **19 new classic-UI checks**. The original browser assertions remain; their coordinate helpers were adapted to the composed presentation. The new suite verifies eight gameplay/persistence files by Git blob hash, slot mappings at ten viewport sizes, safe-area layout, real minimap movement, prayer/spell/equipment actions, context menus, chat scrolling, rotation during touch and local report export.
+## Current verification
 
-## Code structure
+The project retains:
 
-`classic.js` owns original procedural textures, glyphs and pure layout rectangles. `client.js` owns the actual composed frame, coordinate mappings and themed native dialogs. `classic_presenter.js` adapts the existing logical canvas and render resolution without changing game state rules. The existing `controls.js` gesture machine, `profiles.js` persistence and gameplay modules remain unchanged.
+- 65 deterministic runtime regression checks;
+- 30 general Chromium browser checks;
+- 19 dedicated classic-interface checks;
+- 5 Rust server unit tests;
+- 9 two-client online integration checks.
 
-See [classic implementation notes](docs/CLASSIC_UI.md), [QA](docs/QA.md), [changelog](CHANGELOG.md) and [roadmap](EXPANSION_PLAN.md).
+Production is additionally smoke-tested from the deployed Vercel origin to the public Oracle `wss://` endpoint on desktop and an emulated landscape phone. Emulated phone tests are not a substitute for physical Android/iPhone testing.
 
-## Scope and attribution
+## Deployment
 
-This is an unofficial inspired interface, not a claim of pixel-identical proprietary artwork, a complete RuneScape recreation, online multiplayer or a measured speed multiplier. Browser tests emulate phones; physical Android/iPhone, Safari/Firefox and a full accessibility audit remain outstanding. Rust/networking/PvP-boundary work is separate from this presentation-only release.
+Vercel project: `oldskool`
 
-Original project and engine foundations: **OminousIndustries/SonnetOSRS**. Original attribution is retained. Added interface textures and glyphs are procedural original art; no blanket license over upstream code is asserted by this README.
+Oracle service: `oldskool-server.service`
+
+Public backend hostname: `oldskool-api.129.146.39.132.sslip.io`
+
+The Rust socket itself is bound only to `127.0.0.1:8788`. Caddy owns the public TLS/WebSocket boundary.
+
+Deployment templates are in `deploy/`.
+
+## Attribution and scope
+
+This remains an unofficial project built from the attributable `OminousIndustries/SonnetOSRS` foundation. RuneScape/OSRS names are descriptive references to the visual/gameplay era; OLDSKOOL is not the official RuneScape client and does not request RuneScape credentials.
+
+The project does not claim pixel-identical proprietary artwork or full OSRS feature parity. Online inventory/economy authority, authenticated accounts, trading and broader MMO persistence remain future work.
