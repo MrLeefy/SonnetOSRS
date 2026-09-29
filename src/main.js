@@ -172,10 +172,10 @@ async function boot() {
   // Keep the legacy mouse path only for older browsers that do not expose PointerEvent.
   if ('PointerEvent' in window) {
     ui.style.touchAction = 'none';
-    ui.addEventListener('pointerdown', onDown);
-    addEventListener('pointerup', onUp);
-    addEventListener('pointermove', onMove);
-    addEventListener('pointercancel', onUp);
+    ui.addEventListener('pointerdown', onPointerDown);
+    addEventListener('pointerup', onPointerUp);
+    addEventListener('pointermove', onPointerMove);
+    addEventListener('pointercancel', onPointerCancel);
   } else {
     ui.addEventListener('mousedown', onDown);
     addEventListener('mouseup', onUp);
