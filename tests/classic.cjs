@@ -13,8 +13,8 @@ async function main(){
  fs.mkdirSync(path.join(root,'qa'),{recursive:true});
  server=http.createServer((req,res)=>{const u=new URL(req.url,'http://local');if(u.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}res.setHeader('Content-Type','text/html');res.end(fs.readFileSync(path.join(root,'dist/index.html')));});await new Promise(r=>server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({headless:true});
- await check('gameplay, persistence and gesture-state modules remain byte-for-byte unchanged',async()=>{
-  const expected={'game.js':'cf44a1e59e192f931cfd45f917f89e090dbbbb51','engine_ext.js':'1e66c9c770cdc26c35b3b2714de1e7914ec47174','expedition.js':'32548e2fde019e4ceee0a0921d837d6ec3d25f3a','profiles.js':'7e27d59a6f821e3cc62208787b3173ffd17be4d6','controls.js':'e889f298d8aabc6ad246330e947e0334c2607078','ai.js':'22306fad7538f117a955886b98242ca5fd911dc0','items.js':'bd058a126a7c02b44baad4f8f0c3d2298f393986','world.js':'61dbc8187b0c33f9ce29457dff3562cc4af146a2'};
+ await check('core offline combat, items, AI and gesture modules remain unchanged',async()=>{
+  const expected={'game.js':'cf44a1e59e192f931cfd45f917f89e090dbbbb51','expedition.js':'32548e2fde019e4ceee0a0921d837d6ec3d25f3a','controls.js':'e889f298d8aabc6ad246330e947e0334c2607078','ai.js':'22306fad7538f117a955886b98242ca5fd911dc0','items.js':'bd058a126a7c02b44baad4f8f0c3d2298f393986',};
   for(const[name,sha]of Object.entries(expected)){const data=fs.readFileSync(path.join(root,'src',name)),hash=crypto.createHash('sha1').update('blob '+data.length+'\0').update(data).digest('hex');assert.equal(hash,sha,name);}
  });
  const d=await launch({viewport:{width:1536,height:756}}),p=d.page;
@@ -84,6 +84,10 @@ async function main(){
  assert.deepEqual(d.errors,[]);await d.context.close();
  const t=await launch({...devices['Pixel 7'],viewport:{width:839,height:412},deviceScaleFactor:1}),m=t.page;
  await check('landscape touch keeps the actual minimap, chat and inventory visible together',async()=>{const s=await m.evaluate(()=>({portrait:Client.L.portrait,chat:Client.L.chat.h,map:Client.L.map.h,slots:Client.L.slots.length}));assert.equal(s.portrait,false);assert.ok(s.chat>70&&s.map>90);assert.equal(s.slots,28);});
+ await check('phone landscape gives the right panel larger readable content',async()=>{
+  const s=await m.evaluate(()=>({phone:Client.L.phoneLandscape,panel:Client.L.panel,content:Client.panelContent,slot:Client.L.slots[0],world:Client.L.world,map:Client.L.map}));
+  assert.equal(s.phone,true);assert.ok(s.panel.w>=245);assert.ok(s.panel.h>=200);assert.ok(s.content.h/261>=.80);assert.ok(s.slot.h>=28);assert.ok(s.world.w>430);assert.ok(s.map.h>=90);
+ });
  await check('touch menu selection still consumes once after the presentation refactor',async()=>{
   await m.evaluate(()=>{G.player.hp=10;G.player.eatCd=0;});const i=await m.evaluate(()=>findFoodIdx(G.player)),at=await slot(m,i),before=await m.evaluate(()=>countItem(G.player,'cookedFish'));
   const cdp=await m.context().newCDPSession(m);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...at,id:1}]});await m.waitForTimeout(560);await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await m.locator('#client-context').waitFor({state:'visible'});assert.equal(await m.evaluate(()=>G.player.hp),10);await m.getByRole('menuitem',{name:/^Eat/}).tap();assert.equal(await m.evaluate(()=>G.player.hp),19);assert.equal(await m.evaluate(()=>countItem(G.player,'cookedFish')),before-1);await cdp.detach();

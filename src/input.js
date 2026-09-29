@@ -12,9 +12,7 @@ const INP = {
 };
 const NAMECOL = { npc: 'ffff00', item: 'ff9040', obj: '00ffff', player: 'ffffff' };
 function col(c, s) { return '<col=' + c + '>' + s + '</col>'; }
-function playerTag(a) {
-  const diff = a.level - G.player.level; return col('ffffff', a.name) + ' ' + col(levelColor(diff).toString(16).padStart(6, '0'), '(level-' + a.level + ')');
-}
+function playerTag(a){const diff=a.level-G.player.level,name=a.simulated?col('9fd8ff',a.name):col('ffffff',a.name);return name+' '+col(levelColor(diff).toString(16).padStart(6,'0'),'(level-'+a.level+')');}
 function ent(text, fn, extra) { return Object.assign({ text, fn }, extra || {}); }
 const CANCEL = () => ent('Cancel', () => { });
 
@@ -45,7 +43,7 @@ function cmdTake(g) {
   });
 }
 function castOn(a) { cmdAttack(a); }
-function examineActor(a) { gameMsg(a.npc ? 'Handles Grand Exchange transactions.' : 'Level-' + a.level + ' ' + a.name + '.'); }
+function examineActor(a){gameMsg(a.npc?'Handles Grand Exchange transactions.':('Level-'+a.level+' '+a.name+'.'+(a.simulated?' Simulated World 1 resident.':'')));}
 
 /* ---------------- dialogues ---------------- */
 function closeDialog() { G.dialog = null; }
@@ -56,8 +54,11 @@ function talkClerk(npc) {
   const kit = npc.kit;
   say('Grand Exchange Clerk', kit, ['Welcome to the Grand Exchange.', 'How can I help you?'], () => {
     options('Select an Option', [
-      { t: 'I would like to make an offer.', fn: () => say(G.player.name, G.player.kit, ['I would like to make an offer.'], () => say('Grand Exchange Clerk', kit, ['I\'m afraid all offers are cancelled on', 'this world. It is a PvP world - the only', 'currency here is your combat skill.'], () => { })) },
-      { t: 'Is it safe to stand here?', fn: () => say('Grand Exchange Clerk', kit, ['Safe? Not at all! Everyone on this', 'platform is fair game. I would keep my', 'prayers up if I were you.'], () => { }) },
+      { t: 'I would like to make an offer.', fn: () => {
+        if (typeof Online!=='undefined'&&Online.active) { G.dialog=null; Online.openGe(); return; }
+        say(G.player.name, G.player.kit, ['I would like to make an offer.'], () => say('Grand Exchange Clerk', kit, ['The persistent exchange is available', 'on World 1.'], () => { }));
+      } },
+      { t: 'Is it safe to stand here?', fn: () => say('Grand Exchange Clerk', kit, (typeof Online!=='undefined'&&Online.active?['Inside the Grand Exchange stone ring', 'you are protected. Beyond the boundary,', 'other players can attack you.']:['This is the offline Arena practice world.', 'Keep your prayers up outside the bank.']), () => { }) },
       { t: 'Never mind.', fn: () => { } }
     ]);
   });
@@ -83,7 +84,7 @@ function itemMenu(a, i) {
   else if (it.pot) out.push(ent('Drink ' + nm, () => drinkPotion(G.player, i)));
   else if (it.slot) out.push(ent('Wield ' + nm, () => equipFromInv(G.player, i)));
   out.push(ent('Use ' + nm, () => gameMsg('Nothing interesting happens.')));
-  out.push(ent('Drop ' + nm, () => { const pl = G.player; if (!pl.inv[i]) return; G.ground.push({ id: s.id, n: s.n, x: pl.x, y: pl.y, t: G.tick }); pl.inv[i] = null; }));
+  out.push(ent('Drop ' + nm, () => { const pl = G.player; if (!pl.inv[i]) return; if (typeof Online !== 'undefined' && Online.active) { Online.send({ type: 'drop', index: i }); } else { G.ground.push({ id: s.id, n: s.n, x: pl.x, y: pl.y, t: G.tick }); pl.inv[i] = null; } }));
   out.push(ent('Examine ' + nm, () => gameMsg(it.ex)));
   out.push(CANCEL()); return out;
 }
@@ -95,29 +96,29 @@ function contextMenuFor(mx, my) {
   const a = pickActor(vx, vy); const obj = a ? null : pickObject(vx, vy, cam); const tile = pickTile(cam, vx, vy);
   if (G.spellSel) {
     const sp = SPELL_BY_ID[G.spellSel];
-    if (a && !a.npc && a !== pl) out.push(ent('Cast ' + col('80d0ff', sp.name) + ' -> ' + playerTag(a), () => castOn(a), { red: true }));
+    if (a && !a.npc && a !== pl) out.push(ent(col('ffff00', 'Cast') + ' ' + col('80d0ff', sp.name) + ' -> ' + playerTag(a), () => castOn(a), { red: true }));
   } else if (a) {
     if (a.npc) {
-      out.push(ent('Talk-to ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => dist2(p.x, p.y, a.x, a.y) <= 2 || Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
-      out.push(ent('Exchange ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
-      out.push(ent('Examine ' + col(NAMECOL.npc, a.name), () => examineActor(a)));
+      out.push(ent(col('ffff00', 'Talk-to') + ' ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => dist2(p.x, p.y, a.x, a.y) <= 2 || Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
+      out.push(ent(col('ffff00', 'Exchange') + ' ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => (typeof Online!=='undefined'&&Online.active?Online.openGe():talkClerk(a))), { red: true }));
+      out.push(ent(col('ffff00', 'Examine') + ' ' + col(NAMECOL.npc, a.name), () => examineActor(a)));
     } else if (a !== pl) {
-      out.push(ent('Attack ' + playerTag(a), () => cmdAttack(a), { red: true }));
-      out.push(ent('Follow ' + col('ffffff', a.name), () => cmdFollow(a), { red: true }));
-      out.push(ent('Examine ' + col('ffffff', a.name), () => examineActor(a)));
+      out.push(ent(col('ffff00', 'Attack') + ' ' + playerTag(a), () => cmdAttack(a), { red: true }));
+      out.push(ent(col('ffff00', 'Follow') + ' ' + col('ffffff', a.name), () => cmdFollow(a), { red: true }));
+      out.push(ent(col('ffff00', 'Examine') + ' ' + col('ffffff', a.name), () => examineActor(a)));
     }
   }
   if (obj) {
     const near = p => dist2(p.x, p.y, obj.x, obj.y) <= 1;
-    if (obj.kind === 'bank') { out.push(ent('Bank ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => openBank(obj)), { red: true })); out.push(ent('Examine ' + col(NAMECOL.obj, obj.name), () => gameMsg('Good for storing gear.'))); }
-    else out.push(ent('Open ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => gameMsg('The chest is empty.')), { red: true })), out.push(ent('Examine ' + col(NAMECOL.obj, obj.name), () => gameMsg('A wooden chest.')));
+    if (obj.kind === 'bank') { out.push(ent(col('ffff00', 'Bank') + ' ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => openBank(obj)), { red: true })); out.push(ent(col('ffff00', 'Examine') + ' ' + col(NAMECOL.obj, obj.name), () => gameMsg('Good for storing gear.'))); }
+    else out.push(ent(col('ffff00', 'Open') + ' ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => gameMsg('The chest is empty.')), { red: true })), out.push(ent(col('ffff00', 'Examine') + ' ' + col(NAMECOL.obj, obj.name), () => gameMsg('A wooden chest.')));
   }
   if (tile) {
     const items = G.ground.filter(g => g.x === tile.x && g.y === tile.y);
-    for (let i = items.length - 1; i >= 0; i--) { const g = items[i]; const nm = col(NAMECOL.item, groundName(g)); out.push(ent('Take ' + nm, () => cmdTake(g), { red: true })); out.push(ent('Examine ' + nm, () => gameMsg(ITEMS[g.id].ex))); }
-    if (!G.spellSel || true) out.push(ent('Walk here', () => cmdWalk(tile.x, tile.y)));
+    for (let i = items.length - 1; i >= 0; i--) { const g = items[i]; const nm = col(NAMECOL.item, groundName(g)); out.push(ent(col('ffff00', 'Take') + ' ' + nm, () => cmdTake(g), { red: true })); out.push(ent(col('ffff00', 'Examine') + ' ' + nm, () => gameMsg(ITEMS[g.id].ex))); }
+    if (!G.spellSel) out.push(ent('Walk here', () => cmdWalk(tile.x, tile.y)));
   }
-  out.push(ent(G.spellSel ? 'Cancel' : 'Cancel', () => { G.spellSel = null; }));
+  out.push(CANCEL());
   return out;
 }
 function openMenu(entries, mx, my) {
@@ -347,7 +348,8 @@ function minimapClick(mx, my) {
   const dx = mx - MM.cx, dy = my - MM.cy; if (dx * dx + dy * dy > MM.r * MM.r) return false;
   const cam = INP.cam, cs = Math.cos(cam.yaw), sn = Math.sin(cam.yaw), pl = G.player;
   const ox = (cs * dx + sn * (-dy)) / 4, oy = (-sn * dx + cs * (-dy)) / 4;
-  cmdWalk(Math.floor(pl.x + 0.5 + ox), Math.floor(pl.y + 0.5 + oy)); return true;
+  const rp=renderPos(pl,clamp((G.now-G.lastTick)/TICK_MS,0,1));
+  cmdWalk(Math.floor(rp[0]+ox),Math.floor(rp[1]+oy));return true;
 }
 function onDown(e) {
   sndInit();
@@ -385,7 +387,12 @@ function onUp(e) {
   if (e.button === 1) { INP.mmb = false; return; }
   if (UI.drag) {
     const d = UI.drag; UI.drag = null;
-    if (d.active) { for (let i = 0; i < 28; i++) if (inRect(p.x, p.y, invSlotRect(i)) && i !== d.from) { const a = G.player; const t = a.inv[i]; a.inv[i] = a.inv[d.from]; a.inv[d.from] = t; } }
+    if (d.active) {
+      for (let i = 0; i < 28; i++) if (inRect(p.x, p.y, invSlotRect(i)) && i !== d.from) {
+        if (typeof Online !== 'undefined' && Online.active) Online.inventoryMove(d.from, i);
+        else { const a = G.player; const t = a.inv[i]; a.inv[i] = a.inv[d.from]; a.inv[d.from] = t; }
+      }
+    }
     else invDefault(d.from);
   }
 }

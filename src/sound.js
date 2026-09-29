@@ -50,6 +50,8 @@ const SFX = {
 function sfx(name, x, y) {
   if (!SND.ctx || !UI.sound || !SFX[name]) return;
   const now = performance.now(); if (SND.last[name] && now - SND.last[name] < 45) return; SND.last[name] = now;
-  if (x !== undefined && G.player) { const d = Math.hypot(x - G.player.x, y - G.player.y); if (d > 14) return; }
+  if (x !== undefined && G.player) { const d = Math.hypot(x - G.player.x, y - G.player.y); if (d > 20) return; }
   try { SFX[name](); } catch (e) { }
 }
+/* Resume audio context when tab becomes visible again (mobile / background-tab) */
+document.addEventListener('visibilitychange', () => { if (!document.hidden && SND.ctx && SND.ctx.state === 'suspended') SND.ctx.resume(); });

@@ -93,6 +93,11 @@ const Profiles = (() => {
     if(typeof Polish!=='undefined')Polish.snapCamera=true;
   };
   P.save = (notify=false) => {
+    if(typeof Online!=='undefined'&&Online.active){
+      P.status='World 1 progress is stored by the OLDSKOOL server';
+      if(notify&&G.player)gameMsg(P.status+'.');
+      return true;
+    }
     if(!G.player||P.blocked)return false;
     try{
       const raw=JSON.stringify(P.capture()),s=store(),previous=s.getItem(key());
@@ -108,6 +113,7 @@ const Profiles = (() => {
     }catch(err){P.status=err.message;}
   };
   P.importFile = async file => {
+    if(typeof Online!=='undefined'&&Online.active)fail('Leave World 1 before importing an offline profile.');
     if(!file||file.size>150000)fail('Choose a save smaller than 150 KB.');
     const d=P.parse(await file.text());
     if(d.mode!==P.mode)fail('Switch to '+d.mode+' before importing this save.');
@@ -115,6 +121,7 @@ const Profiles = (() => {
     P.save();P.name=d.name;P.blocked=false;P.apply(d);P.save(true);return true;
   };
   P.reset = () => {
+    if(typeof Online!=='undefined'&&Online.active){P.status='Leave World 1 before resetting an offline profile.';return false;}
     if(!window.confirm('Permanently reset only '+P.name+' / '+P.mode+' on this browser? Export a backup first.'))return false;
     try{store().removeItem(key());store().removeItem(key()+'.backup');P.blocked=false;return true;}catch(_){P.status='Storage unavailable';return false;}
   };

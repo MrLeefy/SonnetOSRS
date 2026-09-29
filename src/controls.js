@@ -107,6 +107,7 @@ const Controls = (() => {
       for(const t of targets)t.addEventListener('mousedown',onDown);
       addEventListener('mousemove',onMove);addEventListener('mouseup',onUp);
     }
+    window.addEventListener('contextmenu',e=>e.preventDefault());
     for(const t of targets){t.addEventListener('contextmenu',e=>e.preventDefault());t.addEventListener('wheel',e=>{if(playable())onWheel(e);},{passive:false});}
     addEventListener('keydown',e=>{
       if(e.key==='Escape'&&Client.panel&&App.mode==='game'){e.preventDefault();Client.close();return;}

@@ -91,6 +91,12 @@ function prayerGlyph(p, id) {
     case 'retribution': p.ellipse(13, 12, 6, 6, 0xe8e8e0); p.rect(10, 16, 7, 4, 0xe8e8e0); p.rect(9, 10, 3, 3, 0x000000); p.rect(15, 10, 3, 3, 0x000000); break;
     case 'redemption': p.disc(10, 11, 4, 0xe83030); p.disc(16, 11, 4, 0xe83030); p.poly([[6, 13], [20, 13], [13, 21]], 0xe83030); break;
     case 'smite': p.poly([[15, 3], [8, 14], [13, 14], [10, 23], [19, 11], [14, 11]], 0xffe040); break;
+    case 'piety': {
+      // golden kite-shield with a cross — Attack/Str/Def triple boost
+      p.poly([[13, 5], [20, 9], [20, 17], [13, 23], [6, 17], [6, 9]], 0xe8b830);
+      p.line(13, 7, 13, 21, 0xffd060, 1); p.line(8, 13, 18, 13, 0xffd060, 1);
+      break;
+    }
   }
 }
 function prayerBadge(id) {

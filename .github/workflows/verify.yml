@@ -1,7 +1,7 @@
 name: Verify game
 on:
   push:
-    branches: [main, leefy-foundation]
+    branches: [main, leefy-foundation, oldskool-online, oldskool-repair]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -26,6 +26,11 @@ jobs:
         shell: bash
         run: |
           if [ -f package-lock.json ]; then echo 'ready=true' >> "$GITHUB_OUTPUT"; else echo 'ready=false' >> "$GITHUB_OUTPUT"; fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.source.outputs.ready == 'true'
+      - name: Verify Rust authoritative server
+        if: steps.source.outputs.ready == 'true'
+        run: cargo test --manifest-path server/Cargo.toml && cargo build --release --manifest-path server/Cargo.toml
       - name: Check and build original foundation
         if: steps.source.outputs.ready != 'true'
         run: |
@@ -39,6 +44,15 @@ jobs:
         run: npx playwright install --with-deps chromium
       - if: steps.source.outputs.ready == 'true'
         run: npm run test:browser
+      - name: Two-client Rust multiplayer integration
+        if: steps.source.outputs.ready == 'true'
+        run: npm run test:online
+      - name: Simulated World 1 resident population
+        if: steps.source.outputs.ready == 'true'
+        run: npm run test:crowd
+      - name: Movement, reconnection and scene regression
+        if: steps.source.outputs.ready == 'true'
+        run: npm run test:repair
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -48,7 +62,7 @@ jobs:
             qa/
           retention-days: 14
   publish-generated:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/leefy-foundation'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/leefy-foundation' || github.ref == 'refs/heads/oldskool-online')
     needs: regression
     permissions:
       contents: write
@@ -66,12 +80,13 @@ jobs:
       - name: Publish only generated HTML without overwriting newer work
         env:
           EXPECTED_SHA: ${{ github.sha }}
+          TARGET_BRANCH: ${{ github.ref_name }}
         shell: bash
         run: |
           git add -- dist/index.html dev.html
           if [ -f index.html ]; then git add -- index.html; fi
           if git diff --cached --quiet; then exit 0; fi
-          git fetch origin leefy-foundation
+          git fetch origin "$TARGET_BRANCH"
           if [ "$(git rev-parse FETCH_HEAD)" != "$EXPECTED_SHA" ]; then
             echo 'Branch advanced; leaving newer work untouched.'
             exit 0
@@ -79,4 +94,4 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Rebuild verified standalone client'
-          git push origin HEAD:refs/heads/leefy-foundation
+          git push origin HEAD:"refs/heads/$TARGET_BRANCH"
