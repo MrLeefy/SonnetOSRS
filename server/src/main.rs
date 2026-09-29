@@ -442,7 +442,7 @@ async fn connection(socket: WebSocket, state: AppState) {
     }
 
     let id = Uuid::new_v4();
-    let (token, view, tick) = {
+    let (token, view) = {
         let mut world = state.world.write().await;
         let requested = resume_token
             .filter(|t| valid_token(t))
@@ -498,14 +498,15 @@ async fn connection(socket: WebSocket, state: AppState) {
             last_attack_tick: None,
         };
         let view = player_view(&player);
-        let tick = world.tick;
         world.profiles.insert(token.clone(), profile);
         world.players.insert(id, player);
-        (token, view, tick)
+        (token, view)
     };
 
     info!(%id, name=%view.name, "player connected");
 
+    // Subscribe before initial sync so no join/tick event is lost between sends.
+    let mut rx = state.tx.subscribe();
     let welcome = ServerMessage::Welcome {
         id,
         resume_token: &token,
@@ -525,16 +526,18 @@ async fn connection(socket: WebSocket, state: AppState) {
         return;
     }
 
-    let initial = {
-        let world = state.world.read().await;
-        ServerMessage::Snapshot {
-            tick,
-            players: world.players.values().map(player_view).collect(),
-        }
-    };
-    let _ = sink.send(Message::Text(serialize(&initial).into())).await;
+    let initial = snapshot_message(&state).await;
+    if sink
+        .send(Message::Text(initial.clone().into()))
+        .await
+        .is_err()
+    {
+        disconnect(id, &state).await;
+        return;
+    }
+    // Presence changes need not wait for the next 600 ms movement tick.
+    let _ = state.tx.send(initial);
 
-    let mut rx = state.tx.subscribe();
     let mut stopping = state.shutdown.subscribe();
     let mut idle = time::interval(Duration::from_secs(20));
     let mut last_seen = Instant::now();
@@ -786,6 +789,7 @@ async fn disconnect(id: Uuid, state: &AppState) {
 
     if let Some((_token, _profile, name)) = profile {
         info!(%id, %name, "player disconnected");
+        let _ = state.tx.send(snapshot_message(state).await);
         persist(state).await;
     }
 }

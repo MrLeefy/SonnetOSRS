@@ -31,3 +31,5 @@ This does not certify all possible bugs or all OSRS mechanics. Mobile checks emu
 ## Final visual review
 
 Actual renderer screenshots revealed a solid prism cap overlapping the hollow central counter and foreground arch/pillar batches hiding the player. The counter now has only the intended outer/inner walls and ring top. Tall GE arches, pillars and the tower are grouped for sightline-based fading; only an obstructing group fades, with opacity and depth-write state restored after drawing. Collision remains unchanged. Added explicit uneven-terrain picking and foreground-visibility regression checks.
+
+Hosted CI exposed an observer-presence timing assumption: a reconnecting client can receive its own welcome before a second client processes that presence update. The server now broadcasts joins/leaves immediately and subscribes before initial sync. The regression waits for the observer to receive the exact new player ID (bounded to three seconds), then still asserts that there is exactly one remote, rather than assuming two independent sockets update atomically.

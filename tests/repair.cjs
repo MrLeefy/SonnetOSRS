@@ -65,7 +65,8 @@ async function test(name,fn){await fn();results.push(name);console.log('PASS '+n
    });
    await test('reconnect restores server position without a queued walk or duplicate actor',async()=>{
      await go(a,43,42);const id=await a.evaluate(()=>Online.id);await a.evaluate(()=>Online.ws.close());await a.waitForFunction(id=>Online.ready&&Online.id!==id,id,{timeout:14000});
-     assert.deepEqual(await a.evaluate(()=>[G.player.x,G.player.y]),[43,42]);assert.equal(await a.evaluate(()=>G.player.path.length),0);assert.equal(await b.evaluate(()=>Online.remotes.size),1);
+     assert.deepEqual(await a.evaluate(()=>[G.player.x,G.player.y]),[43,42]);assert.equal(await a.evaluate(()=>G.player.path.length),0);
+     const newId=await a.evaluate(()=>Online.id);await b.waitForFunction(id=>Online.remotes.has(id),newId,{timeout:3000});assert.equal(await b.evaluate(()=>Online.remotes.size),1);
    });
    await test('remote characters settle at their actual location instead of looping their last step',async()=>{
      await delay(1500);const remote=await b.evaluate(()=>{const a=[...Online.remotes.values()][0];return{x:a.x,y:a.y,moving:Online.isMoving(a),seg:a.seg.length};});assert.equal(remote.moving,false);assert.equal(remote.seg,0);assert.equal(remote.x,43);
