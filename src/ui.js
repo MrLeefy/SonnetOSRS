@@ -164,7 +164,7 @@ function drawChatHead(ctx, cx, by, kit) {
   const p = new Pix(66, 78);
   p.rect(6, 56, 54, 22, shirt); p.rect(24, 48, 18, 10, skin); p.ellipse(33, 30, 15, 19, skin); p.ellipse(33, 16, 16, 9, hair); p.rect(17, 18, 3, 16, hair); p.rect(46, 18, 3, 16, hair);
   p.rect(25, 28, 4, 3, 0x101010); p.rect(37, 28, 4, 3, 0x101010); p.rect(29, 41, 8, 2, shadeCol(skin, 0.7)); p.rect(31, 32, 4, 6, shadeCol(skin, 0.9));
-  if (kit.clerk) { p.rect(30, 58, 6, 18, 0xe0e0d0); }
+  if (kit.clerk) { p.rect(30, 58, 6, 18, 0xe0e0d0); p.rect(20, 10, 26, 7, 0x5a3a18); p.rect(16, 14, 34, 4, 0x7a5228); }
   ctx.drawImage(p.canvas(), cx - 33, by - 78);
 }
 
@@ -193,7 +193,7 @@ function invSlotRect(i) { return { x: PANEL.x + 11 + (i % 4) * 42, y: PANEL.y + 
 function drawItem(ctx, s, x, y) { // x,y = slot top-left (42x36)
   ctx.drawImage(itemIcon(s.id), x + 5, y + 2);
   const it = ITEMS[s.id];
-  if (it.stack && s.n > 1 || (it.stack && s.n >= 1 && false)) { const st = stackText(s.n); drawText(ctx, 'p11', st.t, x + 3, y + 11, st.c, true); }
+  if (it.stack && s.n > 1) { const st = stackText(s.n); drawText(ctx, 'p11', st.t, x + 3, y + 11, st.c, true); }
   else if (it.stack) { drawText(ctx, 'p11', '1', x + 3, y + 11, 0xffff00, true); }
 }
 function drawInvTab(ctx, a) {
@@ -201,7 +201,7 @@ function drawInvTab(ctx, a) {
     const r = invSlotRect(i); const s = a.inv[i];
     if (UI.drag && UI.drag.from === i && UI.drag.active) continue;
     if (s) drawItem(ctx, s, r.x, r.y);
-    if (s && inRect(UI.mouse.x, UI.mouse.y, r) && !UI.menu && !UI.drag) tipBox(null);
+    if (s && inRect(UI.mouse.x, UI.mouse.y, r) && !UI.menu && !UI.drag) { const it = ITEMS[s.id]; const lines = [itemName(s)]; if (it.food) lines.push('Heals ' + it.food.heal + ' Hitpoints'); else if (it.pot) lines.push('Boost potion'); else if (it.slot) lines.push('Slot: ' + it.slot + (it.catName ? ' | ' + it.catName : '')); else if (it.stack) lines.push('Quantity: ' + s.n); if (it.ex) lines.push(it.ex); tipBox(lines); }
   }
 }
 const EQ_POS = { head: [77, 7], cape: [36, 46], neck: [77, 46], ammo: [118, 46], weapon: [24, 85], body: [77, 85], shield: [130, 85], legs: [77, 125], hands: [24, 165], feet: [77, 165], ring: [130, 165] };
@@ -246,10 +246,13 @@ function drawStatsTab(ctx, a) {
     ctx.drawImage(IC['sk_' + SKILLS[i][2]], x + 3, y + 8);
     const k = keys[SKILLS[i][0]]; let cur = 99, base = 99;
     if (k) { cur = k === 'hp' ? a.hp : k === 'pray' ? Math.ceil(a.pp) : a.cur[k]; base = a.stats[k]; }
-    drawText(ctx, 'p11', String(cur), x + 25, y + 15, 0xffff00, true); drawText(ctx, 'p11', String(base), x + 40, y + 27, 0xffff00, true);
+    const curCol = cur < base ? 0xff4040 : cur > base ? 0x40ff40 : 0xffff00;
+    drawText(ctx, 'p11', String(cur), x + 25, y + 15, curCol, true); drawText(ctx, 'p11', String(base), x + 40, y + 27, 0xffff00, true);
   }
   const x = PANEL.x + 3 + 2 * 63, y = PANEL.y + 4 + 7 * 32;
-  fillR(ctx, x, y, 61, 30, 0x4a4131); drawTextC(ctx, 'p11', 'Total level:', x + 31, y + 13, 0xffff00, true); drawTextC(ctx, 'p11', '2277', x + 31, y + 26, 0xffff00, true);
+  const totalKeys = { Attack: 'atk', Hitpoints: 'hp', Strength: 'str', Defence: 'def', Ranged: 'rng', Prayer: 'pray', Magic: 'mag' };
+  let totalLvl = 0; for (const k of Object.values(totalKeys)) if (a.stats[k]) totalLvl += a.stats[k];
+  fillR(ctx, x, y, 61, 30, 0x4a4131); drawTextC(ctx, 'p11', 'Total level:', x + 31, y + 13, 0xffff00, true); drawTextC(ctx, 'p11', String(totalLvl), x + 31, y + 26, 0xffff00, true);
 }
 function drawQuestTab(ctx, a) {
   drawTextC(ctx, 'b12', 'Player Killing', PANEL.x + 95, PANEL.y + 18, 0xff981f, true);
@@ -261,7 +264,7 @@ function drawQuestTab(ctx, a) {
   for (let i = 0; i < tips.length; i++) drawTextC(ctx, 'p11', tips[i], PANEL.x + 95, PANEL.y + 178 + i * 13, i > 5 ? 0x9a9a8a : 0xffff00, true);
 }
 const PR_POS = i => ({ x: PANEL.x + 2 + (i % 5) * 37, y: PANEL.y + 3 + Math.floor(i / 5) * 37, w: 37, h: 37 });
-const PR_ORDER = ['thick', 'burst', 'clarity', 'rock', 'super', 'improved', 'rapidrestore', 'rapidheal', 'protitem', 'steel', 'ultimate', 'incredible', 'pmagic', 'pmissiles', 'pmelee', 'retribution', 'redemption', 'smite'];
+const PR_ORDER = ['thick', 'burst', 'clarity', 'rock', 'super', 'improved', 'rapidrestore', 'rapidheal', 'protitem', 'steel', 'ultimate', 'incredible', 'pmagic', 'pmissiles', 'pmelee', 'retribution', 'redemption', 'smite', 'piety'];
 function drawPrayerTab(ctx, a) {
   for (let i = 0; i < PR_ORDER.length; i++) {
     const id = PR_ORDER[i], r = PR_POS(i), pr = PRAYER_BY_ID[id], on = a.prayers.has(id);
@@ -279,7 +282,7 @@ function drawMagicTab(ctx, a) {
     const sel = G.spellSel === sp.id; const ac = a.autocast === sp.id;
     if (sel || ac) { fillR(ctx, r.x + 1, r.y + 1, 34, 34, sel ? 0xe8c020 : 0x60c0ff); }
     ctx.globalAlpha = can ? 1 : 0.4; ctx.drawImage(IC['sp_' + sp.id], r.x + 4, r.y + 4); ctx.globalAlpha = 1;
-    if (inRect(UI.mouse.x, UI.mouse.y, r)) { const ln = ['Level ' + sp.lvl + ': ' + sp.name, 'Max hit: ' + sp.max + (sp.freeze ? '  Freeze: ' + Math.round(sp.freeze * 0.6) + 's' : '  Heals 25% of damage')]; let rs = 'Runes: '; for (const k in sp.runes) rs += sp.runes[k] + ' ' + ITEMS[k].name.replace(' rune', '') + ', '; ln.push(rs.slice(0, -2)); tipBox(ln); }
+    if (inRect(UI.mouse.x, UI.mouse.y, r)) { const ln = ['Level ' + sp.lvl + ': ' + sp.name, 'Max hit: ' + sp.max + (sp.freeze ? '  Freeze: ' + Math.round(sp.freeze * 0.6) + 's' : '  Heals 25% of damage')]; const rs = 'Runes: ' + Object.entries(sp.runes).map(([k, v]) => v + ' ' + ITEMS[k].name.replace(' rune', '')).join(', '); ln.push(rs); tipBox(ln); }
   }
   if (a.autocast) drawTextC(ctx, 'p11', 'Autocast: ' + SPELL_BY_ID[a.autocast].name, PANEL.x + 95, PANEL.y + 236, 0x80d0ff, true);
   const info = ['Left-click a spell, then click a', 'player to cast it. Right-click a', 'spell to set it as autocast', '(needs a staff wielded).'];
@@ -318,7 +321,7 @@ function drawEmotesTab(ctx) {
 const TRACKS = ['Harmony', 'Autumn Voyage', 'Sea Shanty2', 'Newbie Melody', 'Flute Salad', 'Attention', 'Expanse', 'Wilderness', 'Wilderness 2', 'Wilderness 3'];
 function drawMusicTab(ctx) {
   fillR(ctx, PANEL.x + 4, PANEL.y + 4, 182, 20, 0x2c261a); drawTextC(ctx, 'b12', 'Music Player', PANEL.x + 95, PANEL.y + 19, 0xff981f, true);
-  drawTextC(ctx, 'p11', 'Now playing:', PANEL.x + 95, PANEL.y + 40, 0xffffff, true); drawTextC(ctx, 'p11', 'Wilderness', PANEL.x + 95, PANEL.y + 54, 0xff9040, true);
+  drawTextC(ctx, 'p11', 'Now playing:', PANEL.x + 95, PANEL.y + 40, 0xffffff, true); drawTextC(ctx, 'p11', UI.sound ? 'Wilderness' : '(sound off)', PANEL.x + 95, PANEL.y + 54, UI.sound ? 0xff9040 : 0x808080, true);
   for (let i = 0; i < TRACKS.length; i++) drawText(ctx, 'p11', TRACKS[i], PANEL.x + 12, PANEL.y + 80 + i * 14, i === 7 ? 0x00ff00 : 0xff0000, true);
 }
 
@@ -343,7 +346,7 @@ function drawMinimap(ctx, cam) {
   };
   for (const g of G.ground) dot(g.x + 0.5 - px, g.y + 0.5 - py, 0xff0000);
   for (const a of G.actors) { if (a === pl || a.dead) continue; dot(a.rx - px, a.ry - py, a.npc ? 0xffff00 : 0xffffff); }
-  dot(0, 0, 0xffffff);
+  dot(0, 0, Math.sin(G.now / 500) > 0 ? 0xffffff : 0xd0d0b0);
   // ring
   drawRing(ctx, MM.cx, MM.cy, R + 1, R + 4);
 }
@@ -381,7 +384,7 @@ function drawOrbs(ctx) {
   const a = G.player;
   drawOrb(ctx, ORB.hp.x, ORB.hp.y, IC.o_heart, a.hp / a.maxHp, 0xd81818, 0x4a0808, '', false); drawTextC(ctx, 'p11', String(a.hp), ORB.hp.x + 1, ORB.hp.y + 4, 0xffffff, true);
   drawOrb(ctx, ORB.pray.x, ORB.pray.y, IC.o_pray, a.pp / a.stats.pray, 0x3a5ad8, 0x141c48, '', a.prayers.size > 0); drawTextC(ctx, 'p11', String(Math.ceil(a.pp)), ORB.pray.x + 1, ORB.pray.y + 4, 0xffffff, true);
-  drawOrb(ctx, ORB.run.x, ORB.run.y, IC.o_run, a.run / 100, 0xc8b020, 0x484010, '', a.runOn); drawTextC(ctx, 'p11', String(Math.floor(a.run)), ORB.run.x + 1, ORB.run.y + 4, 0xffffff, true);
+  drawOrb(ctx, ORB.run.x, ORB.run.y, IC.o_run, a.run / 100, 0xc8b020, 0x484010, '', a.runOn); drawTextC(ctx, 'p11', String(Math.floor(a.run)), ORB.run.x + 1, ORB.run.y + 4, a.run < 20 ? 0xff4040 : 0xffffff, true);
 }
 const COMP_CACHE = {};
 function compassCanvas(yaw) {
@@ -408,13 +411,13 @@ function drawOverlays(ctx, cam) {
     let ty = hy - 8;
     if (!a.dead && now < a.hpBarUntil && !a.npc) {
       const w = 30, f = Math.max(0, Math.min(1, a.hp / a.maxHp)); const bx = hx - 15, by = ty - 3;
-      fillR(ctx, bx - 1, by - 1, w + 2, 7, 0x000000); fillR(ctx, bx, by, w, 5, 0xc81010); fillR(ctx, bx, by, Math.round(w * f), 5, 0x10c810); ty -= 10;
+      fillR(ctx, bx - 1, by - 1, w + 2, 7, 0x000000); fillR(ctx, bx, by, w, 5, 0xff0000); fillR(ctx, bx, by, Math.round(w * f), 5, 0x40ff00); ty -= 10;
     }
     // overhead icons
     if (!a.dead) {
       let icons = []; if (a.skull > 0) icons.push('skull'); if (a.overhead) icons.push('ov_' + a.overhead);
       let ix = hx - icons.length * 10 + 0;
-      for (const nm of icons) { const im = IC[nm]; ctx.drawImage(im, ix + (10 - Math.floor(im.width / 2)), ty - im.height + 3); ix += 20; }
+      for (const nm of icons) { const im = IC[nm]; const alpha = nm === 'skull' ? 0.5 + 0.5 * Math.sin(now / 500) : 1; ctx.globalAlpha = alpha; ctx.drawImage(im, ix + (10 - Math.floor(im.width / 2)), ty - im.height + 3); ctx.globalAlpha = 1; ix += 20; }
       if (icons.length) ty -= 20;
     }
     if (a.chat && now < a.chat.until) { drawTextC(ctx, 'b12', a.chat.text, hx, ty - 2, 0xffff00, true); }
@@ -432,6 +435,15 @@ function drawOverlays(ctx, cam) {
   for (const c of UI.clicks) { const f = Math.floor((now - c.t0) / 100); if (f < 4) ctx.drawImage(IC[(c.red ? 'xr' : 'xy') + f], c.x - 6, c.y - 6); }
   UI.clicks = UI.clicks.filter(c => now - c.t0 < 420);
   ctx.restore();
+  // XP drops — rendered outside clip region so they float freely at top-right of viewport
+  G.xpDrops = G.xpDrops.filter(d => now - d.t0 < 1500);
+  for (let i = 0; i < G.xpDrops.length; i++) {
+    const d = G.xpDrops[i]; const age = now - d.t0; const alpha = age > 1000 ? 1 - (age - 1000) / 500 : 1;
+    const floatY = VY + 10 + i * 14 - age * 0.018;
+    ctx.globalAlpha = alpha;
+    drawText(ctx, 'p11', '+' + Math.round(d.xp) + ' ' + d.skill + ' XP', VX + VW - 120, floatY, 0xffff00, false);
+    ctx.globalAlpha = 1;
+  }
 }
 
 /* ---------------- right-click menu, hover text, tooltips, cursor ---------------- */

@@ -1,7 +1,7 @@
 /* Deterministic regression tests against the actual global-script modules. */
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
-const context=vm.createContext({console,assert,setTimeout,clearTimeout,performance:{now:()=>1000},window:{confirm:()=>true},document:{hidden:false},devicePixelRatio:1,URL,Blob});
+const context=vm.createContext({console,assert,setTimeout,clearTimeout,performance:{now:()=>1000},window:{confirm:()=>true},document:{hidden:false,addEventListener:()=>{}},devicePixelRatio:1,URL,Blob});
 for(const name of ['core','gfx','gl','items','world','game','ai','models','uiicons','ui','input','sound','engine_ext','expedition','profiles','client','controls','polish'])vm.runInContext(fs.readFileSync(path.join(root,'src',name+'.js'),'utf8'),context,{filename:name+'.js'});
 vm.runInContext(`
 const App={mode:'game',cam:null,scale:1,glCanvas:null};

@@ -16,7 +16,7 @@ const PLAT_R = 15.5;                    // platform apothem
 const STEP_H = [0, -0.11, -0.22, -0.33];
 const RING_A = 8.5, RING_HL = RING_A * Math.tan(Math.PI / 8), WALL_H = 3.6;
 const COL = {
-  dirt: 0x867b5c, grass: 0x666f33, grass2: 0x7b8a3a, flag: 0x7f7f76, dark: 0x3d3b32, white: 0xdcd5bd, light: 0x8b8b82,
+  dirt: 0x867b5c, grass: 0x5a8a2a, grass2: 0x6b9a32, flag: 0x7f7f76, dark: 0x3d3b32, white: 0xdcd5bd, light: 0x8b8b82,
   wood: 0x6b4f2a, trunk: 0x5c4526, leaf: 0x4a6e24, red: 0x8a1c14, beige: 0xa8996f
 };
 

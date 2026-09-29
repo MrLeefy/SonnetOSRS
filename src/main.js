@@ -42,6 +42,11 @@ function startGame(name,mode='arena',options={}){
   if(!options.onlineBootstrap){gameMsg('Welcome, '+Profiles.name+'. '+(Expedition.active?'Your expedition begins at the safe camp.':'You are in the offline PvP practice arena.'));
   gameMsg(Expedition.active?'Journal marks gathering spots and enemy camps. Bank your supplies; craft at the forge.':'Free combat kits are available at bank booths. Bots and specials use the 600 ms game tick.');}
   if(Profiles.blocked)gameMsg(Profiles.status);
+  // Update browser tab title per mode
+  if (typeof document !== 'undefined') {
+    if (Expedition.active) document.title = 'OLDSKOOL | Expedition';
+    else document.title = 'OLDSKOOL | Grand Exchange Arena';
+  }
 }
 function respawnNow(a){if(!Online.active)respawn(a);}
 function fit(){Client.layout();}

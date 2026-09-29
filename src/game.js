@@ -20,7 +20,8 @@ const PRAYERS = [
   { id: 'pmelee', name: 'Protect from Melee', lvl: 43, drain: 12, grp: 'ov', ov: 'pmelee', d: 'Protects you from melee attacks' },
   { id: 'retribution', name: 'Retribution', lvl: 46, drain: 3, grp: 'ov', ov: 'retribution', d: 'Inflicts damage to nearby targets if you die' },
   { id: 'redemption', name: 'Redemption', lvl: 49, drain: 6, grp: 'ov', ov: 'redemption', d: 'Heals you when damaged and Hitpoints falls below 10%' },
-  { id: 'smite', name: 'Smite', lvl: 52, drain: 18, grp: 'ov', ov: 'smite', d: 'Drains 25% of a player\'s Prayer points per damage you deal' }
+  { id: 'smite', name: 'Smite', lvl: 52, drain: 18, grp: 'ov', ov: 'smite', d: 'Drains 25% of a player\'s Prayer points per damage you deal' },
+  { id: 'piety', name: 'Piety', lvl: 70, drain: 24, atk: 0.20, str: 0.23, def: 0.25, grp: 'tri', d: 'Increases your Attack by 20%, Strength by 23%, and Defence by 25%' }
 ];
 const PRAYER_BY_ID = {}; for (const p of PRAYERS) PRAYER_BY_ID[p.id] = p;
 
@@ -38,7 +39,8 @@ const SPELL_BY_ID = {}; for (const s of SPELLS) SPELL_BY_ID[s.id] = s;
 
 const G = {
   tick: 0, lastTick: 0, actors: [], player: null, ground: [], projs: [], effects: [], msgs: [], hitQ: [], dialog: null,
-  nextId: 1, now: 0, spellSel: null, kills: 0, deaths: 0, streak: 0, best: 0, dmgDealt: 0, dmgTaken: 0, chatScroll: 0
+  nextId: 1, now: 0, spellSel: null, kills: 0, deaths: 0, streak: 0, best: 0, dmgDealt: 0, dmgTaken: 0, chatScroll: 0,
+  xpDrops: []
 };
 
 /* ---------------- messages ---------------- */
@@ -163,7 +165,13 @@ function applyHit(h) {
   if (dmg > 0 && d.overhead === h.type && d.overhead && d.prayerBlock <= G.tick && d.prayers.has(overheadPrayer(d.overhead))) dmg = Math.floor(dmg * 0.6);
   if (dmg > d.hp) dmg = d.hp;
   d.hp -= dmg; addSplat(d, dmg); if (!h.spell) sfx(dmg >= 20 ? 'hitbig' : dmg > 0 ? 'hit' : 'miss', d.x, d.y); d.lastHitTick = G.tick; d.attackedBy[s.id] = G.tick; s.hpBarUntil = G.now + 6000;
-  if (d.isPlayer) G.dmgTaken += dmg; if (s.isPlayer) G.dmgDealt += dmg;
+  if (d.isPlayer) G.dmgTaken += dmg;
+  if (s.isPlayer && dmg > 0) {
+    G.dmgDealt += dmg;
+    const xp = h.spell ? dmg * 2 : dmg * 4;
+    const skill = h.spell ? 'Magic' : (h.type === 'pmissiles' ? 'Ranged' : 'Strength');
+    if (G.xpDrops.length < 5) G.xpDrops.push({ skill, xp, t0: G.now });
+  }
   if (!d.dead && (!d.anim || (d.anim.type !== 'death' && G.now - d.anim.t0 > 350))) d.anim = { type: 'block', t0: G.now, dur: 400 };
   if (h.spell) {
     if (!h.splash) {
@@ -172,13 +180,13 @@ function applyHit(h) {
       G.effects.push({ type: h.spell.kind, x: d.x + 0.5, y: d.y + 0.5, t0: G.now, dur: 900 }); sfx(h.spell.kind === 'ice' ? 'ice' : 'blood', d.x, d.y);
     } else { G.effects.push({ type: 'splash', x: d.x + 0.5, y: d.y + 0.5, t0: G.now, dur: 700 }); sfx('splash', d.x, d.y); }
   }
-  if (h.sever && dmg > 0 && d.overhead) { d.prayerBlock = G.tick + 8; for (const p of PRAYERS) if (p.ov) d.prayers.delete(p.id); d.overhead = null; if (d.isPlayer) gameMsg('Your protection prayer has been disabled!'); }
-  if (dmg > 0 && s.prayers.has('smite') && d.pp > 0) d.pp = Math.max(0, d.pp - dmg / 4);
+  if (h.sever && dmg > 0 && d.overhead) { d.prayerBlock = G.tick + 5; for (const p of PRAYERS) if (p.ov) d.prayers.delete(p.id); d.overhead = null; if (d.isPlayer) gameMsg('Your protection prayer has been disabled!'); }
+  if (dmg > 0 && s.prayers.has('smite') && d.pp > 0) d.pp = Math.max(0, d.pp - Math.floor(dmg / 4));
   if (d.hp > 0 && d.hp < d.maxHp * 0.1 && d.prayers.has('redemption')) {
     d.hp = Math.min(d.maxHp, d.hp + Math.floor(d.stats.pray * 0.25)); d.pp = 0; d.prayers.clear(); d.overhead = null; if (d.isPlayer) gameMsg('You have run out of prayer points; redemption heals you.');
   }
   // auto-retaliate
-  if (d.hp > 0 && !d.target && d.autoRetal && !d.npc && s !== d && (d.isBot || (d.path.length === 0 && d.frozen >= 0))) { d.target = s; d.path.length = 0; }
+  if (d.hp > 0 && !d.target && d.autoRetal && !d.npc && s !== d && (d.isBot || (d.path.length === 0 && d.frozen <= 0))) { d.target = s; d.path.length = 0; }
   if (d.hp <= 0) killActor(d, s);
 }
 function overheadPrayer(ov) { return ov; }
@@ -316,7 +324,7 @@ function equipFromInv(a, idx) {
     const f = freeSlot(a); if (f < 0) { a.inv[idx] = s; if (a.isPlayer) gameMsg('You don\'t have enough inventory space.'); return false; }
     a.inv[f] = a.eq.shield; a.eq.shield = null;
   }
-  if (it.slot === 'shield' && a.eq.weapon && ITEMS[a.eq.weapon.id].two) { a.inv[freeSlot(a) >= 0 ? freeSlot(a) : idx] = a.eq.weapon; a.eq.weapon = null; }
+  if (it.slot === 'shield' && a.eq.weapon && ITEMS[a.eq.weapon.id].two) { const sf = freeSlot(a); a.inv[sf >= 0 ? sf : idx] = a.eq.weapon; a.eq.weapon = null; }
   a.eq[it.slot] = s;
   if (cur) { const f = a.inv[idx] ? freeSlot(a) : idx; a.inv[f] = cur; }
   if (it.slot === 'weapon') { a.style = 0; a.specOn = false; if (!it.magic) a.autocast = null; }
@@ -338,6 +346,9 @@ function togglePrayer(a, id, quiet) {
   if (a.pp <= 0) { if (a.isPlayer && !quiet) gameMsg('You have run out of Prayer points; you must recharge at an altar.'); return; }
   if (p.ov && a.prayerBlock > G.tick) return;
   for (const o of PRAYERS) if (o.id !== id && o.grp === p.grp) a.prayers.delete(o.id);
+  // Piety (tri) conflicts with individual atk/str/def boosting prayers and vice versa
+  if (p.grp === 'tri') { for (const o of PRAYERS) if (['atk', 'str', 'def'].includes(o.grp)) a.prayers.delete(o.id); }
+  else if (['atk', 'str', 'def'].includes(p.grp)) { for (const o of PRAYERS) if (o.grp === 'tri') a.prayers.delete(o.id); }
   a.prayers.add(id); if (p.ov) a.overhead = p.ov; if (a.isPlayer && !quiet) sfx('prayon');
 }
 function drainPrayer(a) {
@@ -346,6 +357,9 @@ function drainPrayer(a) {
   a.drain += sum; const res = 60 + 2 * a.bon[B_PRAY];
   while (a.drain >= res) { a.drain -= res; a.pp = Math.max(0, a.pp - 1); }
   if (a.pp <= 0) { a.pp = 0; a.prayers.clear(); a.overhead = null; if (a.isPlayer) gameMsg('You have run out of Prayer points; you must recharge at an altar.'); }
+  else if (a.isPlayer && a.pp < 5 && a.pp > 0) {
+    const now = G.now; if (!a.prayWarnT || now - a.prayWarnT > 30000) { a.prayWarnT = now; gameMsg('Warning: your Prayer is almost out!'); }
+  }
 }
 
 /* ---------------- the per-tick actor step ---------------- */
@@ -423,7 +437,7 @@ function spawnPoint(player) {
 function gameTick() {
   G.tick++;
   // land delayed hits
-  if (G.hitQ.length) { const due = G.hitQ.filter(h => h.t <= G.tick); G.hitQ = G.hitQ.filter(h => h.t > G.tick); for (const h of due) { if (h.src.dead && false) continue; applyHit(h); } }
+  if (G.hitQ.length) { const due = G.hitQ.filter(h => h.t <= G.tick); G.hitQ = G.hitQ.filter(h => h.t > G.tick); for (const h of due) { if (h.src.dead) continue; applyHit(h); } }
   const order = G.actors.slice(); // player first
   for (const a of order) stepActor(a);
   // ground items despawn

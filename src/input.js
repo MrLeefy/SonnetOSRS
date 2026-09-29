@@ -84,7 +84,7 @@ function itemMenu(a, i) {
   else if (it.pot) out.push(ent('Drink ' + nm, () => drinkPotion(G.player, i)));
   else if (it.slot) out.push(ent('Wield ' + nm, () => equipFromInv(G.player, i)));
   out.push(ent('Use ' + nm, () => gameMsg('Nothing interesting happens.')));
-  out.push(ent('Drop ' + nm, () => { const pl = G.player; if (!pl.inv[i]) return; G.ground.push({ id: s.id, n: s.n, x: pl.x, y: pl.y, t: G.tick }); pl.inv[i] = null; }));
+  out.push(ent('Drop ' + nm, () => { const pl = G.player; if (!pl.inv[i]) return; if (typeof Online !== 'undefined' && Online.active) { Online.send({ type: 'drop', index: i }); } else { G.ground.push({ id: s.id, n: s.n, x: pl.x, y: pl.y, t: G.tick }); pl.inv[i] = null; } }));
   out.push(ent('Examine ' + nm, () => gameMsg(it.ex)));
   out.push(CANCEL()); return out;
 }
@@ -96,29 +96,29 @@ function contextMenuFor(mx, my) {
   const a = pickActor(vx, vy); const obj = a ? null : pickObject(vx, vy, cam); const tile = pickTile(cam, vx, vy);
   if (G.spellSel) {
     const sp = SPELL_BY_ID[G.spellSel];
-    if (a && !a.npc && a !== pl) out.push(ent('Cast ' + col('80d0ff', sp.name) + ' -> ' + playerTag(a), () => castOn(a), { red: true }));
+    if (a && !a.npc && a !== pl) out.push(ent(col('ffff00', 'Cast') + ' ' + col('80d0ff', sp.name) + ' -> ' + playerTag(a), () => castOn(a), { red: true }));
   } else if (a) {
     if (a.npc) {
-      out.push(ent('Talk-to ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => dist2(p.x, p.y, a.x, a.y) <= 2 || Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
-      out.push(ent('Exchange ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => (typeof Online!=='undefined'&&Online.active?Online.openGe():talkClerk(a))), { red: true }));
-      out.push(ent('Examine ' + col(NAMECOL.npc, a.name), () => examineActor(a)));
+      out.push(ent(col('ffff00', 'Talk-to') + ' ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => dist2(p.x, p.y, a.x, a.y) <= 2 || Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
+      out.push(ent(col('ffff00', 'Exchange') + ' ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => (typeof Online!=='undefined'&&Online.active?Online.openGe():talkClerk(a))), { red: true }));
+      out.push(ent(col('ffff00', 'Examine') + ' ' + col(NAMECOL.npc, a.name), () => examineActor(a)));
     } else if (a !== pl) {
-      out.push(ent('Attack ' + playerTag(a), () => cmdAttack(a), { red: true }));
-      out.push(ent('Follow ' + col('ffffff', a.name), () => cmdFollow(a), { red: true }));
-      out.push(ent('Examine ' + col('ffffff', a.name), () => examineActor(a)));
+      out.push(ent(col('ffff00', 'Attack') + ' ' + playerTag(a), () => cmdAttack(a), { red: true }));
+      out.push(ent(col('ffff00', 'Follow') + ' ' + col('ffffff', a.name), () => cmdFollow(a), { red: true }));
+      out.push(ent(col('ffff00', 'Examine') + ' ' + col('ffffff', a.name), () => examineActor(a)));
     }
   }
   if (obj) {
     const near = p => dist2(p.x, p.y, obj.x, obj.y) <= 1;
-    if (obj.kind === 'bank') { out.push(ent('Bank ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => openBank(obj)), { red: true })); out.push(ent('Examine ' + col(NAMECOL.obj, obj.name), () => gameMsg('Good for storing gear.'))); }
-    else out.push(ent('Open ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => gameMsg('The chest is empty.')), { red: true })), out.push(ent('Examine ' + col(NAMECOL.obj, obj.name), () => gameMsg('A wooden chest.')));
+    if (obj.kind === 'bank') { out.push(ent(col('ffff00', 'Bank') + ' ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => openBank(obj)), { red: true })); out.push(ent(col('ffff00', 'Examine') + ' ' + col(NAMECOL.obj, obj.name), () => gameMsg('Good for storing gear.'))); }
+    else out.push(ent(col('ffff00', 'Open') + ' ' + col(NAMECOL.obj, obj.name), () => cmdJob(obj.x, obj.y, near, () => gameMsg('The chest is empty.')), { red: true })), out.push(ent(col('ffff00', 'Examine') + ' ' + col(NAMECOL.obj, obj.name), () => gameMsg('A wooden chest.')));
   }
   if (tile) {
     const items = G.ground.filter(g => g.x === tile.x && g.y === tile.y);
-    for (let i = items.length - 1; i >= 0; i--) { const g = items[i]; const nm = col(NAMECOL.item, groundName(g)); out.push(ent('Take ' + nm, () => cmdTake(g), { red: true })); out.push(ent('Examine ' + nm, () => gameMsg(ITEMS[g.id].ex))); }
-    if (!G.spellSel || true) out.push(ent('Walk here', () => cmdWalk(tile.x, tile.y)));
+    for (let i = items.length - 1; i >= 0; i--) { const g = items[i]; const nm = col(NAMECOL.item, groundName(g)); out.push(ent(col('ffff00', 'Take') + ' ' + nm, () => cmdTake(g), { red: true })); out.push(ent(col('ffff00', 'Examine') + ' ' + nm, () => gameMsg(ITEMS[g.id].ex))); }
+    if (!G.spellSel) out.push(ent('Walk here', () => cmdWalk(tile.x, tile.y)));
   }
-  out.push(ent(G.spellSel ? 'Cancel' : 'Cancel', () => { G.spellSel = null; }));
+  out.push(CANCEL());
   return out;
 }
 function openMenu(entries, mx, my) {

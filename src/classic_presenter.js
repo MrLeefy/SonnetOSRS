@@ -26,7 +26,7 @@ const ClassicPresenter = (() => {
     let total=0;
     for(let i=0;i<SKILLS.length;i++){
       const x=PANEL.x+3+(i%3)*63,y=PANEL.y+4+Math.floor(i/3)*32,k=keys[SKILLS[i][0]];
-      const level=k?(Expedition.active?Expedition.levelFor(Expedition.xp[k]||0):(a.stats[k]||0)):0;if(level)total+=level;
+      const level=k?((Expedition.active&&Expedition.xp[k])?Expedition.levelFor(Expedition.xp[k]):(a.stats[k]||0)):0;if(level)total+=level;
       fillR(ctx,x,y,61,30,0x403728);frameR(ctx,x,y,61,30,0x75664b);ctx.drawImage(IC['sk_'+SKILLS[i][2]],x+3,y+8);
       drawTextR(ctx,'p11',level||'--',x+56,y+20,level?0xf2d994:0x958971,true);
     }
