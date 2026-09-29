@@ -2,7 +2,7 @@
 /* Original procedural interface art. No screenshot crops, branded sprites, or
  * fabricated minimap data. CSS-pixel layout is independent of game coordinates. */
 const Classic = (() => {
-  const S={textures:{},icons:{},version:'0.5.0'};
+  const S={textures:{},icons:{},version:'0.5.1'};
   function canvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
   S.texture=kind=>{
     if(S.textures[kind])return S.textures[kind];
@@ -75,14 +75,14 @@ const Classic = (() => {
     p.bevel(1.17,.7);p.outline(0x17140c,true);return S.icons[id]=p.canvas();
   };
   S.layout=(w,h,compact=false)=>{
-    w=Math.max(240,w);h=Math.max(240,h);const m=clamp(Math.round(w/250),3,8),gap=Math.max(3,m),portrait=h>w*1.15;
-    const L={w,h,m,portrait,frame:{x:0,y:0,w,h}};
-    const footer=clamp(h*.077,30,60);
+    w=Math.max(240,w);h=Math.max(240,h);const m=clamp(Math.round(w/250),3,8),gap=Math.max(3,m),portrait=h>w*1.15,phoneLandscape=!portrait&&h<860&&w<=1000&&w/h>1.45;
+    const L={w,h,m,portrait,phoneLandscape,frame:{x:0,y:0,w,h}};
+    const footer=phoneLandscape?clamp(h*.068,28,48):clamp(h*.077,30,60);
     if(!portrait){
-      const sw=clamp(w*.279,Math.min(185,w*.36),Math.min(490,w*.36)),sx=w-sw-m,lw=sx-m-gap;
-      const ch=compact?28:Math.max(70,h*.251);const worldH=h-2*m-footer-ch-gap;
+      const sw=phoneLandscape?clamp(w*.335,Math.min(248,w*.40),Math.min(560,w*.43)):clamp(w*.279,Math.min(185,w*.36),Math.min(490,w*.36)),sx=w-sw-m,lw=sx-m-gap;
+      const ch=compact?28:(phoneLandscape?Math.max(58,h*.205):Math.max(70,h*.251));const worldH=h-2*m-footer-ch-gap;
       L.world={x:m,y:m,w:lw,h:worldH};L.chat={x:m,y:m+worldH+gap,w:lw,h:ch};L.channels={x:m,y:h-m-footer,w:lw,h:footer};
-      const mapH=Math.min(sw*.665,h*.369),tabH=clamp(h*.079,29,62),bottom=h-m-footer;
+      const mapH=phoneLandscape?Math.min(sw*.515,h*.285):Math.min(sw*.665,h*.369),tabH=phoneLandscape?clamp(h*.07,27,48):clamp(h*.079,29,62),bottom=h-m-footer;
       L.map={x:sx,y:m,w:sw,h:mapH};L.top={x:sx,y:m+mapH,w:sw,h:tabH};L.bottom={x:sx,y:bottom,w:sw,h:footer};
       L.panelFrame={x:sx,y:L.top.y+tabH,w:sw,h:bottom-(L.top.y+tabH)};
     }else{
@@ -93,7 +93,7 @@ const Classic = (() => {
       L.top={x:sx,y:my,w:sw,h:th};L.bottom={x:sx,y:my+mh-bh,w:sw,h:bh};L.panelFrame={x:sx,y:my+th,w:sw,h:mh-th-bh};
       L.quick={x:m,y:my+L.map.h+gap,w:L.map.w,h:Math.max(1,mh-L.map.h-gap)};
     }
-    const f=L.panelFrame,pillar=clamp(f.w*.052,8,24);
+    const f=L.panelFrame,pillar=phoneLandscape?clamp(f.w*.038,6,16):clamp(f.w*.052,8,24);
     L.panel={x:f.x+pillar,y:f.y+6,w:f.w-pillar*2,h:Math.max(7,f.h-12)};
     L.slots=Array.from({length:28},(_,i)=>({x:L.panel.x+4+(i%4)*(L.panel.w-8)/4,y:L.panel.y+Math.floor(i/4)*L.panel.h/7,w:(L.panel.w-8)/4,h:L.panel.h/7}));
     L.tabs=Array.from({length:14},(_,i)=>{const r=i<7?L.top:L.bottom;return{x:r.x+(i%7)*r.w/7,y:r.y,w:r.w/7,h:r.h};});

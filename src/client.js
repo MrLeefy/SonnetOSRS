@@ -162,13 +162,14 @@ const Client = (() => {
     p.restore();
   };
   C.drawInventory=p=>{
+    const roomy=C.L?.phoneLandscape;
     G.player.inv.forEach((s,i)=>{
       if(!s||(UI.drag?.active&&UI.drag.from===i))return;
-      const r=C.L.slots[i],size=Math.round(Math.min(r.w*.72,r.h*.86,56)),x=Math.round(r.x+(r.w-size)/2),y=Math.round(r.y+(r.h-size)/2);
+      const r=C.L.slots[i],size=Math.round(Math.min(r.w*(roomy?.82:.72),r.h*(roomy?.94:.86),roomy?68:56)),x=Math.round(r.x+(r.w-size)/2),y=Math.round(r.y+(r.h-size)/2);
       p.drawImage(itemIcon(s.id),x,y,size,size);
-      if(ITEMS[s.id].stack){const st=stackText(s.n);Classic.text(p,st.t,x-1,y+Math.min(12,r.h*.32),Math.min(15,Math.max(10,r.h*.31)),st.c,true);}
+      if(ITEMS[s.id].stack){const st=stackText(s.n);Classic.text(p,st.t,x-1,y+Math.min(roomy?14:12,r.h*(roomy?.37:.32)),Math.min(roomy?16:15,Math.max(roomy?11:10,r.h*(roomy?.34:.31))),st.c,true);}
     });
-    if(UI.drag?.active){const s=G.player.inv[UI.drag.from];if(s){const pt=C.pointer||C.fromGame(UI.mouse.x,UI.mouse.y),r=C.L.slots[UI.drag.from],size=Math.round(Math.min(r.w*.72,r.h*.86,56));p.globalAlpha=.85;p.drawImage(itemIcon(s.id),pt.x-size/2,pt.y-size/2,size,size);p.globalAlpha=1;}}
+    if(UI.drag?.active){const s=G.player.inv[UI.drag.from];if(s){const pt=C.pointer||C.fromGame(UI.mouse.x,UI.mouse.y),r=C.L.slots[UI.drag.from],size=Math.round(Math.min(r.w*(roomy?.82:.72),r.h*(roomy?.94:.86),roomy?68:56));p.globalAlpha=.85;p.drawImage(itemIcon(s.id),pt.x-size/2,pt.y-size/2,size,size);p.globalAlpha=1;}}
   };
   C.chatLines=(maxWidth,size)=>{
     const latest=G.msgs.at(-1),key=[latest,G.msgs.length,UI.chatTab,maxWidth,size];

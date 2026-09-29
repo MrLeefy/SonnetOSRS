@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 — Mobile right-panel readability
+
+- Give phone-landscape layouts a wider right-side panel while retaining the classic frame.
+- Shorten the mobile minimap/chat footprint enough to raise the active panel scale instead of shrinking prayers, magic, equipment and skills.
+- Increase mobile-landscape inventory item sprites, drag sprites and stack-count text.
+- Keep desktop and portrait layout behavior unchanged.
+- Add a browser regression that asserts the landscape panel/content scale and slot size stay readable.
+
 ## 0.5.0 — Movement and scene repair
 
 - Replaced position submission with sequenced destination requests. Rust calculates the actual path and advances one walking or two running steps per tick. Repeating a destination is a safe no-op.

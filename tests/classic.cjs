@@ -84,6 +84,10 @@ async function main(){
  assert.deepEqual(d.errors,[]);await d.context.close();
  const t=await launch({...devices['Pixel 7'],viewport:{width:839,height:412},deviceScaleFactor:1}),m=t.page;
  await check('landscape touch keeps the actual minimap, chat and inventory visible together',async()=>{const s=await m.evaluate(()=>({portrait:Client.L.portrait,chat:Client.L.chat.h,map:Client.L.map.h,slots:Client.L.slots.length}));assert.equal(s.portrait,false);assert.ok(s.chat>70&&s.map>90);assert.equal(s.slots,28);});
+ await check('phone landscape gives the right panel larger readable content',async()=>{
+  const s=await m.evaluate(()=>({phone:Client.L.phoneLandscape,panel:Client.L.panel,content:Client.panelContent,slot:Client.L.slots[0],world:Client.L.world,map:Client.L.map}));
+  assert.equal(s.phone,true);assert.ok(s.panel.w>=245);assert.ok(s.panel.h>=200);assert.ok(s.content.h/261>=.80);assert.ok(s.slot.h>=28);assert.ok(s.world.w>430);assert.ok(s.map.h>=90);
+ });
  await check('touch menu selection still consumes once after the presentation refactor',async()=>{
   await m.evaluate(()=>{G.player.hp=10;G.player.eatCd=0;});const i=await m.evaluate(()=>findFoodIdx(G.player)),at=await slot(m,i),before=await m.evaluate(()=>countItem(G.player,'cookedFish'));
   const cdp=await m.context().newCDPSession(m);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...at,id:1}]});await m.waitForTimeout(560);await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await m.locator('#client-context').waitFor({state:'visible'});assert.equal(await m.evaluate(()=>G.player.hp),10);await m.getByRole('menuitem',{name:/^Eat/}).tap();assert.equal(await m.evaluate(()=>G.player.hp),19);assert.equal(await m.evaluate(()=>countItem(G.player,'cookedFish')),before-1);await cdp.detach();
