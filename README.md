@@ -49,9 +49,9 @@ No external UI screenshot or proprietary sprite sheet is used as the running int
 
 The Rust server currently owns accepted movement, the real collision map, GE zone membership, online PvP legality, attack cooldown/damage/HP, deaths/kills/respawn, online player snapshots, public chat and basic persistent online profiles.
 
-The browser predicts walking for smoothness, but rejected movement is corrected from server snapshots. Sending a handcrafted Attack message from inside the GE is still rejected by Rust.
+The client sends a destination. Rust finds and steps the legal route; the browser smoothly renders the server-provided intermediate tiles. No client position correction loop is used. Sending a handcrafted Attack message from inside the GE is still rejected by Rust.
 
-The mature SonnetOSRS inventory/equipment/prayer/item systems remain client-side for v0.4 and are the next systems to migrate. See `docs/ONLINE.md` for the exact trust boundary.
+The mature SonnetOSRS inventory/equipment/prayer/item systems remain client-side for this release and are the next systems to migrate. See `docs/ONLINE.md` for the exact trust boundary.
 
 ## Local development
 
@@ -74,8 +74,9 @@ The project retains:
 - 65 deterministic runtime regression checks;
 - 30 general Chromium browser checks;
 - 19 dedicated classic-interface checks;
-- 5 Rust server unit tests;
-- 9 two-client online integration checks.
+- 21 Rust movement/server/persistence unit tests;
+- 9 two-client online integration checks;
+- 19 route, jitter, reconnection, save-isolation and scene checks.
 
 Production is additionally smoke-tested from the deployed Vercel origin to the public Oracle `wss://` endpoint on desktop and an emulated landscape phone. Emulated phone tests are not a substitute for physical Android/iPhone testing.
 
@@ -96,3 +97,7 @@ Deployment templates are in `deploy/`.
 This remains an unofficial project built from the attributable `OminousIndustries/SonnetOSRS` foundation. RuneScape/OSRS names are descriptive references to the visual/gameplay era; OLDSKOOL is not the official RuneScape client and does not request RuneScape credentials.
 
 The project does not claim pixel-identical proprietary artwork or full OSRS feature parity. Online inventory/economy authority, authenticated accounts, trading and broader MMO persistence remain future work.
+
+## Latest repair
+
+See `docs/REPAIR.md` for the movement-protocol change, scene improvements, migration and test scope. Refresh an already-open pre-0.5 tab after deployment to use protocol 2. Saved online names, positions, kills and deaths are retained; invalid stored positions recover at the safe spawn.

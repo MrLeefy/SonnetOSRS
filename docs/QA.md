@@ -1,38 +1,19 @@
-# QA report — OLDSKOOL v0.4
+# OLDSKOOL v0.5 QA
 
-## Current verification layers
+The verification commands use the real procedural renderer and Rust server, not a static screenshot or fake server implementation.
 
-| Suite | Result | Scope |
-|---|---:|---|
-| Runtime regression | 65 passed | Inventory, equipment, combat edge cases, banking, Expedition, profiles, pathfinding/render invariants |
-| Existing browser regression | 30 passed | WebGL boot, Arena/Expedition, saves, bank/crafting/contracts, mouse/touch/rotation/context loss |
-| Classic interface | 19 passed | OSRS-inspired composition, responsive mappings, minimap, tabs, menus, chat, safe-area geometry |
-| Rust unit tests | 5 passed | GE safe polygon, bank safety, PvP exterior, sanitization, collision/corner-step rules |
-| Two-client online integration | 9 passed | Real Rust process + two real Chromium WebGL clients, safe-zone rejection, boundary crossing, PvP, illegal moves |
-| Production deployment smoke | 2 passed | Vercel production → public Oracle WSS on desktop and emulated landscape phone |
+| Suite | Checks |
+|---|---:|
+| Existing runtime regressions | 65 |
+| Rust movement/server/persistence | 21 |
+| General browser regression | 30 |
+| Classic interface | 19 |
+| Two-client online integration | 9 |
+| Route/reconnection/scene repair | 19 |
+| **Total** | **163** |
 
-The core local suites total **128 automated development checks** before the two production-origin smoke cases. The production smoke is deliberately listed separately because it exercises deployed infrastructure rather than the isolated test environment.
+The local repair suite passed all 19 scenarios, including multi-turn routes around the Grand Exchange, legal intermediate steps, idempotent destinations, no reject-resend flood, stale snapshots, variable buffering of real incoming packets, menu-open movement, reconnect, duplicate token rejection and online/offline save isolation. The 21 Rust tests passed as well. Hosted CI status is checked separately before deployment; a table of expected counts is not a claim that an unobserved CI run passed.
 
-## Online integration details
+Screenshots produced by `tests/repair.cjs` are in the `game-and-qa` CI artifact: `repair-desktop.png`, `repair-portrait.png`, `repair-landscape.png` and `repair-bank.png`. They contain test characters, not production account data. `repair-results.json` records the new scenario results.
 
-`tests/online.cjs` starts a release-build Rust server on an isolated loopback port and temporary state file. It then launches two Chromium clients into the real generated WebGL client. It verifies that both players see each other, start inside the Grand Exchange safe zone, cannot bypass safety by directly crafting an attack packet, cross the visible GE ring into PvP, resolve a server-owned hit, return to safety, and cannot submit off-grid/wall-skipping movement.
-
-The production smoke loads `https://oldskool-phi.vercel.app` rather than localhost and connects to `wss://oldskool-api.129.146.39.132.sslip.io/ws`. Both desktop and Pixel-7 landscape emulation joined World 1, crossed into PvP and returned to the safe zone without browser errors.
-
-## Existing long-run checks retained
-
-The browser regression still includes accelerated:
-
-- 1,200 Arena ticks with fourteen bots plus the player/clerks;
-- 900 Expedition ticks with enemy/node lifecycle checks.
-
-These are accelerated state-invariant tests, not claims about real-time server capacity or measured device FPS.
-
-## Important limits
-
-- Pixel/phone tests are Chromium emulation, not a physical Android or iPhone.
-- Safari and Firefox are not certified yet.
-- Online inventory/equipment/prayer/item economy are still client-side in v0.4. Rust owns movement, PvP legality/damage/HP, online player state and basic profile persistence.
-- There is no authenticated account system yet; reconnect tokens are local profile tokens, not secure account credentials.
-- No large concurrent-player load test has been performed.
-- The interface is OSRS/2009-era inspired original procedural art, not a claim of pixel-identical proprietary assets.
+The original 1,200-tick Arena and 900-tick Expedition accelerated invariants remain. These are not real-time concurrent-user or device-FPS benchmarks. Physical Android/iPhone, Safari/Firefox, full accessibility, online item/economy authority and long-term balancing are not certified by this pass. See `REPAIR.md` for scope and the exact movement fixes.

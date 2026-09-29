@@ -57,7 +57,7 @@ function talkClerk(npc) {
   say('Grand Exchange Clerk', kit, ['Welcome to the Grand Exchange.', 'How can I help you?'], () => {
     options('Select an Option', [
       { t: 'I would like to make an offer.', fn: () => say(G.player.name, G.player.kit, ['I would like to make an offer.'], () => say('Grand Exchange Clerk', kit, ['I\'m afraid all offers are cancelled on', 'this world. It is a PvP world - the only', 'currency here is your combat skill.'], () => { })) },
-      { t: 'Is it safe to stand here?', fn: () => say('Grand Exchange Clerk', kit, ['Safe? Not at all! Everyone on this', 'platform is fair game. I would keep my', 'prayers up if I were you.'], () => { }) },
+      { t: 'Is it safe to stand here?', fn: () => say('Grand Exchange Clerk', kit, (typeof Online!=='undefined'&&Online.active?['Inside the Grand Exchange stone ring', 'you are protected. Beyond the boundary,', 'other players can attack you.']:['This is the offline Arena practice world.', 'Keep your prayers up outside the bank.']), () => { }) },
       { t: 'Never mind.', fn: () => { } }
     ]);
   });
@@ -347,7 +347,8 @@ function minimapClick(mx, my) {
   const dx = mx - MM.cx, dy = my - MM.cy; if (dx * dx + dy * dy > MM.r * MM.r) return false;
   const cam = INP.cam, cs = Math.cos(cam.yaw), sn = Math.sin(cam.yaw), pl = G.player;
   const ox = (cs * dx + sn * (-dy)) / 4, oy = (-sn * dx + cs * (-dy)) / 4;
-  cmdWalk(Math.floor(pl.x + 0.5 + ox), Math.floor(pl.y + 0.5 + oy)); return true;
+  const rp=renderPos(pl,clamp((G.now-G.lastTick)/TICK_MS,0,1));
+  cmdWalk(Math.floor(rp[0]+ox),Math.floor(rp[1]+oy));return true;
 }
 function onDown(e) {
   sndInit();

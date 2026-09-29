@@ -1,7 +1,7 @@
 name: Verify game
 on:
   push:
-    branches: [main, leefy-foundation, oldskool-online]
+    branches: [main, leefy-foundation, oldskool-online, oldskool-repair]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -47,6 +47,9 @@ jobs:
       - name: Two-client Rust multiplayer integration
         if: steps.source.outputs.ready == 'true'
         run: npm run test:online
+      - name: Movement, reconnection and scene regression
+        if: steps.source.outputs.ready == 'true'
+        run: npm run test:repair
       - uses: actions/upload-artifact@v4
         if: always()
         with:

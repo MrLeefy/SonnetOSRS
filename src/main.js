@@ -22,7 +22,7 @@ LOADOUTS.pmage = {
 
 function startGame(name,mode='arena',options={}){
   if(mode==='online'&&!options.onlineBootstrap){Online.start(name);return;}
-  if(typeof Online!=='undefined'&&Online.active&&!options.onlineBootstrap)Online.stop(true);
+  if(typeof Online!=='undefined'&&Online.active&&!options.onlineBootstrap){Online.stop(true);options={...options,skipSave:true};}
   if(App.mode==='game'&&!options.skipSave){
     const ok=Profiles.save();
     if(!ok&&!window.confirm('Your current profile could not be saved. Continue anyway? Export a backup to keep it.'))return;
@@ -43,7 +43,7 @@ function startGame(name,mode='arena',options={}){
   gameMsg(Expedition.active?'Journal marks gathering spots and enemy camps. Bank your supplies; craft at the forge.':'Free combat kits are available at bank booths. Bots and specials use the 600 ms game tick.');}
   if(Profiles.blocked)gameMsg(Profiles.status);
 }
-function respawnNow(a){respawn(a);}
+function respawnNow(a){if(!Online.active)respawn(a);}
 function fit(){Client.layout();}
 function drawLoading(ctx){
   ctx.fillStyle='#211a10';ctx.fillRect(0,0,W,H);
@@ -67,8 +67,9 @@ function frame(t){
     if(!Number.isFinite(elapsed)||elapsed<0||elapsed>3000)elapsed=0;
     if(App.mode==='load'){drawLoading(App.ctx);return;}
     if(App.mode!=='game')return;
-    const paused=!!Client.panel||document.hidden||App.manualPause||App.contextLost;
+    const paused=document.hidden||App.contextLost||(!Online.active&&(!!Client.panel||App.manualPause));
     const dt=paused?0:Math.min(.1,elapsed/1000);
+    Online.frame();
     if(!paused){
       G.now+=elapsed;
       let steps=0;while(G.now-G.lastTick>=TICK_MS&&steps<4){G.lastTick+=TICK_MS;gameTick();steps++;}
@@ -78,11 +79,11 @@ function frame(t){
     }
     if(App.contextLost)return;
     const frac=clamp((G.now-G.lastTick)/TICK_MS,0,1),cam=App.cam;
-    if(!paused)updateCameraKeys(dt);
+    if(!paused&&!Client.panel)updateCameraKeys(dt);
     const rp=renderPos(G.player,frac);Polish.camera(cam,rp,groundH(...rp),dt);
     drawDynamic(frac,dt,cam);updateScreenInfo(cam,frac);
-    const R=App.R;R.begin(cam);for(const g of WORLD.statics)R.drawGPU(g);Polish.drawExtra();Polish.drawShadows();
-    R.drawDynamic(DYN);R.setDepthWrite(false);R.drawDynamic(BLD);R.setDepthWrite(true);
+    const R=App.R;R.begin(cam);R.gl.uniform1f(R.uOpacity,1);WorldVisibility.update(cam,dt);for(const g of WORLD.statics)R.drawGPU(g);Polish.drawExtra();WorldVisibility.drawOpaque(R);Polish.drawShadows();
+    R.drawDynamic(DYN);R.setDepthWrite(false);R.drawDynamic(BLD);R.setDepthWrite(true);WorldVisibility.drawFaded(R);
     if(!paused)updateHover();drawUI(App.ctx,cam);Client.draw();
   }catch(err){fatal(err);}
 }

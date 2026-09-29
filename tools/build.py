@@ -1,7 +1,7 @@
 """Build the deterministic standalone game. Required modules never silently skip."""
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
-ORDER = ['font_data','core','gfx','gl','items','world','game','ai','models','uiicons','ui','input','sound','engine_ext','expedition','profiles','network','classic','client','controls','polish','classic_presenter','main']
+ORDER = ['font_data','core','gfx','gl','items','world','game','ai','models','uiicons','ui','input','sound','engine_ext','expedition','profiles','network','classic','client','controls','polish','visibility','classic_presenter','main']
 HEAD = '''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2b2419"><title>OLDSKOOL - Grand Exchange PvP</title>
