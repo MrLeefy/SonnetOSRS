@@ -1,0 +1,8 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+qa/*-failure.json
+qa/*-preview.jpg
+playwright-report/
+test-results/

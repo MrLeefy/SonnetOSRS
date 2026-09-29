@@ -1,0 +1,15 @@
+{
+  "name": "sonnetosrs-leefy",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Attributable SonnetOSRS fork with offline Expedition and Arena modes",
+  "scripts": {
+    "build": "python3 tools/build.py",
+    "check": "node tools/check.cjs",
+    "test": "node tests/runtime.cjs",
+    "test:browser": "node tests/browser.cjs",
+    "verify": "npm run check && npm test && npm run build && npm run test:browser"
+  },
+  "devDependencies": { "playwright": "1.63.0" },
+  "engines": { "node": ">=20" }
+}
