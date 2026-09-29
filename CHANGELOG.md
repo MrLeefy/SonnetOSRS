@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — Classic client presentation
+
+- Replaced the modern green header and mobile app shell with an integrated stone/bronze client matching the approved reference composition.
+- Added original procedural frame textures and retro tab glyphs, parchment chat with live filtering/wrapping/scrolling, brown 4×7 inventory and a dynamic circular minimap with live stat orbs.
+- Reused original game input actions through per-region and per-slot coordinate mapping; no gameplay engine or persistence rewrite.
+- Preserved desktop mouse/keyboard and touch tap, hold, inventory drag, orbit and pinch. Rotation clears pending gestures without activating items.
+- Kept classic visual identity in portrait and landscape, including browser-provided notch/safe-area support and collapsible chat.
+- Restyled actual bank, journal, crafting, settings and NPC dialogs. Wrench opens settings/backups, bag utility opens banking, globe opens the real world map.
+- Added honest local report export under Report Abuse; online social channels remain visibly offline.
+- Fixed presentation-specific edge cases: duplicate context menus, old eight-line chat clamp, invisible scroll targets after collapsing chat, drag-ghost position and stale hover after resizing.
+- Added 19 classic-interface browser checks alongside all 65 runtime and 30 existing browser checks. No physical-device or online multiplayer certification is claimed.
+
 ## 0.2.0 — Leefy Expedition foundation
 
 ### Playable additions

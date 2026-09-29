@@ -1,38 +1,31 @@
-# QA report — v0.2.0
+# QA report — Classic Client v0.3
 
-The checks below were executed on the Oracle development VM with Node 20 and headless Chromium through Playwright 1.63.0. Code was exercised in an isolated worktree; no existing game server or production web service was replaced.
+## Executed locally
 
-## Executed
-
-| Suite | Result | Scope |
+| Suite | Result | What it covers |
 |---|---:|---|
-| Source syntax | Pass | `src`, `tools` and `tests` JavaScript |
-| Runtime regressions | 65 passed | Actual engine modules in a deterministic Node VM |
-| Browser checks | 30 passed | Chromium desktop, emulated Pixel 7 touch, portrait/landscape and a 320 px viewport |
-| Standalone build | Pass | Twenty required modules; deterministic output |
-| Arena stress simulation | 1,200 ticks | Fourteen bots plus player/clerks; inventory, actor and queue bounds |
-| Expedition stress simulation | 900 ticks | Enemy/node counts, lifecycles, local-save validation |
+| Syntax | Passed | All project JavaScript |
+| Runtime | 65 passed | Existing deterministic inventory, combat, progression and save checks |
+| Existing browser regression | 30 passed | Arena/Expedition gameplay, real rendered UI, touch and save reload |
+| Classic interface | 19 passed | Composition, live controls, responsive geometry and classic dialogs |
+| Total automated checks | **114 passed** | Actual engine and Chromium WebGL renderer |
 
-The accelerated tick tests advance simulated time; they are not 12-/9-minute wall-clock tests, an FPS benchmark, a network test, or a multiplayer capacity claim. Pixel 7 is a browser emulation profile, not a handset connected to the VM. Recorded software-rendered FPS is not evidence of performance on the user's phone.
+These were executed on the isolated Oracle development worktree with Node 20 and Playwright 1.63.0. No production service was replaced. The full game is rendered; screenshots are not static mockup substitutions.
 
-## Browser coverage
+## New UI coverage
 
-The suite boots the full generated game, uses native profile/mode buttons, pauses/resumes modal menus, gathers via the normal world-click path, deposits/withdraws through the bank interface, crafts a recipe, claims a contract once, reloads a saved character, switches modes without mixing saves, tests legacy mouse/orbit controls, releases held keys on blur, and changes render resolution.
+Eight gameplay/persistence source files are verified by their Git blob hashes to ensure the refactor did not silently rewrite mechanics. Slot hit regions roundtrip across ten sizes from a 320 px phone viewport to 1920×1080. Tests also exercise simulated notch/safe-area padding, clickable minimap pathfinding, compass reset, classic tabs, prayer toggling, spell selection, unequipping/wielding, native context menus, real chat filtering/wrapping/scrolling, collapsed chat, local report export, bank/journal dialogs, touch menu selection and rotation during an inventory press.
 
-Touch tests include real Chromium touch and multi-touch injection, inventory tap and drag, cancelled pointer sequences, long-press menus, pinch zoom, world-camera dragging, second-finger interference, reduced added motion, layout bounds and graphics-context-loss recovery. A discovered long-press release bug was reproduced with native touch events and fixed before rerunning the passing suite.
+The previous 30 browser tests are preserved. Only their coordinate adapters and old-footer geometry lookups changed to point at the composed frame. The original 65 runtime regression tests are unchanged.
 
-## Logic coverage
+## Artifacts
 
-Atomic insertion/removal/equipment, full-bag displacement, safe stack bounds, dose-aware bank entries, invalid item IDs, stale menu callbacks, dead-character actions, spawn protection, delayed-hit lifetimes, ranged ammunition, diagonal movement/line-of-sight, resource depletion/recovery, crafting transactions, duplicate contract claims, boss warnings, forgiving expedition respawn, XP thresholds, save corruption/version/mode validation, previous-save recovery and allocation-buffer reuse.
+The CI `game-and-qa` artifact contains `dist/index.html`, results and captured screens. Classic screenshots are `qa/classic-desktop.png`, `qa/classic-landscape.png`, `qa/classic-portrait.png`, `qa/classic-bank.png` and `qa/classic-journal.png`. Machine-readable results: `qa/browser-results.json` and `qa/classic-ui-results.json`.
 
-## Remaining limitations
+## Important limitations
 
-- Physical phone, Safari, Firefox, WebGL-driver-specific and assistive-technology verification remain outstanding.
-- The native modal UI has keyboard controls, but the original canvas gameplay is not a fully screen-reader-accessible game.
-- No multiplayer, real accounts, cloud sync, economy security or anti-cheat certification is claimed. Local saves are user-editable.
-- A lost WebGL context is paused and offers reload; transparent in-place GPU restoration is not implemented.
-- Expedition balance is a starting point. No long-term progression or drop-rate economy study has been done.
-- Ground loot, effects and projectiles have explicit caps; unusually crowded long-running sandbox sessions can age out excess effects/loot.
-- GitHub Actions execution is reported separately from these locally executed tests; configuring a workflow does not by itself mean hosted CI passed.
+Chromium phone profiles and touch injection are emulation, not physical Android/iPhone tests. Safari/Firefox, actual GPU/handset variation, full accessibility and long-term balancing are not certified. The existing accelerated 1,200-tick Arena and 900-tick Expedition tests check state invariants, not real-time multiplayer capacity or a measured FPS improvement.
 
-Machine-readable browser results: `qa/browser-results.json`. Text logs: `qa/runtime-test-output.txt` and `qa/browser-test-output.txt`. Screenshots are captured by the browser suite for desktop, touch portrait/landscape, and the journal.
+Networking, cloud saves, real social channels and online abuse reporting are not implemented. Report Abuse truthfully offers local report-file export. The existing context-loss path pauses and offers reload; transparent GPU restoration is not claimed. Local browser saves remain editable by the player.
+
+Hosted GitHub Actions success must be checked separately for the actual commit; this report records local results rather than predicting a CI outcome.

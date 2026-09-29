@@ -16,12 +16,12 @@ async function create(options={}){
  return {context,page,errors};
 }
 async function point(page,gx,gy){return page.evaluate(({gx,gy})=>{
- if(Client.mobile)return Client.fromGame(gx,gy);
+ if(Client.composed || Client.mobile)return Client.fromGame(gx,gy);
  const r=INP.canvas.getBoundingClientRect();return{x:r.left+gx*r.width/W,y:r.top+gy*r.height/H};
 },{gx,gy});}
 async function tap(page,p){await page.touchscreen.tap(p.x,p.y);await page.waitForTimeout(90);}
 async function dispatch(page,type,id,p,primary=true){await page.evaluate(({type,id,p,primary})=>{
- const target=type==='pointerdown'?(Client.mobile?Client.surface:INP.canvas):window;
+ const target=type==='pointerdown'?(Client.composed || Client.mobile?Client.surface:INP.canvas):window;
  target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:id,pointerType:'touch',isPrimary:primary,clientX:p.x,clientY:p.y,button:0,buttons:/up|cancel/.test(type)?0:1}));
 },{type,id,p,primary});}
 async function screenshot(page,name){await page.screenshot({path:path.join(root,'qa',name+'.png')});}
@@ -149,7 +149,7 @@ async function main(){
 
  const touch=await create(devices['Pixel 7']),m=touch.page;
  await check('portrait touch layout keeps world and inventory on screen',async()=>{
-  const bounds=await m.evaluate(()=>({width:innerWidth,height:innerHeight,world:Client.world,panel:Client.panelRect,footer:Client.footer.getBoundingClientRect().toJSON()}));
+  const bounds=await m.evaluate(()=>({width:innerWidth,height:innerHeight,world:Client.world,panel:Client.panelRect,footer:{y:Client.L.channels.y}}));
   for(const r of [bounds.world,bounds.panel]){assert.ok(r.x>=0&&r.y>=0&&r.x+r.w<=bounds.width+1&&r.y+r.h<=bounds.footer.y+1);}
  });
  await check('native mobile bag/equipment/prayer tabs select the original panels',async()=>{
@@ -208,7 +208,7 @@ async function main(){
  await screenshot(m,'touch-expedition');
  await check('landscape touch layout retains visible world and inventory',async()=>{
   await m.setViewportSize({width:839,height:412});await m.waitForTimeout(200);
-  const bounds=await m.evaluate(()=>({w:innerWidth,world:Client.world,panel:Client.panelRect,footer:Client.footer.getBoundingClientRect().top,aspect:App.cam.aspect}));
+  const bounds=await m.evaluate(()=>({w:innerWidth,world:Client.world,panel:Client.panelRect,footer:Client.L.bottom.y,aspect:App.cam.aspect}));
   for(const r of [bounds.world,bounds.panel])assert.ok(r.x>=0&&r.x+r.w<=bounds.w+1&&r.y+r.h<=bounds.footer+1);
   assert.ok(Math.abs(bounds.aspect-bounds.world.w/bounds.world.h)<.001);await screenshot(m,'touch-landscape');
  });

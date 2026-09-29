@@ -1,52 +1,53 @@
-# SonnetOSRS · Leefy expansion
+# SonnetOSRS · Classic Client v0.3
 
-An attributable fork of [OminousIndustries/SonnetOSRS](https://github.com/OminousIndustries/SonnetOSRS), keeping its compact procedural WebGL renderer, 600 ms combat simulation and classic interface. This branch adds a playable **offline Expedition** beside the original **Arena** sandbox. It is not the official RuneScape client, an OSRS account service or an online multiplayer server.
+An attributable fork of [OminousIndustries/SonnetOSRS](https://github.com/OminousIndustries/SonnetOSRS), preserving the compact procedural WebGL renderer, 600 ms combat simulation and offline Arena / Expedition gameplay.
+
+The v0.3 presentation refactor replaces the green app-style shell with an integrated, original **2009scape / OSRS-inspired classic interface**: stone and bronze trim, a circular minimap, live stat orbs, retro panel glyphs, a dark brown 28-slot inventory, parchment chat and channel buttons. Both desktop and mobile use the same visual identity. No mockup is used as a screen background; the map, inventory, messages and buttons show actual game state.
 
 ## Play
 
-Run `python3 -m http.server 8000` from the repository and open `http://localhost:8000/`. Select **Arena** or **Expedition**, enter a local profile name and play. No password is requested. The rebuilt `dist/index.html` is also a self-contained game with embedded assets; serving it over localhost/HTTPS gives local saving a predictable browser origin.
+Run `python3 -m http.server 8000` from the repository and open `http://localhost:8000/`. Choose **Arena** or **Expedition** and enter a local profile name. No RuneScape account or password is requested. `dist/index.html` is the complete standalone build with embedded assets. Serving it over localhost or HTTPS gives local saving a predictable browser origin.
 
-Arena supplies max-level practice kits and AI opponents. Expedition starts at a safe camp with a trail blade, gathering tools and food. Mine western ore seams, chop the northern coppice and catch fish in the eastern pools. Cook fish at the campfire, forge better blades, bank supplies, complete six contracts, then fight bandits, raiders and the Stone Guardian. Journal destinations place a world marker. The guardian marks its slam before impact: move out of the ring.
+**Arena** retains the free combat-kit PvP practice sandbox with AI opponents. **Expedition** starts at a safe camp with a trail blade, tools and food. Mine ore, gather timber, catch and cook fish, forge better blades, bank supplies, complete six contracts and challenge the Stone Guardian. The existing gameplay, combat, economy, save format and gesture state machine were not rewritten for this UI pass.
 
-### Controls
+## Classic interface controls
 
-Desktop: left click to act, right click for options, middle-mouse drag or arrow keys to orbit, wheel to zoom, F1–F7 for the classic panels. Touch: tap to act, drag the world to orbit, pinch to zoom, long-press for a large action menu. Inventory drag rearranges slots. The touch footer gives direct access to panels, food, potions, running, special attacks and chat. Both portrait and landscape layouts use the same underlying gameplay actions and inventory.
+The tabs below the minimap open combat, stats, journal, inventory, equipment, prayer and magic. Lower stone tabs retain the social, logout, settings, emote and music panels. The **wrench** opens settings, save/export/import and fullscreen controls. The **bag utility beside the minimap** walks to a bank booth or opens banking when already nearby and out of combat. The **globe** opens a map derived from the current world.
 
-The top bar opens Journal, Bank, Save and Menu. Bank requires being beside a bank booth and out of combat; the Bank button can walk you there. Menus pause this **offline** simulation. Escape closes a menu. Fullscreen depends on browser support.
+Desktop: left click to act, right click for a context menu, middle-mouse drag or arrow keys to orbit, wheel to zoom, F1–F7 for the original panels. Touch: tap to act, drag the world to orbit, pinch to zoom, hold for a large `Choose Option` menu. Drag inventory slots to rearrange. The minimap is clickable. The heart orb eats available food; other orbs control quick prayers, running and special attacks.
 
-### Saves
+The parchment chat supports wrapping, scrolling, filters and native text entry. Tap its input row to type on a phone. In portrait, classic-styled quick buttons provide food, potion, run, special, save, chat, fullscreen and settings access. Chat can be collapsed in settings to give the world more room. Layout respects browser-provided safe-area insets.
 
-Profiles are stored locally in the browser, separately for Arena and Expedition. Autosave runs approximately every 15 active seconds and when the page is hidden/closed. Menu includes JSON backup export/import. Export before clearing browser data, moving to another host/device, or resetting a profile. There is no cloud sync and no guarantee browsers will retain storage indefinitely.
+Private/clan/trade channels are not connected to a multiplayer service and display `Off`. The Report Abuse button explicitly offers a **local bug-report export**, not an online report to Jagex or another player. This remains an offline game.
 
-A previous validated save is retained as a backup. Invalid imports are rejected before modifying the character. If both saved copies are corrupt, they are preserved and autosave is blocked until you import a valid backup or explicitly reset that profile. Blocking or filling browser storage does not crash gameplay, but progress cannot be retained without exporting.
+## Saves
 
-Expedition death currently returns the player to camp with carried equipment retained. This is an intentional forgiving rule, not OSRS death-system parity. Free kits and sandbox healing commands are not available in Expedition. Progression and balance are original to this fork.
+Arena and Expedition use separate local profiles. Autosave, previous-valid-save recovery and JSON backup import/export are retained. The UI change does not reset existing progress or change save keys. Keep using the same origin and profile name to retain browser saves; export before moving hosts/devices or clearing browser data. There is no cloud sync.
 
-## Build and test
+Expedition death intentionally returns the player to camp with carried equipment retained. Free combat kits and sandbox healing remain limited to Arena. Damaged saves and storage failures are handled without pretending progress was saved successfully.
 
-Runtime has no downloaded JavaScript packages or third-party asset requests. Python 3.9+ builds the standalone HTML. Node 20+ is used for development checks; Playwright is a development-only dependency.
+## Build and verify
+
+Python 3.9+ builds the standalone HTML. Node 20+ and Playwright are development-only tools; runtime does not fetch JavaScript packages, sprites or fonts.
 
 ```sh
 npm ci --ignore-scripts
-npm run check
-npm test
-npm run build
 npx playwright install chromium
-npm run test:browser
+npm run verify
 ```
 
-`tools/build.py` fails if a required module is missing. It deterministically rebuilds `dist/index.html`, `index.html`, and `dev.html`. Edit source modules, not the generated HTML. `npm run verify` runs the full local sequence after Chromium is installed. Linux CI may need `npx playwright install --with-deps chromium` for system dependencies.
+For Linux CI system dependencies, use `npx playwright install --with-deps chromium`. The build requires all 22 ordered modules and creates deterministic `dist/index.html`, `index.html` and `dev.html`. Edit source modules, not generated HTML.
 
-## Architecture
+The suite consists of **65 runtime regressions**, the **30 existing browser checks**, and **19 new classic-UI checks**. The original browser assertions remain; their coordinate helpers were adapted to the composed presentation. The new suite verifies eight gameplay/persistence files by Git blob hash, slot mappings at ten viewport sizes, safe-area layout, real minimap movement, prayer/spell/equipment actions, context menus, chat scrolling, rotation during touch and local report export.
 
-The upstream global-script engine remains intact. `engine_ext.js` is an explicit compatibility layer capturing original functions and replacing the inventory, actor-lifetime and command boundaries. `expedition.js` defines items, resources, recipes, contracts, enemies, banking and progression. `profiles.js` owns whitelisted save validation. `client.js` presents the classic logical panels in a responsive shell. `controls.js` owns the pointer gesture state machine. `polish.js` handles renderer buffer reuse, resolution, camera easing, effects and added models. `main.js` owns lifecycle and bounded fixed-step scheduling.
+## Code structure
 
-This is an incremental extension of the existing code, not a replacement engine or a claim of a measured 100× performance gain. The compatibility layer is deliberately centralized; future work should migrate old globals into explicit interfaces rather than layering more independent overrides.
+`classic.js` owns original procedural textures, glyphs and pure layout rectangles. `client.js` owns the actual composed frame, coordinate mappings and themed native dialogs. `classic_presenter.js` adapts the existing logical canvas and render resolution without changing game state rules. The existing `controls.js` gesture machine, `profiles.js` persistence and gameplay modules remain unchanged.
 
-## QA and limits
+See [classic implementation notes](docs/CLASSIC_UI.md), [QA](docs/QA.md), [changelog](CHANGELOG.md) and [roadmap](EXPANSION_PLAN.md).
 
-See [QA report](docs/QA.md), [changelog](CHANGELOG.md), and [roadmap](EXPANSION_PLAN.md). The current suite includes 65 runtime regression checks and 30 Chromium end-to-end checks. Browser tests include genuine emulated touch/pinch events and synthetic cancellation cases. They are **not physical Android/iPhone tests**. No Firefox/Safari, multiplayer, Android APK or production hosting has been certified in this pass.
+## Scope and attribution
 
-## Attribution and rights
+This is an unofficial inspired interface, not a claim of pixel-identical proprietary artwork, a complete RuneScape recreation, online multiplayer or a measured speed multiplier. Browser tests emulate phones; physical Android/iPhone, Safari/Firefox and a full accessibility audit remain outstanding. Rust/networking/PvP-boundary work is separate from this presentation-only release.
 
-Original project: **OminousIndustries/SonnetOSRS**. Original renderer, world, UI assets and combat foundations are preserved. Leefy expansion work is maintained in this fork. No new blanket license is granted over the upstream work by this README. RuneScape-related names remain references to their respective owners; this project is unofficial and does not request account credentials.
+Original project and engine foundations: **OminousIndustries/SonnetOSRS**. Original attribution is retained. Added interface textures and glyphs are procedural original art; no blanket license over upstream code is asserted by this README.

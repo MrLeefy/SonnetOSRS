@@ -106,7 +106,7 @@ const Classic = (() => {
   };
   S.background=(p,L)=>{
     S.fill(p,L.frame,'stone');
-    S.frame(p,{x:0,y:0,w:L.w,h:L.h},Math.min(5,L.m));
+    S.frame(p,L.frame,Math.min(5,L.m));
     S.fill(p,L.panelFrame,'stone');S.fill(p,L.panel,'brown');S.frame(p,L.panelFrame,5);
     const f=L.panelFrame,pillar=(f.w-L.panel.w)/2;
     for(const x of [f.x+4,f.x+f.w-pillar]){

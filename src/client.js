@@ -24,7 +24,7 @@ const Client = (() => {
     .client-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}.client-items button{font-size:12px;min-height:82px;padding:5px;overflow-wrap:anywhere;background:var(--brown-texture,#3e3529)}.client-items canvas{display:block;position:static!important;width:32px;height:32px;margin:0 auto 6px;image-rendering:pixelated}.client-message{padding:10px;border:2px groove #8d7b53;background:#2a2115;color:#e1c68e;font-size:14px;margin:12px 0}
     #client-context{position:fixed;z-index:35;display:none;max-width:calc(100vw - 12px);width:max-content;min-width:160px;max-height:65dvh;overflow:auto;background:#5d5447;border:2px solid #100d09;box-shadow:0 3px 12px #0008;padding:1px;color:#fff;font-size:14px;scrollbar-color:#a39168 #2d2519}#client-context strong{display:block;background:#100d09;color:#c4b79a;padding:5px 8px;font-family:Georgia,serif;font-weight:normal}#client-context button{display:block;width:100%;text-align:left;border:0;background:transparent;box-shadow:none;border-radius:0;padding:4px 9px;color:#fff;min-height:30px;font-family:Georgia,serif;white-space:nowrap}#client-context button:hover{color:#ffef60;background:#746856}
     #client-dialog{position:fixed;z-index:34;display:none;background:var(--paper-texture,#c9b586);color:#2e2011;border:6px ridge #76674b;padding:12px;max-height:60dvh;overflow:auto}#client-dialog strong{display:block;text-align:center;font-weight:normal;color:#623b15;font-size:18px}#client-dialog p{font-size:15px;text-align:center;margin:6px 0}#client-dialog button{display:block;width:100%;box-shadow:none;border:0;border-radius:0;min-height:32px;background:none;color:#25248b;text-shadow:none;margin:2px 0;padding:4px}
-    #classic-tooltip{position:fixed;pointer-events:none;z-index:36;display:none;max-width:300px;padding:8px;color:#211809;background:#c8b88a;border:1px solid #130e07;font-size:14px}
+    #classic-tooltip{position:fixed;pointer-events:none;z-index:36;display:none;max-width:min(300px,calc(100vw - 16px));overflow-wrap:anywhere;padding:8px;color:#211809;background:#c8b88a;border:1px solid #130e07;font-size:14px}
     @media(pointer:coarse){#client-context button{min-height:44px}#client-dialog button{min-height:42px}}
     @media(max-width:580px){#client-panel{padding:12px 10px}#client-panel h1{font-size:23px;margin-left:20px;margin-right:35px}.client-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}button{font-size:14px}}
   `;
@@ -40,6 +40,7 @@ const Client = (() => {
     C.context=el('div',{id:'client-context'},document.body);C.context.setAttribute('role','menu');
     C.dialogRoot=el('div',{id:'client-dialog'},document.body);C.dialogRoot.setAttribute('role','dialog');C.dialogRoot.setAttribute('aria-label','Game conversation');
     C.tooltip=el('div',{id:'classic-tooltip'},document.body);
+    C.safeProbe=el('div',{id:'classic-safe-area'},document.body);C.safeProbe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;width:0;height:0;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
     C.root.addEventListener('keydown',e=>{
       if(e.key==='Escape'&&App.mode==='game'){e.preventDefault();C.close();}
       if(e.key==='Tab'){
@@ -70,7 +71,10 @@ const Client = (() => {
     if(typeof Controls!=='undefined')Controls.cancelAll();
     C.width=Math.max(1,document.documentElement.clientWidth||innerWidth);C.height=Math.max(1,innerHeight);
     C.mobile=Profiles.settings.layout==='touch'||(Profiles.settings.layout==='auto'&&matchMedia('(pointer: coarse)').matches);
-    C.L=Classic.layout(C.width,C.height,C.compact);const L=C.L;
+    const pad=getComputedStyle(C.safeProbe),left=parseFloat(pad.paddingLeft)||0,top=parseFloat(pad.paddingTop)||0,right=parseFloat(pad.paddingRight)||0,bottom=parseFloat(pad.paddingBottom)||0;
+    C.L=Classic.layout(C.width-left-right,C.height-top-bottom,C.compact);const L=C.L;
+    for(const r of [L.frame,L.world,L.chat,L.channels,L.map,L.top,L.bottom,L.panelFrame,L.panel,L.mapTransform,L.mapCircle,L.compass,...L.tabs,...L.slots,...L.orbs,...L.utilities,L.quick])if(r){r.x+=left;r.y+=top;}
+    C.hover=null;
     C.world=L.world;C.panelRect=L.panel;C.mapRect=L.map;
     C.regions=[{src:{x:VX,y:VY,w:VW,h:VH},dst:L.world,kind:'world'}];
     const scale=Math.min(L.panel.w/PANEL.w,L.panel.h/PANEL.h);
@@ -84,7 +88,7 @@ const Client = (() => {
     document.getElementById('wrap').style.display='none';
     Object.assign(gl.style,{position:'fixed',left:L.world.x+'px',top:L.world.y+'px',width:L.world.w+'px',height:L.world.h+'px',zIndex:'1',imageRendering:Profiles.settings.quality==='low'?'pixelated':'auto'});
     const dpr=Math.min(devicePixelRatio||1,2);C.surface.width=Math.round(C.width*dpr);C.surface.height=Math.round(C.height*dpr);C.surface.style.width=C.width+'px';C.surface.style.height=C.height+'px';C.ctx.setTransform(dpr,0,0,dpr,0,0);C.ctx.imageSmoothingEnabled=false;
-    C.back=document.createElement('canvas');C.back.width=Math.ceil(C.width);C.back.height=Math.ceil(C.height);const bg=C.back.getContext('2d');Classic.background(bg,L);bg.clearRect(L.world.x,L.world.y,L.world.w,L.world.h);
+    C.back=document.createElement('canvas');C.back.width=Math.ceil(C.width);C.back.height=Math.ceil(C.height);const bg=C.back.getContext('2d');bg.fillStyle='#221d14';bg.fillRect(0,0,C.width,C.height);Classic.background(bg,L);bg.clearRect(L.world.x,L.world.y,L.world.w,L.world.h);
     App.scale=L.world.w/VW;if(App.cam)App.cam.aspect=L.world.w/L.world.h;
     C.bar.replaceChildren(C.footer);C.footer.replaceChildren();C.tabButtons=[];
     L.tabs.forEach((r,i)=>{const label=i===2?'Journal':i===3?'Bag':i===4?'Gear':i===5?'Prayer':i===6?'Magic':i===11?'Menu':TAB_TIP[i];const b=hit(label,r,()=>C.selectTab(i),C.footer);b.dataset.tab=i;C.tabButtons.push([b,i]);});
@@ -105,7 +109,7 @@ const Client = (() => {
     const chat=L.chat,line=clamp(C.width/85,12,17)*1.22;C.chatInputRect={x:chat.x+7,y:chat.y+chat.h-line-8,w:chat.w-32,h:line+2};
     hit('Type a chat message',C.chatInputRect,()=>C.open('chat'));
     C.scrollUp={x:chat.x+chat.w-25,y:chat.y+8,w:17,h:17};C.scrollDown={x:chat.x+chat.w-25,y:C.chatInputRect.y-21,w:17,h:17};
-    hit('Scroll chat up',C.scrollUp,()=>{G.chatScroll+=3;});hit('Scroll chat down',C.scrollDown,()=>{G.chatScroll=Math.max(0,G.chatScroll-3);});
+    if(chat.h>50){hit('Scroll chat up',C.scrollUp,()=>{G.chatScroll+=3;});hit('Scroll chat down',C.scrollDown,()=>{G.chatScroll=Math.max(0,G.chatScroll-3);});}
     C.quickButtons=[];
     if(L.quick){const q=L.quick,keys=['Eat','Potion','Run','Special','Save','Chat','Full screen','Menu'],cols=2,hh=Math.min(46,(q.h-25)/4);keys.forEach((key,i)=>{
       const r={x:q.x+(i%cols)*(q.w/cols),y:q.y+22+Math.floor(i/cols)*hh,w:q.w/cols-2,h:hh-2};C.quickButtons.push({key,r});
@@ -159,7 +163,7 @@ const Client = (() => {
       p.drawImage(itemIcon(s.id),x,y,size,size);
       if(ITEMS[s.id].stack){const st=stackText(s.n);Classic.text(p,st.t,x-1,y+Math.min(12,r.h*.32),Math.min(15,Math.max(10,r.h*.31)),st.c,true);}
     });
-    if(UI.drag?.active){const s=G.player.inv[UI.drag.from];if(s){const pt=C.fromGame(UI.mouse.x,UI.mouse.y),r=C.L.slots[UI.drag.from],size=Math.round(Math.min(r.w*.72,r.h*.86,56));p.globalAlpha=.85;p.drawImage(itemIcon(s.id),pt.x-size/2,pt.y-size/2,size,size);p.globalAlpha=1;}}
+    if(UI.drag?.active){const s=G.player.inv[UI.drag.from];if(s){const pt=C.pointer||C.fromGame(UI.mouse.x,UI.mouse.y),r=C.L.slots[UI.drag.from],size=Math.round(Math.min(r.w*.72,r.h*.86,56));p.globalAlpha=.85;p.drawImage(itemIcon(s.id),pt.x-size/2,pt.y-size/2,size,size);p.globalAlpha=1;}}
   };
   C.chatLines=(maxWidth,size)=>{
     const latest=G.msgs.at(-1),key=[latest,G.msgs.length,UI.chatTab,maxWidth,size];
@@ -235,7 +239,7 @@ const Client = (() => {
     if(d.type==='options')for(const o of d.opts)button(o.t,()=>{if(G.dialog!==d)return;G.dialog=null;o.fn();},C.dialogRoot);
     else{for(const line of d.lines||[])el('p',{text:line},C.dialogRoot);button('Click here to continue',dialogContinue,C.dialogRoot);}
   };
-  C.close=()=>{if(App.mode!=='game')return;C.panel=null;C.shade.style.display='none';C.bar.inert=false;if(typeof Controls!=='undefined')Controls.cancelAll();C.surface.focus({preventScroll:true});};
+  C.close=()=>{if(App.mode!=='game')return;C.panel=null;C.hover=null;C.shade.style.display='none';C.bar.inert=false;if(typeof Controls!=='undefined')Controls.cancelAll();C.surface.focus({preventScroll:true});};
   C.open=page=>{
     if(!G.player&&!['welcome','menu'].includes(page))page='welcome';
     if(page==='bank'&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
