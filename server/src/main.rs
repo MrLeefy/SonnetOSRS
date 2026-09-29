@@ -1,5 +1,7 @@
 mod economy;
+mod ground;
 mod movement;
+use ground::{GroundItem, GroundState, GroundView, KEEP_ON_DEATH};
 use economy::*;
 use movement::{Collision, Tile};
 use std::{
@@ -57,6 +59,9 @@ struct World {
     profiles: HashMap<String, PersistedProfile>,
     ge_offers: Vec<GeOffer>,
     next_offer_id: u64,
+    ground: GroundState,
+    /// Bumped whenever the set of visible ground items changes.
+    ground_rev: u64,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -129,6 +134,9 @@ struct Player {
     equipment: HashMap<String, InventoryItem>,
     appearance: Appearance,
     resident: Option<ResidentAi>,
+    /// Bumped when the server changes this player's account outside a command reply
+    /// (for example PvP death loss) so the connection re-sends account_state.
+    account_rev: u64,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -165,6 +173,10 @@ struct PersistedState {
     ge_offers: Vec<GeOffer>,
     #[serde(default)]
     next_offer_id: u64,
+    #[serde(default)]
+    ground_items: Vec<GroundItem>,
+    #[serde(default)]
+    next_ground_uid: u64,
 }
 fn default_hp() -> i32 {
     MAX_HP
@@ -209,6 +221,12 @@ enum ClientMessage {
     InventoryMove {
         from: u8,
         to: u8,
+    },
+    Drop {
+        index: u8,
+    },
+    Pickup {
+        uid: u64,
     },
     Follow {
         target_id: Uuid,
@@ -303,6 +321,8 @@ impl ClientMessage {
             ClientMessage::Eat { .. }
                 | ClientMessage::Drink { .. }
                 | ClientMessage::InventoryMove { .. }
+                | ClientMessage::Drop { .. }
+                | ClientMessage::Pickup { .. }
                 | ClientMessage::BankDeposit { .. }
                 | ClientMessage::BankDepositAll {}
                 | ClientMessage::BankDepositEquipment {}
@@ -380,6 +400,9 @@ enum ServerMessage<'a> {
         offers: Vec<GeOffer>,
         catalog: Vec<TradeItemView>,
         appearance: Appearance,
+    },
+    GroundItems {
+        items: Vec<GroundView>,
     },
     Error {
         code: &'a str,
@@ -1305,6 +1328,7 @@ fn make_resident(name: &str, role: ResidentRole, home: Tile, personality: u8) ->
             next_chat: 10 + (personality as u64 % 17),
             personality,
         }),
+        account_rev: 0,
     }
 }
 fn seed_residents(world: &mut World, c: &Collision, count: usize) {
@@ -1770,6 +1794,7 @@ async fn connection(socket: WebSocket, state: AppState) {
             equipment: profile.equipment.clone(),
             appearance: profile.appearance.clone(),
             resident: None,
+            account_rev: 0,
         };
         let view = player_view(&player);
         world.profiles.insert(token.clone(), profile);
@@ -1808,6 +1833,18 @@ async fn connection(socket: WebSocket, state: AppState) {
     if sink.send(Message::Text(account.into())).await.is_err() {
         disconnect(id, &state).await;
         return;
+    }
+
+    let mut seen_account = {
+        let world = state.world.read().await;
+        world.players.get(&id).map(|p| p.account_rev).unwrap_or(0)
+    };
+    let mut seen_ground: Option<u64> = None;
+    for msg in private_updates(&state, id, &mut seen_account, &mut seen_ground).await {
+        if sink.send(Message::Text(msg.into())).await.is_err() {
+            disconnect(id, &state).await;
+            return;
+        }
     }
 
     let initial = snapshot_message(&state).await;
@@ -1894,10 +1931,16 @@ async fn connection(socket: WebSocket, state: AppState) {
                 match outbound {
                     Ok(text) => {
                         if sink.send(Message::Text(text.into())).await.is_err() { break; }
+                        let mut failed = false;
+                        for msg in private_updates(&state, id, &mut seen_account, &mut seen_ground).await {
+                            if sink.send(Message::Text(msg.into())).await.is_err() { failed = true; break; }
+                        }
+                        if failed { break; }
                     }
                     Err(broadcast::error::RecvError::Lagged(_)) => {
                         let snapshot = snapshot_message(&state).await;
                         if sink.send(Message::Text(snapshot.into())).await.is_err() { break; }
+                        seen_ground = None;
                     }
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -2017,6 +2060,52 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             }
             p.inventory.swap(from, to);
             Some(account_message(p, ge_offers))
+        }
+        ClientMessage::Drop { index } => {
+            let mut w = state.world.write().await;
+            let World {
+                players,
+                ge_offers,
+                ground,
+                ground_rev,
+                ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if p.simulated {
+                return None;
+            }
+            let (x, y) = (p.x as i32, p.y as i32);
+            match ground.drop_slot(&mut p.inventory, index as usize, x, y, &p.token) {
+                Ok(()) => {
+                    *ground_rev += 1;
+                    p.food = inventory_count(&p.inventory, "shark").min(u8::MAX as u32) as u8;
+                    Some(account_message(p, ge_offers))
+                }
+                Err(message) => Some(account_error("drop", message)),
+            }
+        }
+        ClientMessage::Pickup { uid } => {
+            let mut w = state.world.write().await;
+            let World {
+                players,
+                ge_offers,
+                ground,
+                ground_rev,
+                ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if p.simulated {
+                return None;
+            }
+            let (x, y) = (p.x as i32, p.y as i32);
+            match ground.pickup(&mut p.inventory, uid, &p.token, x, y) {
+                Ok(()) => {
+                    *ground_rev += 1;
+                    p.food = inventory_count(&p.inventory, "shark").min(u8::MAX as u32) as u8;
+                    Some(account_message(p, ge_offers))
+                }
+                Err(message) => Some(account_error("pickup", message)),
+            }
         }
         ClientMessage::Follow { target_id, seq } => {
             let mut w = state.world.write().await;
@@ -2493,6 +2582,32 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
     }
 }
 
+/// Messages only this connection may see: its own account changes made by the
+/// server (death loss) and the ground items it is allowed to view.
+async fn private_updates(
+    state: &AppState,
+    id: Uuid,
+    seen_account: &mut u64,
+    seen_ground: &mut Option<u64>,
+) -> Vec<String> {
+    let world = state.world.read().await;
+    let Some(p) = world.players.get(&id) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    if p.account_rev != *seen_account {
+        *seen_account = p.account_rev;
+        out.push(account_message(p, &world.ge_offers));
+    }
+    if *seen_ground != Some(world.ground_rev) {
+        *seen_ground = Some(world.ground_rev);
+        out.push(serialize(&ServerMessage::GroundItems {
+            items: world.ground.view_for(&p.token),
+        }));
+    }
+    out
+}
+
 async fn snapshot_message(state: &AppState) -> String {
     let world = state.world.read().await;
     serialize(&ServerMessage::Snapshot {
@@ -2521,6 +2636,9 @@ async fn disconnect(id: Uuid, state: &AppState) {
 fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
     w.tick = w.tick.saturating_add(1);
     let tick = w.tick;
+    if w.ground.tick() {
+        w.ground_rev = w.ground_rev.wrapping_add(1);
+    }
     let mut events = Vec::new();
     resident_think(w, c, &mut events);
     let mut ids = w.players.keys().copied().collect::<Vec<_>>();
@@ -2748,6 +2866,18 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
             }
         }
         let smiting = w.players[&id].active_prayers.iter().any(|x| x == "smite");
+        // Killer owns the death pile. Simulated residents never own loot, so
+        // their kills leave a public pile instead of an unpickable one.
+        let killer_owner = {
+            let a = &w.players[&id];
+            if a.simulated {
+                None
+            } else {
+                Some(a.token.clone())
+            }
+        };
+        let mut death_loot: Vec<(String, u32)> = Vec::new();
+        let mut death_tile = (0i32, 0i32);
         let t = w.players.get_mut(&tid).unwrap();
         t.hp = (t.hp - total).max(0);
         if style == CombatStyle::Magic
@@ -2782,6 +2912,21 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
         let hp = t.hp;
         let killed = hp == 0;
         if killed {
+            death_tile = (t.x as i32, t.y as i32);
+            // Only real players lose items. Residents keep their fixed kit so
+            // they cannot be farmed for endless loot.
+            if !t.simulated {
+                let keep = KEEP_ON_DEATH
+                    + usize::from(t.active_prayers.iter().any(|x| x == "protitem"));
+                death_loot = ground::take_death_loot(&mut t.inventory, &mut t.equipment, keep);
+                if !death_loot.is_empty() {
+                    t.weapon = equipment_weapon(&t.equipment);
+                    t.special_pending = false;
+                    t.combat_style = weapon_style(&t.weapon, t.combat_style, &t.spell);
+                    sync_consumable_counters(t);
+                    t.account_rev = t.account_rev.wrapping_add(1);
+                }
+            }
             t.deaths = t.deaths.saturating_add(1);
             let base = base_levels(&t.loadout);
             t.hp = base.hp;
@@ -2814,6 +2959,22 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
             t.position_epoch = t.position_epoch.saturating_add(1);
         }
         if killed {
+            if !death_loot.is_empty() {
+                for (item, amount) in &death_loot {
+                    // spawn_death only fails for unknown items, which cannot
+                    // come out of a player's own inventory.
+                    if let Err(err) = w.ground.spawn_death(
+                        item,
+                        *amount,
+                        death_tile.0,
+                        death_tile.1,
+                        killer_owner.as_deref(),
+                    ) {
+                        warn!(item, amount, err, "death loot could not be placed");
+                    }
+                }
+                w.ground_rev = w.ground_rev.wrapping_add(1);
+            }
             let a = w.players.get_mut(&id).unwrap();
             a.kills = a.kills.saturating_add(1);
             for p in w.players.values_mut() {
@@ -2862,6 +3023,8 @@ async fn persist(state: &AppState) {
             profiles,
             ge_offers: world.ge_offers.clone(),
             next_offer_id: world.next_offer_id,
+            ground_items: world.ground.items.clone(),
+            next_ground_uid: world.ground.next_uid,
         };
         let data = match serde_json::to_vec_pretty(&stored) {
             Ok(v) => v,
@@ -2913,6 +3076,7 @@ async fn load_state(path: &Path) -> PersistedState {
                 profiles,
                 ge_offers: Vec::new(),
                 next_offer_id: 0,
+                ..Default::default()
             })
     }
 
@@ -3025,6 +3189,15 @@ async fn main() {
             profiles: stored.profiles,
             ge_offers: stored.ge_offers,
             next_offer_id: stored.next_offer_id,
+            ground: {
+                let mut ground = GroundState {
+                    items: stored.ground_items,
+                    next_uid: stored.next_ground_uid,
+                };
+                ground.sanitize();
+                ground
+            },
+            ground_rev: 0,
         })),
         tx,
         state_file: Arc::new(state_file),
@@ -3168,6 +3341,7 @@ mod regression {
             equipment: starter_equipment(),
             appearance: appearance_for("Tester"),
             resident: None,
+            account_rev: 0,
         }
     }
     fn state() -> AppState {
@@ -3179,6 +3353,8 @@ mod regression {
                 profiles: HashMap::new(),
                 ge_offers: Vec::new(),
                 next_offer_id: 0,
+                ground: Default::default(),
+                ground_rev: 0,
             })),
             tx,
             state_file: Arc::new(
@@ -3496,6 +3672,208 @@ mod regression {
         assert!(s.world.read().await.players[&tid].overhead.is_none());
     }
 
+    fn totals(p: &Player, ground: &GroundState) -> HashMap<String, u32> {
+        let mut m: HashMap<String, u32> = HashMap::new();
+        for it in p.inventory.iter().flatten().chain(p.equipment.values()) {
+            *m.entry(it.id.clone()).or_default() += it.amount;
+        }
+        for g in &ground.items {
+            *m.entry(g.id.clone()).or_default() += g.amount;
+        }
+        m
+    }
+
+    async fn kill_victim(s: &AppState, aid: Uuid, tid: Uuid) {
+        let mut w = s.world.write().await;
+        for _ in 0..60 {
+            advance_world(&mut w, &s.collision);
+            if w.players[&tid].deaths > 0 {
+                return;
+            }
+        }
+        panic!("victim never died");
+    }
+
+    #[tokio::test]
+    async fn drop_and_pickup_are_server_authoritative() {
+        let s = state();
+        let (aid, bid) = (Uuid::from_u128(200), Uuid::from_u128(201));
+        let mut a = player(aid);
+        let mut b = player(bid);
+        a.inventory = vec![None; INVENTORY_SLOTS];
+        a.inventory[0] = Some(InventoryItem { id: "whip".into(), amount: 1 });
+        b.x = 10.;
+        b.y = 10.;
+        b.inventory = vec![None; INVENTORY_SLOTS];
+        {
+            let mut w = s.world.write().await;
+            w.players.insert(aid, a);
+            w.players.insert(bid, b);
+        }
+        // Dropping an empty or out-of-range slot is rejected.
+        let r = handle_command(aid, ClientMessage::Drop { index: 5 }, &s).await.unwrap();
+        assert!(r.contains("error"));
+        let r = handle_command(aid, ClientMessage::Drop { index: 200 }, &s).await.unwrap();
+        assert!(r.contains("error"));
+        let r = handle_command(aid, ClientMessage::Drop { index: 0 }, &s).await.unwrap();
+        assert!(r.contains("account_state"));
+        let uid = {
+            let w = s.world.read().await;
+            assert_eq!(w.ground.items.len(), 1);
+            assert!(w.players[&aid].inventory[0].is_none());
+            assert_eq!(w.ground_rev, 1);
+            w.ground.items[0].uid
+        };
+        // Another player can neither see nor take an owner-private item.
+        let r = handle_command(bid, ClientMessage::Pickup { uid }, &s).await.unwrap();
+        assert!(r.contains("error"));
+        {
+            let w = s.world.read().await;
+            assert!(w.ground.view_for(&w.players[&bid].token).is_empty());
+            assert_eq!(w.ground.view_for(&w.players[&aid].token).len(), 1);
+            assert_eq!(inventory_count(&w.players[&bid].inventory, "whip"), 0);
+        }
+        let r = handle_command(aid, ClientMessage::Pickup { uid }, &s).await.unwrap();
+        assert!(r.contains("account_state"));
+        let w = s.world.read().await;
+        assert_eq!(inventory_count(&w.players[&aid].inventory, "whip"), 1);
+        assert!(w.ground.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pvp_death_drops_loot_to_killer_and_conserves_items() {
+        let s = state();
+        let (aid, tid) = (Uuid::from_u128(210), Uuid::from_u128(211));
+        let a = player(aid);
+        let mut t = player(tid);
+        t.x = 11.;
+        t.y = 10.;
+        t.hp = 1;
+        let killer_token = a.token.clone();
+        let victim_token = t.token.clone();
+        let before = totals(&t, &GroundState::default());
+        {
+            let mut w = s.world.write().await;
+            w.players.insert(aid, a);
+            w.players.insert(tid, t);
+            w.players.get_mut(&aid).unwrap().attack_target = Some(tid);
+        }
+        kill_victim(&s, aid, tid).await;
+        let w = s.world.read().await;
+        let v = &w.players[&tid];
+        let kept = v.inventory.iter().flatten().count() + v.equipment.len();
+        assert!(kept <= KEEP_ON_DEATH, "victim kept {kept}");
+        assert_eq!(v.account_rev, 1, "victim must be told their account changed");
+        assert_eq!(v.weapon, equipment_weapon(&v.equipment));
+        assert!(!w.ground.items.is_empty());
+        assert!(w.ground.items.iter().all(|g| g.owner.as_deref() == Some(killer_token.as_str())
+            && (g.x, g.y) == (11, 10)));
+        assert_eq!(totals(v, &w.ground), before, "no item created or destroyed");
+        assert!(w.ground.view_for(&victim_token).is_empty());
+        assert!(!w.ground.view_for(&killer_token).is_empty());
+        assert!(w.ground_rev > 0);
+        // Respawn is an explicit discontinuity.
+        assert_eq!(v.position_epoch, 1);
+    }
+
+    #[tokio::test]
+    async fn protect_item_keeps_one_more_item() {
+        let s = state();
+        let (aid, tid) = (Uuid::from_u128(220), Uuid::from_u128(221));
+        let a = player(aid);
+        let mut t = player(tid);
+        t.x = 11.;
+        t.y = 10.;
+        t.hp = 1;
+        t.active_prayers = vec!["protitem".into()];
+        {
+            let mut w = s.world.write().await;
+            w.players.insert(aid, a);
+            w.players.insert(tid, t);
+            w.players.get_mut(&aid).unwrap().attack_target = Some(tid);
+        }
+        kill_victim(&s, aid, tid).await;
+        let w = s.world.read().await;
+        let v = &w.players[&tid];
+        let kept = v.inventory.iter().flatten().count() + v.equipment.len();
+        assert_eq!(kept, KEEP_ON_DEATH + 1);
+    }
+
+    #[tokio::test]
+    async fn resident_deaths_never_create_loot() {
+        let s = state();
+        let (aid, tid) = (Uuid::from_u128(230), Uuid::from_u128(231));
+        let a = player(aid);
+        let mut t = player(tid);
+        t.simulated = true;
+        t.resident = Some(ResidentAi {
+            role: ResidentRole::Social,
+            home: Tile::new(48, 42),
+            next_action: u64::MAX,
+            next_chat: u64::MAX,
+            personality: 0,
+        });
+        t.x = 11.;
+        t.y = 10.;
+        t.hp = 1;
+        let equipped = t.equipment.len();
+        {
+            let mut w = s.world.write().await;
+            w.players.insert(aid, a);
+            w.players.insert(tid, t);
+            w.players.get_mut(&aid).unwrap().attack_target = Some(tid);
+        }
+        kill_victim(&s, aid, tid).await;
+        let w = s.world.read().await;
+        assert!(w.ground.items.is_empty(), "residents must not be farmable");
+        assert_eq!(w.players[&tid].equipment.len(), equipped);
+    }
+
+    #[tokio::test]
+    async fn ground_items_persist_and_expire() {
+        let s = state();
+        {
+            let mut w = s.world.write().await;
+            w.ground.spawn("whip", 1, 4, 4, Some("tok")).unwrap();
+        }
+        persist(&s).await;
+        let stored = load_state(&s.state_file).await;
+        assert_eq!(stored.ground_items.len(), 1);
+        assert_eq!(stored.next_ground_uid, 1);
+        let mut w = s.world.write().await;
+        for _ in 0..ground::LIFETIME_TICKS {
+            advance_world(&mut w, &s.collision);
+        }
+        assert!(w.ground.items.is_empty());
+        assert!(w.ground_rev >= 2, "expiry must trigger a client resync");
+    }
+
+    #[tokio::test]
+    async fn private_updates_send_only_visible_ground_and_account_changes() {
+        let s = state();
+        let (aid, bid) = (Uuid::from_u128(240), Uuid::from_u128(241));
+        let (a, b) = (player(aid), player(bid));
+        let atoken = a.token.clone();
+        {
+            let mut w = s.world.write().await;
+            w.players.insert(aid, a);
+            w.players.insert(bid, b);
+            w.ground.spawn("whip", 1, 4, 4, Some(&atoken)).unwrap();
+            w.ground_rev += 1;
+        }
+        let (mut acct_a, mut ground_a) = (0u64, None);
+        let (mut acct_b, mut ground_b) = (0u64, None);
+        let ma = private_updates(&s, aid, &mut acct_a, &mut ground_a).await;
+        let mb = private_updates(&s, bid, &mut acct_b, &mut ground_b).await;
+        assert!(ma.iter().any(|m| m.contains("ground_items") && m.contains("whip")));
+        assert!(mb.iter().any(|m| m.contains("ground_items") && !m.contains("whip")));
+        assert!(private_updates(&s, aid, &mut acct_a, &mut ground_a).await.is_empty());
+        s.world.write().await.players.get_mut(&bid).unwrap().account_rev += 1;
+        let mb = private_updates(&s, bid, &mut acct_b, &mut ground_b).await;
+        assert!(mb.iter().any(|m| m.contains("account_state")));
+        assert!(!mb.iter().any(|m| m.contains("ground_items")));
+    }
+
     #[tokio::test]
     async fn stop_cancels_route_and_combat() {
         let s = state();
@@ -3589,6 +3967,8 @@ mod regression {
             profiles: HashMap::new(),
             ge_offers: Vec::new(),
             next_offer_id: 0,
+            ground: Default::default(),
+            ground_rev: 0,
         };
         w.players.insert(attacker_id, attacker);
         w.players.insert(target_id, target);
@@ -3628,6 +4008,8 @@ mod regression {
             profiles: HashMap::new(),
             ge_offers: Vec::new(),
             next_offer_id: 0,
+            ground: Default::default(),
+            ground_rev: 0,
         };
         w.players.insert(attacker_id, attacker);
         w.players.insert(target_id, target);
@@ -3660,6 +4042,8 @@ mod regression {
             profiles: HashMap::new(),
             ge_offers: Vec::new(),
             next_offer_id: 0,
+            ground: Default::default(),
+            ground_rev: 0,
         };
         advance_world(&mut w, &c);
         assert_eq!((w.players[&id].x, w.players[&id].y), (56., 48.));
@@ -3752,6 +4136,8 @@ mod regression {
             profiles: HashMap::new(),
             ge_offers: Vec::new(),
             next_offer_id: 0,
+            ground: Default::default(),
+            ground_rev: 0,
         };
         seed_residents(&mut w, &c, 20);
         assert_eq!(w.players.values().filter(|p| p.simulated).count(), 20);

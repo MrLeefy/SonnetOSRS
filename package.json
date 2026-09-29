@@ -11,11 +11,12 @@
     "test:classic": "node tests/classic.cjs",
     "verify": "npm run check && npm test && npm run build && npm run test:browser",
     "test:server": "cargo test --manifest-path server/Cargo.toml",
-    "verify:full": "npm run check && npm test && npm run build && npm run test:server && cargo build --release --manifest-path server/Cargo.toml && npm run test:browser && npm run test:online && npm run test:repair && npm run test:crowd && npm run test:economy-online",
+    "verify:full": "npm run check && npm test && npm run build && npm run test:server && cargo build --release --manifest-path server/Cargo.toml && npm run test:browser && npm run test:online && npm run test:repair && npm run test:crowd && npm run test:economy-online && npm run test:ground-online",
     "test:online": "node tests/online.cjs",
     "test:repair": "node tests/repair.cjs",
     "test:crowd": "node tests/crowd.cjs",
-    "test:economy-online": "node tests/economy-online.cjs"
+    "test:economy-online": "node tests/economy-online.cjs",
+    "test:ground-online": "node tests/ground-online.cjs"
   },
   "devDependencies": {
     "playwright": "1.63.0"

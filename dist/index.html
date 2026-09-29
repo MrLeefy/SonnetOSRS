@@ -4086,6 +4086,10 @@ const Online = (() => {
       else if(['bank','ge','appearance'].includes(Client.panel))Client.renderPanel();
       return;
     }
+    if(msg.type==='ground_items'){
+      G.ground=(Array.isArray(msg.items)?msg.items:[]).filter(i=>i&&ITEMS[i.id]&&Number.isInteger(i.x)&&Number.isInteger(i.y)).map(i=>({uid:i.uid,id:i.id,n:i.amount,x:i.x,y:i.y,t:Infinity,mine:!!i.mine}));
+      return;
+    }
     if(msg.type==='snapshot'){O.applySnapshot(msg);return;}
     if(msg.type==='route'){
       if(msg.seq<O.seq)return;
@@ -4152,6 +4156,9 @@ const Online = (() => {
   O.unequip=slot=>usable()&&send({type:'unequip',slot:String(slot)});
   O.drink=index=>usable()&&send({type:'drink',index:Number(index)});
   O.setPrayer=(id,enabled)=>usable()&&send({type:'prayer',id:String(id),enabled:!!enabled});
+  O.drop=index=>{if(!usable())return;const i=Number(index);if(Number.isInteger(i)&&i>=0&&i<28)send({type:'drop',index:i});};
+  O.pickup=uid=>usable()&&Number.isInteger(uid)&&send({type:'pickup',uid});
+  O.take=g=>{if(!usable()||!g||!Number.isInteger(g.uid))return;O.doJob(g.x,g.y,p=>p.x===g.x&&p.y===g.y,()=>O.pickup(g.uid));};
   O.inventoryMove=(from,to)=>usable()&&send({type:'inventory_move',from:Number(from),to:Number(to)});
   O.setAppearance=kit=>usable()&&send({type:'appearance',skin:kit.skin>>>0,hair:kit.hair>>>0,shirt:kit.shirt>>>0,pants:kit.pants>>>0,boots:kit.boots>>>0,hair_style:kit.hairStyle|0});
   O.requestResync=()=>{if(usable()&&performance.now()-(O.lastResync||0)>1000){O.lastResync=performance.now();send({type:'resync'});}};
@@ -4175,7 +4182,8 @@ const Online = (() => {
   return O;
 })();
 // Offline rules remain the original rules. Online movement never runs local AI.
-const netBase={cmdWalk,cmdJob,cmdFollow,cmdAttack,stepActor,renderPos,chatCommand,openBank,equipFromInv,unequipSlot,drinkPotion,togglePrayer,itemMenu};
+const netBase={cmdTake,cmdWalk,cmdJob,cmdFollow,cmdAttack,stepActor,renderPos,chatCommand,openBank,equipFromInv,unequipSlot,drinkPotion,togglePrayer,itemMenu};
+cmdTake=g=>Online.active?Online.take(g):netBase.cmdTake(g);
 cmdWalk=(x,y)=>Online.active?Online.walk(x,y):netBase.cmdWalk(x,y);
 cmdJob=(x,y,near,run,label)=>Online.active?Online.doJob(x,y,near,run):netBase.cmdJob(x,y,near,run,label);
 cmdFollow=a=>Online.active&&a?.onlineRemote?Online.follow(a):netBase.cmdFollow(a);
@@ -4190,7 +4198,8 @@ drinkPotion=(a,i)=>Online.active&&a===G.player?(Online.drink(i),true):netBase.dr
 togglePrayer=(a,id,quiet)=>Online.active&&a===G.player?(Online.setPrayer(id,!a.prayers.has(id)),true):netBase.togglePrayer(a,id,quiet);
 itemMenu=(a,i)=>{
   const entries=netBase.itemMenu(a,i);
-  if(Online.active&&a===G.player)return entries.filter(entry=>!stripTags(entry.text).startsWith('Drop '));
+  // Online Drop is a server intention: Rust removes the item and creates the ground item.
+  if(Online.active&&a===G.player)return entries.map(entry=>stripTags(entry.text).startsWith('Drop ')?{...entry,fn:()=>Online.drop(i)}:entry);
   return entries;
 };
 

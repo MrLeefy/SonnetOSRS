@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — Server-owned ground items and PvP death piles
+
+- Added `server/src/ground.rs`: Rust owns ground item spawn, quantity, owner, 60 s owner-only visibility, 3 min despawn, stacking, caps and pickup validation.
+- New `drop` and `pickup` commands. Online Drop is available again and is intent-only; the browser waits for Rust's `account_state` and `ground_items`.
+- Each connection is sent only the ground items it may see. Private items are never replicated to other players.
+- PvP deaths: a real victim keeps their 3 most valuable items (4 with Protect Item); the rest drop as a pile owned by the killer. Simulated residents never lose or own loot.
+- Ground items persist in the state file and keep their remaining timers across restarts. Rollback note: older servers cannot read the new state file.
+- Online ground items are marked non-expiring on the client (game.js is untouched); only Rust despawns them.
+- Tests: 17 new Rust tests and `tests/ground-online.cjs` (two real Chromium clients).
+
 ## 0.6.0 — World 1 residents, combat presentation and exact tile facing
 
 - Online movement samples position and facing from the same authoritative tile segment; eight-direction turns happen at tile boundaries before translation.

@@ -48,6 +48,18 @@ Outside:
 
 The same octagon is drawn in the 3D world and minimap from the safe-zone definition sent by the server.
 
+## Ground items and death piles
+
+Rust owns the ground-item lifecycle (`server/src/ground.rs`). The browser sends only `drop { index }` and `pickup { uid }` intentions and displays the `ground_items` list its connection is allowed to see.
+
+- **Ownership/visibility:** an item is visible and pickable only by its owner for 100 ticks (60 s), then becomes public. Other players are never sent private items.
+- **Despawn:** 300 ticks (3 min) total. Timers are stored as ticks remaining, so they survive a restart.
+- **Stacking:** stackables merge for the same item, tile and owner and keep the older timers. Potion doses are preserved through drop and pickup.
+- **Limits:** 512 items world-wide and 100 per owner for ordinary drops. Death piles bypass these caps so an item is never destroyed by a cap.
+- **Pickup:** validated for visibility, range (Chebyshev distance 1, to tolerate one tick of client lag) and inventory space; the ground item is removed only if the inventory accepted it.
+- **PvP death:** a real victim keeps their 3 most valuable items (4 with Protect Item; a stack counts as one item and is kept whole). Everything else becomes a pile at the death tile owned by the killer. Simulated residents never lose items and never own loot, so residents cannot be farmed. A resident killer leaves a public pile.
+- **Sync:** ground state is persisted in the state file (`ground_items`, `next_ground_uid`). An older server can no longer read a state file written by this version because `PersistedState` denies unknown fields; back up before deploying and keep the backup if you may roll back.
+
 ## Persistence
 
 The systemd service writes online profiles to `/var/lib/oldskool/profiles.json` via serialized atomic temp-file replacement with a previous-valid-file backup. The file contains resume token → name, last accepted position, HP, kills and deaths. Local browser profile/save data continues to use the existing versioned local save system.
@@ -83,6 +95,6 @@ The production smoke additionally loads the real Vercel site and connects it to 
 1. Equipment/loadout state.
 2. Food/potion/prayer/special state.
 3. Melee/ranged/magic formulas and projectile timing.
-4. Ground items, banking and trade.
+4. Trade and shops (ground items and banking are now server-owned).
 5. Account authentication and cloud persistence.
 6. Anti-abuse/rate policy backed by authenticated account identity.
