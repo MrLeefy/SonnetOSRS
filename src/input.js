@@ -54,7 +54,10 @@ function talkClerk(npc) {
   const kit = npc.kit;
   say('Grand Exchange Clerk', kit, ['Welcome to the Grand Exchange.', 'How can I help you?'], () => {
     options('Select an Option', [
-      { t: 'I would like to make an offer.', fn: () => say(G.player.name, G.player.kit, ['I would like to make an offer.'], () => say('Grand Exchange Clerk', kit, ['I\'m afraid all offers are cancelled on', 'this world. It is a PvP world - the only', 'currency here is your combat skill.'], () => { })) },
+      { t: 'I would like to make an offer.', fn: () => {
+        if (typeof Online!=='undefined'&&Online.active) { G.dialog=null; Online.openGe(); return; }
+        say(G.player.name, G.player.kit, ['I would like to make an offer.'], () => say('Grand Exchange Clerk', kit, ['The persistent exchange is available', 'on World 1.'], () => { }));
+      } },
       { t: 'Is it safe to stand here?', fn: () => say('Grand Exchange Clerk', kit, (typeof Online!=='undefined'&&Online.active?['Inside the Grand Exchange stone ring', 'you are protected. Beyond the boundary,', 'other players can attack you.']:['This is the offline Arena practice world.', 'Keep your prayers up outside the bank.']), () => { }) },
       { t: 'Never mind.', fn: () => { } }
     ]);
@@ -97,7 +100,7 @@ function contextMenuFor(mx, my) {
   } else if (a) {
     if (a.npc) {
       out.push(ent('Talk-to ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => dist2(p.x, p.y, a.x, a.y) <= 2 || Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
-      out.push(ent('Exchange ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
+      out.push(ent('Exchange ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => (typeof Online!=='undefined'&&Online.active?Online.openGe():talkClerk(a))), { red: true }));
       out.push(ent('Examine ' + col(NAMECOL.npc, a.name), () => examineActor(a)));
     } else if (a !== pl) {
       out.push(ent('Attack ' + playerTag(a), () => cmdAttack(a), { red: true }));
@@ -384,7 +387,12 @@ function onUp(e) {
   if (e.button === 1) { INP.mmb = false; return; }
   if (UI.drag) {
     const d = UI.drag; UI.drag = null;
-    if (d.active) { for (let i = 0; i < 28; i++) if (inRect(p.x, p.y, invSlotRect(i)) && i !== d.from) { const a = G.player; const t = a.inv[i]; a.inv[i] = a.inv[d.from]; a.inv[d.from] = t; } }
+    if (d.active) {
+      for (let i = 0; i < 28; i++) if (inRect(p.x, p.y, invSlotRect(i)) && i !== d.from) {
+        if (typeof Online !== 'undefined' && Online.active) Online.inventoryMove(d.from, i);
+        else { const a = G.player; const t = a.inv[i]; a.inv[i] = a.inv[d.from]; a.inv[d.from] = t; }
+      }
+    }
     else invDefault(d.from);
   }
 }

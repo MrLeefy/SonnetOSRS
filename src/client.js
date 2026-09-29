@@ -95,7 +95,14 @@ const Client = (() => {
     L.tabs.forEach((r,i)=>{const label=i===2?'Journal':i===3?'Bag':i===4?'Gear':i===5?'Prayer':i===6?'Magic':i===11?'Menu':TAB_TIP[i];const b=hit(label,r,()=>C.selectTab(i),C.footer);b.dataset.tab=i;C.tabButtons.push([b,i]);});
     const mapCircle=L.mapCircle;
     const mapButton=hit('Walk on minimap',{x:mapCircle.x-mapCircle.r,y:mapCircle.y-mapCircle.r,w:mapCircle.r*2,h:mapCircle.r*2},e=>{const pt=C.toGame(e.clientX,e.clientY);if(pt.x>=0)minimapClick(pt.x,pt.y);});mapButton.style.borderRadius='50%';
-    ['Bank','Skills','World map'].forEach((name,i)=>hit(name,L.utilities[i],()=>i===0?Expedition.goBank():C.open(i===1?'skills':'map')));
+    ['Bank','Skills','World map'].forEach((name,i)=>hit(name,L.utilities[i],()=>{
+      if(i===0){
+        if(Online.active){
+          const o=WORLD.objs.filter(o=>o.kind==='bank').sort((a,b)=>dist2(a.x,a.y,G.player.x,G.player.y)-dist2(b.x,b.y,G.player.x,G.player.y))[0];
+          if(o)cmdJob(o.x,o.y,a=>dist2(a.x,a.y,o.x,o.y)<=2,()=>openBank(o));
+        }else Expedition.goBank();
+      }else C.open(i===1?'skills':'map');
+    }));
     hit('Face north',L.compass,()=>{if(App.cam)App.cam.yaw=0;});
     const orbNames=['Hitpoints: eat food','Quick prayers','Toggle run','Special attack'];
     L.orbs.forEach((r,i)=>hit(orbNames[i],r,()=>{
@@ -254,7 +261,7 @@ const Client = (() => {
   C.close=()=>{if(App.mode!=='game')return;C.panel=null;C.hover=null;C.shade.style.display='none';C.bar.inert=false;if(typeof Controls!=='undefined')Controls.cancelAll();C.surface.focus({preventScroll:true});};
   C.open=page=>{
     if(!G.player&&!['welcome','menu'].includes(page))page='welcome';
-    if(page==='bank'&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
+    if(page==='bank'&&!Online.active&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
     C.panel=page;C.shade.style.display='flex';C.bar.inert=true;UI.menu=null;C.tooltip.style.display='none';if(typeof Controls!=='undefined')Controls.cancelAll();C.renderPanel();
     C.root.querySelector('input,button')?.focus({preventScroll:true});
   };
@@ -262,7 +269,7 @@ const Client = (() => {
     if(!C.panel)return;const root=C.root;root.replaceChildren();
     if(App.mode==='game')button('×',C.close,root).className='client-close';
     el('div',{class:'client-lead',text:'OLDSKOOL · CLASSIC WEBGL CLIENT'},root);
-    const titles={welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:'Camp bank',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
+    const titles={welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:Online.active?'Bank of OLDSKOOL':'Camp bank',ge:'Grand Exchange',appearance:'Character design',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
     el('h1',{text:titles[C.panel]||'SonnetOSRS'},root);
     if(C.panel==='welcome'||C.panel==='menu'){
       if(C.panel==='welcome'){root.querySelector('h1')?.remove();el('div',{class:'oldskool-logo',text:'OLDSKOOL'},root);el('div',{class:'oldskool-sub',text:'GRAND EXCHANGE · WORLD 1'},root);}
@@ -297,7 +304,14 @@ const Client = (() => {
         file.onchange=async()=>{try{await Profiles.importFile(file.files[0]);}catch(err){Profiles.status=err.message;}C.renderPanel();};
         button('Reset this profile',()=>{if(Profiles.reset())startGame(Profiles.name,Profiles.mode,{skipSave:true});},row);
       }
-      if(Online.active)el('p',{class:'client-help',text:'World 1 position and combat progress are saved by the server. Switch to Arena or Expedition to manage offline save files; online play cannot import or reset those profiles.'},root);
+      if(Online.active){
+        el('h2',{text:'World 1 account'},root);
+        const worldActions=el('div',{class:'client-controls'},root);
+        button('Walk to bank',()=>{C.close();const o=WORLD.objs.filter(o=>o.kind==='bank').sort((a,b)=>dist2(a.x,a.y,G.player.x,G.player.y)-dist2(b.x,b.y,G.player.x,G.player.y))[0];if(o)cmdJob(o.x,o.y,a=>dist2(a.x,a.y,o.x,o.y)<=2,()=>openBank(o));},worldActions);
+        button('Grand Exchange',()=>Online.openGe(),worldActions);
+        button('Character appearance',()=>C.open('appearance'),worldActions);
+        el('p',{class:'client-help',text:'World 1 inventory, equipment, bank, Grand Exchange offers, appearance, position and PvP progress are authoritative on the Rust server.'},root);
+      }
       el('div',{class:'client-message',text:Profiles.status},root);
       el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause local simulation; the online world continues on the server.'},root);
     }else if(C.panel==='journal'){
@@ -314,15 +328,89 @@ const Client = (() => {
       const grid=el('div',{class:'client-grid'},root);
       for(const k of Expedition.xpKeys){const xp=Expedition.xp[k]||0,l=Expedition.active?Expedition.levelFor(xp):(G.player.stats[k]||0),card=el('div',{class:'client-card'},grid);el('h2',{text:k+' · '+(l||'not trained')},card);if(Expedition.active){el('progress',{value:xp-Expedition.xpFor(l),max:l===99?1:Expedition.xpFor(l+1)-Expedition.xpFor(l)},card);el('small',{text:fmtNum(xp)+' XP'+(l<99?' · '+fmtNum(Expedition.xpFor(l+1)-xp)+' to next level':' · MAX')},card);}else el('small',{text:'Arena uses preset combat stats; no expedition XP is earned.'},card);}
     }else if(C.panel==='bank'){
-      const row=el('div',{class:'client-controls'},root);button('Deposit inventory',refresh(()=>Expedition.deposit(0,true)),row);button('Export backup',()=>Profiles.exportFile(),row);
-      const quantity=el('select',{},row);quantity.style.width='auto';quantity.setAttribute('aria-label','Withdraw quantity');for(const v of [1,5,10,'all'])el('option',{value:String(v),text:'Withdraw '+v,selected:C.withdrawQty===v},quantity);quantity.onchange=()=>C.withdrawQty=quantity.value==='all'?'all':Number(quantity.value);
-      el('p',{class:'client-help',text:'Tap inventory items to deposit. Tap bank entries to withdraw. Potion doses are preserved. '+Expedition.bank.length+' / 120 bank entries.'},root);
-      const grid=el('div',{class:'client-grid'},root);const left=el('div',{},grid),right=el('div',{},grid);el('h2',{text:'Inventory'},left);el('h2',{text:'Bank'},right);const inv=el('div',{class:'client-items'},left),bank=el('div',{class:'client-items'},right);
-      const itemButton=(s,text,fn,parent)=>{const b=button('',refresh(fn),parent),cv=el('canvas',{width:32,height:32},b);cv.getContext('2d').drawImage(itemIcon(s.id),0,0);el('span',{text},b);return b;};
-      G.player.inv.forEach((s,i)=>{if(s)itemButton(s,itemName(s)+(ITEMS[s.id].stack?' ×'+s.n:''),()=>Expedition.deposit(i),inv);});
-      Expedition.bank.forEach((s,i)=>itemButton(s,itemName(s)+' ×'+(ITEMS[s.id].stack?s.n:s.qty),()=>{if(!Expedition.withdraw(i,C.withdrawQty))gameMsg('Not enough room to withdraw that quantity.');},bank));
-      if(Expedition.active){el('h2',{text:'Supply counter · costs coins in your bag'},root);const stock=el('div',{class:'client-controls'},root);for(const [id,n,price]of [['cookedFish',1,15],['water',30,20],['blood',10,40],['trailPick',1,5],['trailAxe',1,5],['trailNet',1,5],['ancstaff',1,100],['msb',1,100],['rarrows',50,30]])button(ITEMS[id].name+' ×'+n+' · '+price,refresh(()=>Expedition.buy(id,n,price)),stock);}
-      else{el('h2',{text:'Practice loadouts · replaces carried gear'},root);const kits=el('div',{class:'client-controls'},root);for(const [kind,label]of [['main','Hybrid'],['pmelee','Melee'],['pranged','Ranged'],['pmage','Magic']])button(label,refresh(()=>restock(kind)),kits);}
+      const itemButton=(s,text,fn,parent)=>{
+        const b=button('',fn,parent),cv=el('canvas',{width:32,height:32},b);
+        cv.getContext('2d').drawImage(itemIcon(s.id),0,0);el('span',{text},b);return b;
+      };
+      const row=el('div',{class:'client-controls'},root);
+      const quantity=el('select',{},row);quantity.style.width='auto';quantity.setAttribute('aria-label','Bank quantity');
+      for(const v of [1,5,10,'all'])el('option',{value:String(v),text:String(v)==='all'?'All':String(v),selected:C.withdrawQty===v},quantity);
+      quantity.onchange=()=>C.withdrawQty=quantity.value==='all'?'all':Number(quantity.value);
+      if(Online.active){
+        button('Deposit inventory',()=>Online.bankDepositAll(),row);
+        button('Deposit worn items',()=>Online.bankDepositEquipment(),row);
+        button('Grand Exchange',()=>Online.openGe(),row);
+        el('p',{class:'client-help',text:'Server-authoritative bank · '+Online.account.bank.length+' / 400 entries. Select 1, 5, 10 or All, then tap an inventory item to deposit or bank item to withdraw.'},root);
+        const search=el('input',{type:'search',placeholder:'Search bank',autocomplete:'off'},root);search.setAttribute('aria-label','Search bank');
+        const grid=el('div',{class:'client-grid'},root),left=el('div',{},grid),right=el('div',{},grid);
+        el('h2',{text:'Inventory'},left);el('h2',{text:'Bank'},right);
+        const inv=el('div',{class:'client-items'},left),bank=el('div',{class:'client-items'},right);
+        const renderBank=()=>{
+          bank.replaceChildren();const q=search.value.trim().toLowerCase();
+          Online.account.bank.forEach((entry,i)=>{
+            if(!ITEMS[entry.id])return;
+            const name=ITEMS[entry.id].name+(entry.variant?'('+entry.variant+')':'');
+            if(q&&!name.toLowerCase().includes(q))return;
+            itemButton({id:entry.id,n:entry.variant||entry.quantity},name+' ×'+fmtNum(entry.quantity),()=>Online.bankWithdraw(i,C.withdrawQty),bank);
+          });
+        };
+        G.player.inv.forEach((item,i)=>{if(item)itemButton(item,itemName(item)+(ITEMS[item.id].stack?' ×'+fmtNum(item.n):''),()=>Online.bankDeposit(i,C.withdrawQty),inv);});
+        search.oninput=renderBank;renderBank();
+      }else{
+        button('Deposit inventory',refresh(()=>Expedition.deposit(0,true)),row);button('Export backup',()=>Profiles.exportFile(),row);
+        el('p',{class:'client-help',text:'Tap inventory items to deposit. Tap bank entries to withdraw. Potion doses are preserved. '+Expedition.bank.length+' / 120 bank entries.'},root);
+        const grid=el('div',{class:'client-grid'},root),left=el('div',{},grid),right=el('div',{},grid);
+        el('h2',{text:'Inventory'},left);el('h2',{text:'Bank'},right);const inv=el('div',{class:'client-items'},left),bank=el('div',{class:'client-items'},right);
+        G.player.inv.forEach((item,i)=>{if(item)itemButton(item,itemName(item)+(ITEMS[item.id].stack?' ×'+item.n:''),refresh(()=>Expedition.deposit(i)),inv);});
+        Expedition.bank.forEach((item,i)=>itemButton(item,itemName(item)+' ×'+(ITEMS[item.id].stack?item.n:item.qty),refresh(()=>{if(!Expedition.withdraw(i,C.withdrawQty))gameMsg('Not enough room to withdraw that quantity.');}),bank));
+        if(Expedition.active){el('h2',{text:'Supply counter · costs coins in your bag'},root);const stock=el('div',{class:'client-controls'},root);for(const [id,n,price]of [['cookedFish',1,15],['water',30,20],['blood',10,40],['trailPick',1,5],['trailAxe',1,5],['trailNet',1,5],['ancstaff',1,100],['msb',1,100],['rarrows',50,30]])button(ITEMS[id].name+' ×'+n+' · '+price,refresh(()=>Expedition.buy(id,n,price)),stock);}
+        else{el('h2',{text:'Practice loadouts · replaces carried gear'},root);const kits=el('div',{class:'client-controls'},root);for(const [kind,label]of [['main','Hybrid'],['pmelee','Melee'],['pranged','Ranged'],['pmage','Magic']])button(label,refresh(()=>restock(kind)),kits);}
+      }
+    }else if(C.panel==='ge'){
+      if(!Online.active){el('p',{text:'The persistent Grand Exchange is available in World 1.'},root);}
+      else{
+        el('p',{text:'Six server-authoritative offer slots. Items and coins are escrowed when an offer is placed. Matching uses price-time priority; when prices cross, the older offer sets the trade price and excess buyer coins become collectible.'},root);
+        const offers=el('div',{class:'client-grid'},root);
+        for(let slot=0;slot<6;slot++){
+          const offer=Online.account.offers.find(o=>o.slot===slot&&o.state!=='removed'),card=el('div',{class:'client-card'},offers);el('h2',{text:'Offer slot '+(slot+1)},card);
+          if(!offer){el('small',{text:'Empty'},card);continue;}
+          const done=offer.quantity-offer.remaining;
+          el('small',{text:(offer.sell?'Sell ':'Buy ')+(ITEMS[offer.item]?.name||offer.item)+' · '+fmtNum(offer.quantity)+' @ '+fmtNum(offer.price)+' gp each'},card);
+          const progress=el('progress',{value:done,max:Math.max(1,offer.quantity)},card);
+          el('small',{text:done+' / '+offer.quantity+' complete · '+offer.state.replaceAll('_',' ')},card);
+          if(offer.collected_items||offer.collected_coins){
+            button('Collect to inventory'+(offer.collected_items?' · '+fmtNum(offer.collected_items)+' item(s)':'')+(offer.collected_coins?' · '+fmtNum(offer.collected_coins)+' gp':''),()=>Online.geCollect(slot,false),card);
+            button('Collect to bank',()=>Online.geCollect(slot,true),card);
+          }
+          if(offer.state==='registered')button('Cancel offer',()=>Online.geCancel(slot),card);
+        }
+        el('h2',{text:'Create offer'},root);
+        const form=el('form',{},root),grid=el('div',{class:'client-grid'},form);
+        const modeCard=el('div',{class:'client-card'},grid),itemCard=el('div',{class:'client-card'},grid),qtyCard=el('div',{class:'client-card'},grid),priceCard=el('div',{class:'client-card'},grid),slotCard=el('div',{class:'client-card'},grid);
+        el('label',{text:'Offer type'},modeCard);const mode=el('select',{},modeCard);el('option',{value:'buy',text:'Buy'},mode);el('option',{value:'sell',text:'Sell'},mode);
+        el('label',{text:'Item'},itemCard);const item=el('select',{},itemCard);
+        for(const c of Online.account.catalog){if(ITEMS[c.id])el('option',{value:c.id,text:ITEMS[c.id].name+' · guide '+fmtNum(c.guide_price)+' gp'},item);}
+        el('label',{text:'Quantity'},qtyCard);const qty=el('input',{type:'number',min:1,max:2147483647,value:1},qtyCard);
+        el('label',{text:'Price each'},priceCard);const price=el('input',{type:'number',min:1,max:2147483647,value:Online.account.catalog.find(c=>c.id===item.value)?.guide_price||1},priceCard);
+        item.onchange=()=>price.value=Online.account.catalog.find(c=>c.id===item.value)?.guide_price||1;
+        el('label',{text:'Offer slot'},slotCard);const slot=el('select',{},slotCard);for(let i=0;i<6;i++)el('option',{value:String(i),text:String(i+1)},slot);
+        button('Place offer',()=>{},form).type='submit';
+        form.onsubmit=e=>{e.preventDefault();Online.gePlace(Number(slot.value),mode.value==='sell',item.value,Number(qty.value),Number(price.value));};
+        const nav=el('div',{class:'client-controls'},root);button('Bank',()=>Online.openBank(),nav);button('Return to game',C.close,nav);
+      }
+    }else if(C.panel==='appearance'){
+      if(!Online.active){el('p',{text:'Persistent character appearance is available in World 1.'},root);}
+      else{
+        el('p',{text:'Choose a classic character palette while you are inside the Grand Exchange safe area and out of combat.'},root);
+        const draft={...G.player.kit};
+        const colors=[['Skin','skin',SKIN],['Hair','hair',HAIR],['Shirt','shirt',SHIRT],['Trousers','pants',[0x3a3a2a,0x2a3a5a,0x5a3a2a,0x2a2a2a,0x4a4a5a]],['Boots','boots',[0x3a2a1a,0x1a1a1a,0x5a4a3a]]];
+        for(const [label,key,values] of colors){
+          el('h2',{text:label},root);const row=el('div',{class:'client-controls'},root);
+          values.forEach(value=>{const b=button(' ',()=>{draft[key]=value;G.player.kit={...draft};C.renderPanel();},row);b.style.cssText+=';width:46px;min-width:46px;background:#'+value.toString(16).padStart(6,'0');b.setAttribute('aria-label',label+' color');});
+        }
+        el('h2',{text:'Hair style'},root);const styles=el('div',{class:'client-controls'},root);for(let i=0;i<3;i++)button('Style '+(i+1),()=>{draft.hairStyle=i;G.player.kit={...draft};C.renderPanel();},styles);
+        const actions=el('div',{class:'client-controls'},root);button('Save appearance',()=>Online.setAppearance(draft),actions);button('Cancel',()=>{Online.openBank&&0;C.close();},actions);
+      }
     }else if(C.panel==='craft'||C.panel==='cooking'){
       el('p',{text:'Ingredients are consumed only when there is space for the complete result.'},root);const grid=el('div',{class:'client-grid'},root);
       for(const r of Expedition.recipes.filter(r=>r.station===(C.panel==='cooking'?'fire':'forge'))){const card=el('div',{class:'client-card'},grid);el('h2',{text:r.name},card);el('small',{text:Object.entries(r.input).map(([id,n])=>n+' '+ITEMS[id].name).join(' + ')+' → '+ITEMS[r.output[0]].name},card);button('Craft · +'+r.xp+' '+r.skill+' XP',refresh(()=>Expedition.craft(r.id)),card);}

@@ -2713,7 +2713,10 @@ function talkClerk(npc) {
   const kit = npc.kit;
   say('Grand Exchange Clerk', kit, ['Welcome to the Grand Exchange.', 'How can I help you?'], () => {
     options('Select an Option', [
-      { t: 'I would like to make an offer.', fn: () => say(G.player.name, G.player.kit, ['I would like to make an offer.'], () => say('Grand Exchange Clerk', kit, ['I\'m afraid all offers are cancelled on', 'this world. It is a PvP world - the only', 'currency here is your combat skill.'], () => { })) },
+      { t: 'I would like to make an offer.', fn: () => {
+        if (typeof Online!=='undefined'&&Online.active) { G.dialog=null; Online.openGe(); return; }
+        say(G.player.name, G.player.kit, ['I would like to make an offer.'], () => say('Grand Exchange Clerk', kit, ['The persistent exchange is available', 'on World 1.'], () => { }));
+      } },
       { t: 'Is it safe to stand here?', fn: () => say('Grand Exchange Clerk', kit, (typeof Online!=='undefined'&&Online.active?['Inside the Grand Exchange stone ring', 'you are protected. Beyond the boundary,', 'other players can attack you.']:['This is the offline Arena practice world.', 'Keep your prayers up outside the bank.']), () => { }) },
       { t: 'Never mind.', fn: () => { } }
     ]);
@@ -2756,7 +2759,7 @@ function contextMenuFor(mx, my) {
   } else if (a) {
     if (a.npc) {
       out.push(ent('Talk-to ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => dist2(p.x, p.y, a.x, a.y) <= 2 || Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
-      out.push(ent('Exchange ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => talkClerk(a)), { red: true }));
+      out.push(ent('Exchange ' + col(NAMECOL.npc, a.name), () => cmdJob(a.x, a.y, p => Math.hypot(p.x - a.x, p.y - a.y) < 4.9, () => (typeof Online!=='undefined'&&Online.active?Online.openGe():talkClerk(a))), { red: true }));
       out.push(ent('Examine ' + col(NAMECOL.npc, a.name), () => examineActor(a)));
     } else if (a !== pl) {
       out.push(ent('Attack ' + playerTag(a), () => cmdAttack(a), { red: true }));
@@ -3043,7 +3046,12 @@ function onUp(e) {
   if (e.button === 1) { INP.mmb = false; return; }
   if (UI.drag) {
     const d = UI.drag; UI.drag = null;
-    if (d.active) { for (let i = 0; i < 28; i++) if (inRect(p.x, p.y, invSlotRect(i)) && i !== d.from) { const a = G.player; const t = a.inv[i]; a.inv[i] = a.inv[d.from]; a.inv[d.from] = t; } }
+    if (d.active) {
+      for (let i = 0; i < 28; i++) if (inRect(p.x, p.y, invSlotRect(i)) && i !== d.from) {
+        if (typeof Online !== 'undefined' && Online.active) Online.inventoryMove(d.from, i);
+        else { const a = G.player; const t = a.inv[i]; a.inv[i] = a.inv[d.from]; a.inv[d.from] = t; }
+      }
+    }
     else invDefault(d.from);
   }
 }
@@ -3850,7 +3858,8 @@ const Online = (() => {
     status:'Online world not connected',serverVersion:null,zone:'safe',safeZone:{center_x:48,center_y:48,apothem:9,shape:'octagon'},
     remotes:new Map(),seq:0,lastTick:-1,lastSnapshot:0,lastPing:0,lastRunOn:true,pending:null,job:null,
     reconnectTimer:null,handshakeTimer:null,manualClose:false,attempts:0,lastCombat:null,lastError:null,
-    diagnostics:{sentWalks:0,snapshots:0,errors:0,reconnects:0},notices:new Map()};
+    account:{bank:[],offers:[],catalog:[],equipment:{}},pendingPanel:null,
+    diagnostics:{sentWalks:0,snapshots:0,errors:0,reconnects:0,corrections:0,largeCorrections:0},notices:new Map()};
   const tokenKey=name=>'oldskool.resume.'+String(name||'player').toLowerCase().replace(/[^a-z0-9_-]/g,'').slice(0,20);
   const usable=()=>O.active&&O.connected&&O.ready&&O.ws?.readyState===WebSocket.OPEN;
   const send=msg=>{if(!O.connected||O.ws?.readyState!==WebSocket.OPEN)return false;try{O.ws.send(JSON.stringify(msg));return true;}catch(_){return false;}};
@@ -3866,14 +3875,14 @@ const Online = (() => {
   O.stop=silent=>{
     O.manualClose=true;clearTimeout(O.reconnectTimer);clearTimeout(O.handshakeTimer);const ws=O.ws;O.ws=null;
     if(ws)try{ws.close(1000,'leaving world');}catch(_){}
-    O.active=O.connected=O.connecting=O.ready=false;O.id=null;O.pending=O.job=null;O.clearRemotes();
+    O.active=O.connected=O.connecting=O.ready=false;O.id=null;O.pending=O.job=null;O.pendingPanel=null;O.account={bank:[],offers:[],catalog:[],equipment:{}};O.clearRemotes();
     if(G.player){G.player.netMotion=null;G.player.path=[];G.player.seg=[];G.player.target=G.player.follow=null;}
     if(!silent)O.status='Online world not connected';
   };
   O.start=name=>{
     if(!O.active&&App.mode==='game'&&!Profiles.save()&&!confirm('Your offline profile could not be saved. Continue without saving?'))return;
     O.stop(true);startGame(name,'arena',{onlineBootstrap:true,skipSave:true});setBotCount(0);
-    O.active=true;O.manualClose=false;O.attempts=0;O.seq=0;O.lastTick=-1;O.notices.clear();
+    O.active=true;O.manualClose=false;O.attempts=0;O.seq=0;O.lastTick=-1;O.notices.clear();O.pendingPanel=null;O.account={bank:[],offers:[],catalog:[],equipment:{}};
     const a=G.player;a.x=48;a.y=42;a.path=[];a.seg=[];a.protectUntil=0;a.target=null;a.frozen=0;
     G.hitQ=[];G.projs=[];Polish.snapCamera=true;
     Profiles.status='World 1 · server position and PvP progress';gameMsg('Connecting to OLDSKOOL World 1…');
@@ -3884,7 +3893,7 @@ const Online = (() => {
     let ws;try{ws=new WebSocket(O.endpoint);}catch(_){O.connecting=false;O.status='Unable to connect';return;}O.ws=ws;
     O.handshakeTimer=setTimeout(()=>{if(O.ws===ws&&!O.ready){try{ws.close();}catch(_){}}},12000);
     ws.onopen=()=>{if(ws!==O.ws)return;let resume_token=null;try{resume_token=localStorage.getItem(tokenKey(G.player.name));}catch(_){}
-      ws.send(JSON.stringify({type:'hello',protocol:2,name:G.player.name,resume_token}));};
+      ws.send(JSON.stringify({type:'hello',protocol:3,name:G.player.name,resume_token}));};
     ws.onmessage=e=>{if(ws===O.ws)O.handle(e.data);};
     ws.onerror=()=>{if(ws===O.ws)O.status='Connection interrupted';};
     ws.onclose=e=>{
@@ -3934,10 +3943,26 @@ const Online = (() => {
     let start=last&&last.t1>now-30?last.t1:now;
     let expected=last&&last.t1>now-30?last.to:sample.p;
     const serverStart=nodes[0];
-    // Never invent a diagonal catch-up line across a server turn. If the buffered
-    // endpoint and the new tick disagree, snap to the new legal tile boundary.
-    if(Math.hypot(expected[0]-serverStart[0],expected[1]-serverStart[1])>.08){
-      m.segments.length=0;expected=serverStart;start=now;
+    // WebSocket messages are ordered, but render time can legitimately lag a
+    // server tile at a turn or after packet jitter. RuneScape movement is a
+    // walking queue, not snapshot teleportation: bridge a disagreement in
+    // render space rather than snapping the avatar to serverStart.
+    const gap=Math.hypot(expected[0]-serverStart[0],expected[1]-serverStart[1]);
+    if(gap>.08){
+      const from=sample.p,dur=clamp(90+gap*70,90,280),face=faceFor(from,serverStart);
+      m.segments.length=0;
+      if(face!==null){
+        const serial=a.netStepSerial??0;a.netStepSerial=serial+1;
+        m.segments.push({from:[from[0],from[1]],to:[serverStart[0],serverStart[1]],t0:now,t1:now+dur,face,tick,run:false,serial,correction:true});
+        start=now+dur;
+      }else start=now;
+      expected=serverStart;
+      O.diagnostics.corrections++;
+      if(gap>2.25){
+        O.diagnostics.largeCorrections++;
+        console.warn('OLDSKOOL unexpected position correction without teleport epoch',{name:a.name,gap,tick,serverStart,render:from});
+        O.requestResync();
+      }
     }
     const stepMs=TICK_MS/steps;
     for(let i=1;i<nodes.length;i++){
@@ -3963,23 +3988,59 @@ const Online = (() => {
   O.isMoving=a=>motionSample(a).moving;
   function position(a,p,initial){
     const now=performance.now(),nodes=(p.motion||[]).map(t=>[t.x+.5,t.y+.5]),end=[p.x+.5,p.y+.5],before=motionSample(a,now);
-    if(initial||Math.hypot(before.p[0]-end[0],before.p[1]-end[1])>6||now-O.lastSnapshot>2500){
+    const epoch=Number.isSafeInteger(p.position_epoch)?p.position_epoch:0;
+    const teleported=!initial&&a.netPositionEpoch!==undefined&&epoch!==a.netPositionEpoch;
+    if(initial||teleported){
+      // Only initial placement and an explicit server discontinuity (death /
+      // respawn / future teleport) are allowed to hard-snap.
       emptyMotion(a,p.motion_tick);a.netRenderAnchor=end;
+      if(teleported&&a===G.player)Polish.snapCamera=true;
     }else if(nodes.length>1){
       appendMotion(a,nodes,p.motion_tick,now);
-    }else if(before.done&&Math.hypot(before.p[0]-end[0],before.p[1]-end[1])>.75){
-      // Respawn/teleport/correction. A tile path is never synthesized client-side.
-      emptyMotion(a,p.motion_tick);a.netRenderAnchor=end;
-    }else if(a.netMotion){
-      a.netMotion.lastTick=Math.max(a.netMotion.lastTick??-1,p.motion_tick??-1);
+    }else{
+      const gap=Math.hypot(before.p[0]-end[0],before.p[1]-end[1]);
+      if(gap>.08){
+        if(!a.netMotion)emptyMotion(a,(p.motion_tick??0)-1);
+        const m=a.netMotion,face=faceFor(before.p,end),dur=clamp(90+gap*70,90,280);
+        m.segments.length=0;
+        if(face!==null){
+          const serial=a.netStepSerial??0;a.netStepSerial=serial+1;
+          m.segments.push({from:[before.p[0],before.p[1]],to:[end[0],end[1]],t0:now,t1:now+dur,face,tick:p.motion_tick,run:false,serial,correction:true});
+        }
+        m.lastTick=Math.max(m.lastTick??-1,p.motion_tick??-1);
+        O.diagnostics.corrections++;
+        if(gap>2.25){
+          O.diagnostics.largeCorrections++;
+          console.warn('OLDSKOOL large authority correction without teleport epoch',{name:a.name,gap,tick:p.motion_tick,end,render:before.p});
+          O.requestResync();
+        }
+      }else if(a.netMotion){
+        a.netMotion.lastTick=Math.max(a.netMotion.lastTick??-1,p.motion_tick??-1);
+      }
     }
-    a.netMotionTick=p.motion_tick;a.x=p.x;a.y=p.y;a.hp=clamp(p.hp,0,a.maxHp);a.dead=false;a.kills=p.kills;a.deaths=p.deaths;a.netZone=p.zone;a.netTargetId=p.attack_target||null;
+    a.netPositionEpoch=epoch;
+    a.netMotionTick=p.motion_tick;a.x=p.x;a.y=p.y;a.hp=clamp(p.hp,0,Math.max(a.maxHp,p.hp||0));a.dead=false;a.kills=p.kills;a.deaths=p.deaths;a.netZone=p.zone;a.netTargetId=p.attack_target||null;
     a.simulated=!!p.simulated;a.level=p.level||a.level;a.spec=Number.isFinite(p.spec)?p.spec:a.spec;
-    const kind=LOADOUTS[p.loadout]?p.loadout:'main';if(a.netLoadout!==kind){applyLoadout(a,kind);a.inv=new Array(28).fill(null);a.netLoadout=kind;}
-    if(p.weapon&&ITEMS[p.weapon]&&a.eq.weapon?.id!==p.weapon){a.eq.weapon={id:p.weapon,n:1};recalcBonus(a);}
+    if(Number.isFinite(p.attack_current))a.cur.atk=p.attack_current;
+    if(Number.isFinite(p.strength_current))a.cur.str=p.strength_current;
+    if(Number.isFinite(p.defence_current))a.cur.def=p.defence_current;
+    if(Number.isFinite(p.ranged_current))a.cur.rng=p.ranged_current;
+    if(Number.isFinite(p.magic_current))a.cur.mag=p.magic_current;
+    if(Number.isFinite(p.prayer_points))a.pp=p.prayer_points;
+    a.prayers=new Set(Array.isArray(p.active_prayers)?p.active_prayers.filter(id=>PRAYER_BY_ID[id]):[]);
+    if(p.appearance){
+      a.kit={skin:p.appearance.skin,hair:p.appearance.hair,shirt:p.appearance.shirt,pants:p.appearance.pants,boots:p.appearance.boots,hairStyle:p.appearance.hair_style};
+    }
+    const kind=LOADOUTS[p.loadout]?p.loadout:'main';
+    if(a!==G.player&&a.netLoadout!==kind){applyLoadout(a,kind);a.inv=new Array(28).fill(null);a.netLoadout=kind;}
+    if(a!==G.player&&p.equipment){
+      const eq={};for(const [slot,item]of Object.entries(p.equipment))if(item&&ITEMS[item.id])eq[slot]={id:item.id,n:item.amount};
+      a.eq=eq;recalcBonus(a);
+    }else if(a!==G.player&&p.weapon&&ITEMS[p.weapon]&&a.eq.weapon?.id!==p.weapon){a.eq.weapon={id:p.weapon,n:1};recalcBonus(a);}
     a.autocast=p.spell||null;a.overhead=p.overhead||null;
     if(a.anim?.type==='death'&&a.hp>0)a.anim=null;
     if(Number.isFinite(p.run))a.run=p.run;
+    if(typeof p.run_on==='boolean')a.runOn=p.run_on;
     if(a===G.player){
       if(p.command_seq>=O.seq){a.path=p.destination?[p.destination]:[];}
       const old=O.zone;O.zone=p.zone||O.zoneAt(p.x,p.y);
@@ -4007,11 +4068,23 @@ const Online = (() => {
   O.handle=raw=>{
     let msg;try{msg=JSON.parse(raw);}catch(_){return;}
     if(msg.type==='welcome'){
-      if(msg.protocol!==2||msg.world_hash!==O.worldHash()){O.status='Client/world version mismatch — refresh';O.manualClose=true;O.notice('mismatch','The world was updated. Refresh this page before joining.',0);O.ws?.close(1000,'version mismatch');return;}
+      if(msg.protocol!==3||msg.world_hash!==O.worldHash()){O.status='Client/world version mismatch — refresh';O.manualClose=true;O.notice('mismatch','The world was updated. Refresh this page before joining.',0);O.ws?.close(1000,'version mismatch');return;}
       O.id=msg.id;O.seq=0;O.lastTick=-1;O.ready=false;O.connected=true;O.connecting=false;O.attempts=0;O.lastRunOn=G.player.runOn;O.lastPing=0;
       O.safeZone=msg.safe_zone;O.serverVersion=msg.version;O.status='OLDSKOOL World 1 · connected';G.player.netId=msg.id;
       try{localStorage.setItem(tokenKey(G.player.name),msg.resume_token);}catch(_){}
       O.notice('connected','Connected to World 1. Inside the Grand Exchange is safe.',1000);return;
+    }
+    if(msg.type==='account_state'){
+      const inv=Array.isArray(msg.inventory)?msg.inventory.slice(0,28):[];
+      while(inv.length<28)inv.push(null);
+      G.player.inv=inv.map(s=>s&&ITEMS[s.id]?{id:s.id,n:s.amount}:null);
+      const eq={};for(const [slot,item] of Object.entries(msg.equipment||{}))if(item&&ITEMS[item.id])eq[slot]={id:item.id,n:item.amount};
+      G.player.eq=eq;recalcBonus(G.player);
+      if(msg.appearance)G.player.kit={skin:msg.appearance.skin,hair:msg.appearance.hair,shirt:msg.appearance.shirt,pants:msg.appearance.pants,boots:msg.appearance.boots,hairStyle:msg.appearance.hair_style};
+      O.account={bank:Array.isArray(msg.bank)?msg.bank:[],offers:Array.isArray(msg.offers)?msg.offers:[],catalog:Array.isArray(msg.catalog)?msg.catalog:[],equipment:msg.equipment||{}};
+      if(O.pendingPanel){const page=O.pendingPanel;O.pendingPanel=null;Client.open(page);}
+      else if(['bank','ge','appearance'].includes(Client.panel))Client.renderPanel();
+      return;
     }
     if(msg.type==='snapshot'){O.applySnapshot(msg);return;}
     if(msg.type==='route'){
@@ -4040,6 +4113,7 @@ const Online = (() => {
       O.lastError=msg;O.diagnostics.errors++;
       if(['client_update_required','profile_in_use','bad_name'].includes(msg.code)){O.manualClose=true;O.status=msg.message;}
       if(msg.code==='unreachable'){G.player.path=[];O.job=null;}
+      if(['bank_range','bank_action','ge_range','ge_offer','ge_collect','equip','appearance'].includes(msg.code))O.pendingPanel=null;
       O.notice(msg.code,'Server: '+msg.message);return;
     }
   };
@@ -4062,9 +4136,24 @@ const Online = (() => {
     O.job={near,run};const last=p.at(-1);O.walk(last.x,last.y,true);
   };
   O.follow=a=>{if(!usable()||!a?.netId)return;O.job=null;G.player.target=null;send({type:'follow',target_id:a.netId,seq:++O.seq});};
-  O.combatPayload=()=>{const p=G.player,w=p.eq?.weapon?.id||'unarmed',it=ITEMS[w]||{},spell=p.pendingSpell||(p.autocast&&it.magic?p.autocast:null),style=spell?'magic':it.ranged?'ranged':'melee';return{weapon:w,style,spell,special:!!p.specOn,overhead:p.overhead||null};};
+  O.combatPayload=()=>{const p=G.player,w=p.eq?.weapon?.id||'unarmed',it=ITEMS[w]||{},spell=p.pendingSpell||(p.autocast&&it.magic?p.autocast:null),style=spell?'magic':it.ranged?'ranged':'melee';return{weapon:w,style,spell,special:!!p.specOn};};
   O.attack=a=>{if(!O.canAttack(a)){O.notice('safe','Players are protected inside the Grand Exchange.');return;}O.job=null;G.player.target=a;const payload=O.combatPayload();send({type:'attack',target_id:a.netId,...payload});if(G.player.pendingSpell)G.player.pendingSpell=null;if(payload.special)G.player.specOn=false;O.lastCombatSignature=null;};
   O.sendChat=text=>{text=String(text||'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,120);if(text&&usable())send({type:'chat',text});};
+  O.openBank=()=>{if(!usable()){O.notice('connecting','Wait for World 1 before banking.');return;}O.pendingPanel='bank';send({type:'bank_open'});};
+  O.bankDeposit=(index,amount=1)=>usable()&&send({type:'bank_deposit',index,amount:amount==='all'?0xffffffff:Math.max(1,Math.floor(amount))});
+  O.bankDepositAll=()=>usable()&&send({type:'bank_deposit_all'});
+  O.bankDepositEquipment=()=>usable()&&send({type:'bank_deposit_equipment'});
+  O.bankWithdraw=(index,amount=1)=>usable()&&send({type:'bank_withdraw',index,amount:amount==='all'?0xffffffff:Math.max(1,Math.floor(amount))});
+  O.openGe=()=>{if(!usable()){O.notice('connecting','Wait for World 1 before using the Grand Exchange.');return;}O.pendingPanel='ge';send({type:'ge_open'});};
+  O.gePlace=(slot,sell,item,quantity,price)=>usable()&&send({type:'ge_place',slot:Number(slot),sell:!!sell,item:String(item),quantity:Math.max(1,Math.floor(quantity)),price:Math.max(1,Math.floor(price))});
+  O.geCancel=slot=>usable()&&send({type:'ge_cancel',slot:Number(slot)});
+  O.geCollect=(slot,toBank=false)=>usable()&&send({type:'ge_collect',slot:Number(slot),to_bank:!!toBank});
+  O.equip=index=>usable()&&send({type:'equip',index:Number(index)});
+  O.unequip=slot=>usable()&&send({type:'unequip',slot:String(slot)});
+  O.drink=index=>usable()&&send({type:'drink',index:Number(index)});
+  O.setPrayer=(id,enabled)=>usable()&&send({type:'prayer',id:String(id),enabled:!!enabled});
+  O.inventoryMove=(from,to)=>usable()&&send({type:'inventory_move',from:Number(from),to:Number(to)});
+  O.setAppearance=kit=>usable()&&send({type:'appearance',skin:kit.skin>>>0,hair:kit.hair>>>0,shirt:kit.shirt>>>0,pants:kit.pants>>>0,boots:kit.boots>>>0,hair_style:kit.hairStyle|0});
   O.requestResync=()=>{if(usable()&&performance.now()-(O.lastResync||0)>1000){O.lastResync=performance.now();send({type:'resync'});}};
   O.frame=()=>{
     if(!O.active)return;const now=performance.now();
@@ -4086,7 +4175,7 @@ const Online = (() => {
   return O;
 })();
 // Offline rules remain the original rules. Online movement never runs local AI.
-const netBase={cmdWalk,cmdJob,cmdFollow,cmdAttack,stepActor,renderPos,chatCommand};
+const netBase={cmdWalk,cmdJob,cmdFollow,cmdAttack,stepActor,renderPos,chatCommand,openBank,equipFromInv,unequipSlot,drinkPotion,togglePrayer,itemMenu};
 cmdWalk=(x,y)=>Online.active?Online.walk(x,y):netBase.cmdWalk(x,y);
 cmdJob=(x,y,near,run,label)=>Online.active?Online.doJob(x,y,near,run):netBase.cmdJob(x,y,near,run,label);
 cmdFollow=a=>Online.active&&a?.onlineRemote?Online.follow(a):netBase.cmdFollow(a);
@@ -4094,13 +4183,23 @@ cmdAttack=a=>{if(Online.active&&a?.onlineRemote){if(G.spellSel){G.player.pending
 stepActor=a=>{if(Online.active&&(a===G.player||a.onlineRemote)){for(const k of ['eatCd','potCd','atkCd'])if(a[k]>0)a[k]--;return;}netBase.stepActor(a);};
 renderPos=(a,frac)=>Online.active&&(a===G.player||a.onlineRemote)?Online.renderPosition(a):netBase.renderPos(a,frac);
 chatCommand=t=>{if(Online.active&&!String(t).startsWith('::'))Online.sendChat(t);else netBase.chatCommand(t);};
+openBank=obj=>{if(Online.active)Online.openBank();else netBase.openBank(obj);};
+equipFromInv=(a,i)=>Online.active&&a===G.player?(Online.equip(i),true):netBase.equipFromInv(a,i);
+unequipSlot=(a,slot)=>Online.active&&a===G.player?(Online.unequip(slot),true):netBase.unequipSlot(a,slot);
+drinkPotion=(a,i)=>Online.active&&a===G.player?(Online.drink(i),true):netBase.drinkPotion(a,i);
+togglePrayer=(a,id,quiet)=>Online.active&&a===G.player?(Online.setPrayer(id,!a.prayers.has(id)),true):netBase.togglePrayer(a,id,quiet);
+itemMenu=(a,i)=>{
+  const entries=netBase.itemMenu(a,i);
+  if(Online.active&&a===G.player)return entries.filter(entry=>!stripTags(entry.text).startsWith('Drop '));
+  return entries;
+};
 
 const netLocalDamage=applyHit,netLocalBots=setBotCount;
 applyHit=h=>{if(Online.active&&(h?.src?.onlineRemote||h?.dst===G.player||h?.dst?.onlineRemote))return;netLocalDamage(h);};
 setBotCount=n=>netLocalBots(Online.active?0:n);
 
 const netLocalEat=eatFood;
-eatFood=(a,i)=>{if(Online.active&&a===G.player){const item=a.inv[i];if(item&&ITEMS[item.id]?.food){const out=netLocalEat(a,i);send({type:'eat'});return out;}}return netLocalEat(a,i);};
+eatFood=(a,i)=>{if(Online.active&&a===G.player){const item=a.inv[i];if(item&&ITEMS[item.id]?.food){send({type:'eat',index:i});return true;}return false;}return netLocalEat(a,i);};
 
 /* ---- classic.js ---- */
 'use strict';
@@ -4327,7 +4426,14 @@ const Client = (() => {
     L.tabs.forEach((r,i)=>{const label=i===2?'Journal':i===3?'Bag':i===4?'Gear':i===5?'Prayer':i===6?'Magic':i===11?'Menu':TAB_TIP[i];const b=hit(label,r,()=>C.selectTab(i),C.footer);b.dataset.tab=i;C.tabButtons.push([b,i]);});
     const mapCircle=L.mapCircle;
     const mapButton=hit('Walk on minimap',{x:mapCircle.x-mapCircle.r,y:mapCircle.y-mapCircle.r,w:mapCircle.r*2,h:mapCircle.r*2},e=>{const pt=C.toGame(e.clientX,e.clientY);if(pt.x>=0)minimapClick(pt.x,pt.y);});mapButton.style.borderRadius='50%';
-    ['Bank','Skills','World map'].forEach((name,i)=>hit(name,L.utilities[i],()=>i===0?Expedition.goBank():C.open(i===1?'skills':'map')));
+    ['Bank','Skills','World map'].forEach((name,i)=>hit(name,L.utilities[i],()=>{
+      if(i===0){
+        if(Online.active){
+          const o=WORLD.objs.filter(o=>o.kind==='bank').sort((a,b)=>dist2(a.x,a.y,G.player.x,G.player.y)-dist2(b.x,b.y,G.player.x,G.player.y))[0];
+          if(o)cmdJob(o.x,o.y,a=>dist2(a.x,a.y,o.x,o.y)<=2,()=>openBank(o));
+        }else Expedition.goBank();
+      }else C.open(i===1?'skills':'map');
+    }));
     hit('Face north',L.compass,()=>{if(App.cam)App.cam.yaw=0;});
     const orbNames=['Hitpoints: eat food','Quick prayers','Toggle run','Special attack'];
     L.orbs.forEach((r,i)=>hit(orbNames[i],r,()=>{
@@ -4486,7 +4592,7 @@ const Client = (() => {
   C.close=()=>{if(App.mode!=='game')return;C.panel=null;C.hover=null;C.shade.style.display='none';C.bar.inert=false;if(typeof Controls!=='undefined')Controls.cancelAll();C.surface.focus({preventScroll:true});};
   C.open=page=>{
     if(!G.player&&!['welcome','menu'].includes(page))page='welcome';
-    if(page==='bank'&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
+    if(page==='bank'&&!Online.active&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
     C.panel=page;C.shade.style.display='flex';C.bar.inert=true;UI.menu=null;C.tooltip.style.display='none';if(typeof Controls!=='undefined')Controls.cancelAll();C.renderPanel();
     C.root.querySelector('input,button')?.focus({preventScroll:true});
   };
@@ -4494,7 +4600,7 @@ const Client = (() => {
     if(!C.panel)return;const root=C.root;root.replaceChildren();
     if(App.mode==='game')button('×',C.close,root).className='client-close';
     el('div',{class:'client-lead',text:'OLDSKOOL · CLASSIC WEBGL CLIENT'},root);
-    const titles={welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:'Camp bank',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
+    const titles={welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:Online.active?'Bank of OLDSKOOL':'Camp bank',ge:'Grand Exchange',appearance:'Character design',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
     el('h1',{text:titles[C.panel]||'SonnetOSRS'},root);
     if(C.panel==='welcome'||C.panel==='menu'){
       if(C.panel==='welcome'){root.querySelector('h1')?.remove();el('div',{class:'oldskool-logo',text:'OLDSKOOL'},root);el('div',{class:'oldskool-sub',text:'GRAND EXCHANGE · WORLD 1'},root);}
@@ -4529,7 +4635,14 @@ const Client = (() => {
         file.onchange=async()=>{try{await Profiles.importFile(file.files[0]);}catch(err){Profiles.status=err.message;}C.renderPanel();};
         button('Reset this profile',()=>{if(Profiles.reset())startGame(Profiles.name,Profiles.mode,{skipSave:true});},row);
       }
-      if(Online.active)el('p',{class:'client-help',text:'World 1 position and combat progress are saved by the server. Switch to Arena or Expedition to manage offline save files; online play cannot import or reset those profiles.'},root);
+      if(Online.active){
+        el('h2',{text:'World 1 account'},root);
+        const worldActions=el('div',{class:'client-controls'},root);
+        button('Walk to bank',()=>{C.close();const o=WORLD.objs.filter(o=>o.kind==='bank').sort((a,b)=>dist2(a.x,a.y,G.player.x,G.player.y)-dist2(b.x,b.y,G.player.x,G.player.y))[0];if(o)cmdJob(o.x,o.y,a=>dist2(a.x,a.y,o.x,o.y)<=2,()=>openBank(o));},worldActions);
+        button('Grand Exchange',()=>Online.openGe(),worldActions);
+        button('Character appearance',()=>C.open('appearance'),worldActions);
+        el('p',{class:'client-help',text:'World 1 inventory, equipment, bank, Grand Exchange offers, appearance, position and PvP progress are authoritative on the Rust server.'},root);
+      }
       el('div',{class:'client-message',text:Profiles.status},root);
       el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause local simulation; the online world continues on the server.'},root);
     }else if(C.panel==='journal'){
@@ -4546,15 +4659,89 @@ const Client = (() => {
       const grid=el('div',{class:'client-grid'},root);
       for(const k of Expedition.xpKeys){const xp=Expedition.xp[k]||0,l=Expedition.active?Expedition.levelFor(xp):(G.player.stats[k]||0),card=el('div',{class:'client-card'},grid);el('h2',{text:k+' · '+(l||'not trained')},card);if(Expedition.active){el('progress',{value:xp-Expedition.xpFor(l),max:l===99?1:Expedition.xpFor(l+1)-Expedition.xpFor(l)},card);el('small',{text:fmtNum(xp)+' XP'+(l<99?' · '+fmtNum(Expedition.xpFor(l+1)-xp)+' to next level':' · MAX')},card);}else el('small',{text:'Arena uses preset combat stats; no expedition XP is earned.'},card);}
     }else if(C.panel==='bank'){
-      const row=el('div',{class:'client-controls'},root);button('Deposit inventory',refresh(()=>Expedition.deposit(0,true)),row);button('Export backup',()=>Profiles.exportFile(),row);
-      const quantity=el('select',{},row);quantity.style.width='auto';quantity.setAttribute('aria-label','Withdraw quantity');for(const v of [1,5,10,'all'])el('option',{value:String(v),text:'Withdraw '+v,selected:C.withdrawQty===v},quantity);quantity.onchange=()=>C.withdrawQty=quantity.value==='all'?'all':Number(quantity.value);
-      el('p',{class:'client-help',text:'Tap inventory items to deposit. Tap bank entries to withdraw. Potion doses are preserved. '+Expedition.bank.length+' / 120 bank entries.'},root);
-      const grid=el('div',{class:'client-grid'},root);const left=el('div',{},grid),right=el('div',{},grid);el('h2',{text:'Inventory'},left);el('h2',{text:'Bank'},right);const inv=el('div',{class:'client-items'},left),bank=el('div',{class:'client-items'},right);
-      const itemButton=(s,text,fn,parent)=>{const b=button('',refresh(fn),parent),cv=el('canvas',{width:32,height:32},b);cv.getContext('2d').drawImage(itemIcon(s.id),0,0);el('span',{text},b);return b;};
-      G.player.inv.forEach((s,i)=>{if(s)itemButton(s,itemName(s)+(ITEMS[s.id].stack?' ×'+s.n:''),()=>Expedition.deposit(i),inv);});
-      Expedition.bank.forEach((s,i)=>itemButton(s,itemName(s)+' ×'+(ITEMS[s.id].stack?s.n:s.qty),()=>{if(!Expedition.withdraw(i,C.withdrawQty))gameMsg('Not enough room to withdraw that quantity.');},bank));
-      if(Expedition.active){el('h2',{text:'Supply counter · costs coins in your bag'},root);const stock=el('div',{class:'client-controls'},root);for(const [id,n,price]of [['cookedFish',1,15],['water',30,20],['blood',10,40],['trailPick',1,5],['trailAxe',1,5],['trailNet',1,5],['ancstaff',1,100],['msb',1,100],['rarrows',50,30]])button(ITEMS[id].name+' ×'+n+' · '+price,refresh(()=>Expedition.buy(id,n,price)),stock);}
-      else{el('h2',{text:'Practice loadouts · replaces carried gear'},root);const kits=el('div',{class:'client-controls'},root);for(const [kind,label]of [['main','Hybrid'],['pmelee','Melee'],['pranged','Ranged'],['pmage','Magic']])button(label,refresh(()=>restock(kind)),kits);}
+      const itemButton=(s,text,fn,parent)=>{
+        const b=button('',fn,parent),cv=el('canvas',{width:32,height:32},b);
+        cv.getContext('2d').drawImage(itemIcon(s.id),0,0);el('span',{text},b);return b;
+      };
+      const row=el('div',{class:'client-controls'},root);
+      const quantity=el('select',{},row);quantity.style.width='auto';quantity.setAttribute('aria-label','Bank quantity');
+      for(const v of [1,5,10,'all'])el('option',{value:String(v),text:String(v)==='all'?'All':String(v),selected:C.withdrawQty===v},quantity);
+      quantity.onchange=()=>C.withdrawQty=quantity.value==='all'?'all':Number(quantity.value);
+      if(Online.active){
+        button('Deposit inventory',()=>Online.bankDepositAll(),row);
+        button('Deposit worn items',()=>Online.bankDepositEquipment(),row);
+        button('Grand Exchange',()=>Online.openGe(),row);
+        el('p',{class:'client-help',text:'Server-authoritative bank · '+Online.account.bank.length+' / 400 entries. Select 1, 5, 10 or All, then tap an inventory item to deposit or bank item to withdraw.'},root);
+        const search=el('input',{type:'search',placeholder:'Search bank',autocomplete:'off'},root);search.setAttribute('aria-label','Search bank');
+        const grid=el('div',{class:'client-grid'},root),left=el('div',{},grid),right=el('div',{},grid);
+        el('h2',{text:'Inventory'},left);el('h2',{text:'Bank'},right);
+        const inv=el('div',{class:'client-items'},left),bank=el('div',{class:'client-items'},right);
+        const renderBank=()=>{
+          bank.replaceChildren();const q=search.value.trim().toLowerCase();
+          Online.account.bank.forEach((entry,i)=>{
+            if(!ITEMS[entry.id])return;
+            const name=ITEMS[entry.id].name+(entry.variant?'('+entry.variant+')':'');
+            if(q&&!name.toLowerCase().includes(q))return;
+            itemButton({id:entry.id,n:entry.variant||entry.quantity},name+' ×'+fmtNum(entry.quantity),()=>Online.bankWithdraw(i,C.withdrawQty),bank);
+          });
+        };
+        G.player.inv.forEach((item,i)=>{if(item)itemButton(item,itemName(item)+(ITEMS[item.id].stack?' ×'+fmtNum(item.n):''),()=>Online.bankDeposit(i,C.withdrawQty),inv);});
+        search.oninput=renderBank;renderBank();
+      }else{
+        button('Deposit inventory',refresh(()=>Expedition.deposit(0,true)),row);button('Export backup',()=>Profiles.exportFile(),row);
+        el('p',{class:'client-help',text:'Tap inventory items to deposit. Tap bank entries to withdraw. Potion doses are preserved. '+Expedition.bank.length+' / 120 bank entries.'},root);
+        const grid=el('div',{class:'client-grid'},root),left=el('div',{},grid),right=el('div',{},grid);
+        el('h2',{text:'Inventory'},left);el('h2',{text:'Bank'},right);const inv=el('div',{class:'client-items'},left),bank=el('div',{class:'client-items'},right);
+        G.player.inv.forEach((item,i)=>{if(item)itemButton(item,itemName(item)+(ITEMS[item.id].stack?' ×'+item.n:''),refresh(()=>Expedition.deposit(i)),inv);});
+        Expedition.bank.forEach((item,i)=>itemButton(item,itemName(item)+' ×'+(ITEMS[item.id].stack?item.n:item.qty),refresh(()=>{if(!Expedition.withdraw(i,C.withdrawQty))gameMsg('Not enough room to withdraw that quantity.');}),bank));
+        if(Expedition.active){el('h2',{text:'Supply counter · costs coins in your bag'},root);const stock=el('div',{class:'client-controls'},root);for(const [id,n,price]of [['cookedFish',1,15],['water',30,20],['blood',10,40],['trailPick',1,5],['trailAxe',1,5],['trailNet',1,5],['ancstaff',1,100],['msb',1,100],['rarrows',50,30]])button(ITEMS[id].name+' ×'+n+' · '+price,refresh(()=>Expedition.buy(id,n,price)),stock);}
+        else{el('h2',{text:'Practice loadouts · replaces carried gear'},root);const kits=el('div',{class:'client-controls'},root);for(const [kind,label]of [['main','Hybrid'],['pmelee','Melee'],['pranged','Ranged'],['pmage','Magic']])button(label,refresh(()=>restock(kind)),kits);}
+      }
+    }else if(C.panel==='ge'){
+      if(!Online.active){el('p',{text:'The persistent Grand Exchange is available in World 1.'},root);}
+      else{
+        el('p',{text:'Six server-authoritative offer slots. Items and coins are escrowed when an offer is placed. Matching uses price-time priority; when prices cross, the older offer sets the trade price and excess buyer coins become collectible.'},root);
+        const offers=el('div',{class:'client-grid'},root);
+        for(let slot=0;slot<6;slot++){
+          const offer=Online.account.offers.find(o=>o.slot===slot&&o.state!=='removed'),card=el('div',{class:'client-card'},offers);el('h2',{text:'Offer slot '+(slot+1)},card);
+          if(!offer){el('small',{text:'Empty'},card);continue;}
+          const done=offer.quantity-offer.remaining;
+          el('small',{text:(offer.sell?'Sell ':'Buy ')+(ITEMS[offer.item]?.name||offer.item)+' · '+fmtNum(offer.quantity)+' @ '+fmtNum(offer.price)+' gp each'},card);
+          const progress=el('progress',{value:done,max:Math.max(1,offer.quantity)},card);
+          el('small',{text:done+' / '+offer.quantity+' complete · '+offer.state.replaceAll('_',' ')},card);
+          if(offer.collected_items||offer.collected_coins){
+            button('Collect to inventory'+(offer.collected_items?' · '+fmtNum(offer.collected_items)+' item(s)':'')+(offer.collected_coins?' · '+fmtNum(offer.collected_coins)+' gp':''),()=>Online.geCollect(slot,false),card);
+            button('Collect to bank',()=>Online.geCollect(slot,true),card);
+          }
+          if(offer.state==='registered')button('Cancel offer',()=>Online.geCancel(slot),card);
+        }
+        el('h2',{text:'Create offer'},root);
+        const form=el('form',{},root),grid=el('div',{class:'client-grid'},form);
+        const modeCard=el('div',{class:'client-card'},grid),itemCard=el('div',{class:'client-card'},grid),qtyCard=el('div',{class:'client-card'},grid),priceCard=el('div',{class:'client-card'},grid),slotCard=el('div',{class:'client-card'},grid);
+        el('label',{text:'Offer type'},modeCard);const mode=el('select',{},modeCard);el('option',{value:'buy',text:'Buy'},mode);el('option',{value:'sell',text:'Sell'},mode);
+        el('label',{text:'Item'},itemCard);const item=el('select',{},itemCard);
+        for(const c of Online.account.catalog){if(ITEMS[c.id])el('option',{value:c.id,text:ITEMS[c.id].name+' · guide '+fmtNum(c.guide_price)+' gp'},item);}
+        el('label',{text:'Quantity'},qtyCard);const qty=el('input',{type:'number',min:1,max:2147483647,value:1},qtyCard);
+        el('label',{text:'Price each'},priceCard);const price=el('input',{type:'number',min:1,max:2147483647,value:Online.account.catalog.find(c=>c.id===item.value)?.guide_price||1},priceCard);
+        item.onchange=()=>price.value=Online.account.catalog.find(c=>c.id===item.value)?.guide_price||1;
+        el('label',{text:'Offer slot'},slotCard);const slot=el('select',{},slotCard);for(let i=0;i<6;i++)el('option',{value:String(i),text:String(i+1)},slot);
+        button('Place offer',()=>{},form).type='submit';
+        form.onsubmit=e=>{e.preventDefault();Online.gePlace(Number(slot.value),mode.value==='sell',item.value,Number(qty.value),Number(price.value));};
+        const nav=el('div',{class:'client-controls'},root);button('Bank',()=>Online.openBank(),nav);button('Return to game',C.close,nav);
+      }
+    }else if(C.panel==='appearance'){
+      if(!Online.active){el('p',{text:'Persistent character appearance is available in World 1.'},root);}
+      else{
+        el('p',{text:'Choose a classic character palette while you are inside the Grand Exchange safe area and out of combat.'},root);
+        const draft={...G.player.kit};
+        const colors=[['Skin','skin',SKIN],['Hair','hair',HAIR],['Shirt','shirt',SHIRT],['Trousers','pants',[0x3a3a2a,0x2a3a5a,0x5a3a2a,0x2a2a2a,0x4a4a5a]],['Boots','boots',[0x3a2a1a,0x1a1a1a,0x5a4a3a]]];
+        for(const [label,key,values] of colors){
+          el('h2',{text:label},root);const row=el('div',{class:'client-controls'},root);
+          values.forEach(value=>{const b=button(' ',()=>{draft[key]=value;G.player.kit={...draft};C.renderPanel();},row);b.style.cssText+=';width:46px;min-width:46px;background:#'+value.toString(16).padStart(6,'0');b.setAttribute('aria-label',label+' color');});
+        }
+        el('h2',{text:'Hair style'},root);const styles=el('div',{class:'client-controls'},root);for(let i=0;i<3;i++)button('Style '+(i+1),()=>{draft.hairStyle=i;G.player.kit={...draft};C.renderPanel();},styles);
+        const actions=el('div',{class:'client-controls'},root);button('Save appearance',()=>Online.setAppearance(draft),actions);button('Cancel',()=>{Online.openBank&&0;C.close();},actions);
+      }
     }else if(C.panel==='craft'||C.panel==='cooking'){
       el('p',{text:'Ingredients are consumed only when there is space for the complete result.'},root);const grid=el('div',{class:'client-grid'},root);
       for(const r of Expedition.recipes.filter(r=>r.station===(C.panel==='cooking'?'fire':'forge'))){const card=el('div',{class:'client-card'},grid);el('h2',{text:r.name},card);el('small',{text:Object.entries(r.input).map(([id,n])=>n+' '+ITEMS[id].name).join(' + ')+' → '+ITEMS[r.output[0]].name},card);button('Craft · +'+r.xp+' '+r.skill+' XP',refresh(()=>Expedition.craft(r.id)),card);}

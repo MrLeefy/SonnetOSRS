@@ -157,6 +157,23 @@ impl Collision {
         }
     }
     pub fn path_to_range(&self, from: Tile, target: Tile, range: i32) -> Option<VecDeque<Tile>> {
+        self.path_to_range_where(from, target, range, |_| true)
+    }
+
+    /// Route to attack range while restricting which tiles the mover may enter.
+    /// This mirrors the classic server split between interaction/combat intent
+    /// and the walking queue: combat may have stricter traversal rules than a
+    /// normal click-to-walk without changing collision for ordinary movement.
+    pub fn path_to_range_where<F>(
+        &self,
+        from: Tile,
+        target: Tile,
+        range: i32,
+        allowed: F,
+    ) -> Option<VecDeque<Tile>>
+    where
+        F: Fn(Tile) -> bool,
+    {
         if self.blocked(from.x, from.y)
             || target.x < 0
             || target.y < 0
@@ -166,8 +183,10 @@ impl Collision {
             return None;
         }
         let goal = |p: Tile| {
-            let d = (p.x - target.x).abs().max((p.y - target.y).abs());
-            d >= 1 && d <= range && self.has_los(p, target)
+            allowed(p) && {
+                let d = (p.x - target.x).abs().max((p.y - target.y).abs());
+                d >= 1 && d <= range && self.has_los(p, target)
+            }
         };
         if goal(from) {
             return Some(VecDeque::new());
@@ -195,7 +214,7 @@ impl Collision {
                 }
                 let n = Tile::new(p.x + dx, p.y + dy);
                 let i = idx(n);
-                if parents[i] != usize::MAX {
+                if parents[i] != usize::MAX || !allowed(n) {
                     continue;
                 }
                 parents[i] = idx(p);

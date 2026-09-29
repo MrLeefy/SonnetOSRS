@@ -1,6 +1,6 @@
 {
   "name": "oldskool-web",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "OLDSKOOL WebGL Grand Exchange PvP client",
   "scripts": {
@@ -11,10 +11,11 @@
     "test:classic": "node tests/classic.cjs",
     "verify": "npm run check && npm test && npm run build && npm run test:browser",
     "test:server": "cargo test --manifest-path server/Cargo.toml",
-    "verify:full": "npm run check && npm test && npm run build && npm run test:server && cargo build --release --manifest-path server/Cargo.toml && npm run test:browser && npm run test:online && npm run test:repair && npm run test:crowd",
+    "verify:full": "npm run check && npm test && npm run build && npm run test:server && cargo build --release --manifest-path server/Cargo.toml && npm run test:browser && npm run test:online && npm run test:repair && npm run test:crowd && npm run test:economy-online",
     "test:online": "node tests/online.cjs",
     "test:repair": "node tests/repair.cjs",
-    "test:crowd": "node tests/crowd.cjs"
+    "test:crowd": "node tests/crowd.cjs",
+    "test:economy-online": "node tests/economy-online.cjs"
   },
   "devDependencies": {
     "playwright": "1.63.0"

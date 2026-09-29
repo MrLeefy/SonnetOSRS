@@ -1,4 +1,6 @@
+mod economy;
 mod movement;
+use economy::*;
 use movement::{Collision, Tile};
 use std::{
     collections::{HashMap, VecDeque},
@@ -53,6 +55,8 @@ struct World {
     tick: u64,
     players: HashMap<Uuid, Player>,
     profiles: HashMap<String, PersistedProfile>,
+    ge_offers: Vec<GeOffer>,
+    next_offer_id: u64,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -85,11 +89,20 @@ struct Player {
     x: f32,
     y: f32,
     hp: i32,
+    attack_current: i32,
+    strength_current: i32,
+    defence_current: i32,
+    ranged_current: i32,
+    magic_current: i32,
+    prayer_points: f32,
     kills: u32,
     deaths: u32,
     path: VecDeque<Tile>,
     motion: Vec<Tile>,
     motion_tick: u64,
+    // Changes only for intentional discontinuities such as death/respawn.
+    // Walking and safe-zone transitions never increment this value.
+    position_epoch: u64,
     command_seq: u64,
     run_on: bool,
     run_energy: f32,
@@ -103,11 +116,18 @@ struct Player {
     combat_style: CombatStyle,
     spell: Option<String>,
     overhead: Option<String>,
+    active_prayers: Vec<String>,
+    prayer_block_until: u64,
     spec_energy: f32,
     special_pending: bool,
     food: u8,
     last_eat_tick: u64,
+    last_pot_tick: u64,
     frozen_until: u64,
+    inventory: Vec<Option<InventoryItem>>,
+    bank: Vec<BankItem>,
+    equipment: HashMap<String, InventoryItem>,
+    appearance: Appearance,
     resident: Option<ResidentAi>,
 }
 
@@ -120,9 +140,37 @@ struct PersistedProfile {
     deaths: u32,
     #[serde(default = "default_hp")]
     hp: i32,
+    #[serde(default = "default_prayer")]
+    prayer_points: f32,
+    #[serde(default)]
+    account_version: u32,
+    #[serde(default)]
+    inventory: Vec<Option<InventoryItem>>,
+    #[serde(default)]
+    bank: Vec<BankItem>,
+    #[serde(default)]
+    equipment: HashMap<String, InventoryItem>,
+    #[serde(default)]
+    appearance: Appearance,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PersistedState {
+    #[serde(default)]
+    version: u32,
+    #[serde(default)]
+    profiles: HashMap<String, PersistedProfile>,
+    #[serde(default)]
+    ge_offers: Vec<GeOffer>,
+    #[serde(default)]
+    next_offer_id: u64,
 }
 fn default_hp() -> i32 {
     MAX_HP
+}
+fn default_prayer() -> f32 {
+    99.0
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -154,6 +202,14 @@ enum ClientMessage {
     Run {
         enabled: bool,
     },
+    Prayer {
+        id: String,
+        enabled: bool,
+    },
+    InventoryMove {
+        from: u8,
+        to: u8,
+    },
     Follow {
         target_id: Uuid,
         seq: u64,
@@ -170,8 +226,8 @@ enum ClientMessage {
         spell: Option<String>,
         #[serde(default)]
         special: bool,
-        #[serde(default)]
-        overhead: Option<String>,
+        #[serde(default, rename = "overhead")]
+        _overhead: Option<String>,
     },
     CombatState {
         weapon: String,
@@ -180,10 +236,57 @@ enum ClientMessage {
         spell: Option<String>,
         #[serde(default)]
         special: bool,
-        #[serde(default)]
-        overhead: Option<String>,
+        #[serde(default, rename = "overhead")]
+        _overhead: Option<String>,
     },
-    Eat {},
+    Eat {
+        #[serde(default)]
+        index: Option<u8>,
+    },
+    Drink {
+        index: u8,
+    },
+    BankOpen {},
+    BankDeposit {
+        index: u8,
+        amount: u32,
+    },
+    BankDepositAll {},
+    BankDepositEquipment {},
+    BankWithdraw {
+        index: u16,
+        amount: u32,
+    },
+    Equip {
+        index: u8,
+    },
+    Unequip {
+        slot: String,
+    },
+    GeOpen {},
+    GePlace {
+        slot: u8,
+        sell: bool,
+        item: String,
+        quantity: u32,
+        price: u32,
+    },
+    GeCancel {
+        slot: u8,
+    },
+    GeCollect {
+        slot: u8,
+        #[serde(default)]
+        to_bank: bool,
+    },
+    Appearance {
+        skin: u32,
+        hair: u32,
+        shirt: u32,
+        pants: u32,
+        boots: u32,
+        hair_style: u8,
+    },
     Chat {
         text: String,
     },
@@ -191,6 +294,27 @@ enum ClientMessage {
         #[serde(default)]
         nonce: u64,
     },
+}
+
+impl ClientMessage {
+    fn durable(&self) -> bool {
+        matches!(
+            self,
+            ClientMessage::Eat { .. }
+                | ClientMessage::Drink { .. }
+                | ClientMessage::InventoryMove { .. }
+                | ClientMessage::BankDeposit { .. }
+                | ClientMessage::BankDepositAll {}
+                | ClientMessage::BankDepositEquipment {}
+                | ClientMessage::BankWithdraw { .. }
+                | ClientMessage::Equip { .. }
+                | ClientMessage::Unequip { .. }
+                | ClientMessage::GePlace { .. }
+                | ClientMessage::GeCancel { .. }
+                | ClientMessage::GeCollect { .. }
+                | ClientMessage::Appearance { .. }
+        )
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -249,6 +373,14 @@ enum ServerMessage<'a> {
         nonce: u64,
         tick: u64,
     },
+    AccountState {
+        inventory: Vec<Option<InventoryItem>>,
+        bank: Vec<BankItem>,
+        equipment: HashMap<String, InventoryItem>,
+        offers: Vec<GeOffer>,
+        catalog: Vec<TradeItemView>,
+        appearance: Appearance,
+    },
     Error {
         code: &'a str,
         message: &'a str,
@@ -283,10 +415,12 @@ struct PlayerView {
     zone: Zone,
     motion: Vec<Tile>,
     motion_tick: u64,
+    position_epoch: u64,
     command_seq: u64,
     destination: Option<Tile>,
     moving: bool,
     run: f32,
+    run_on: bool,
     attack_target: Option<Uuid>,
     simulated: bool,
     loadout: String,
@@ -294,8 +428,17 @@ struct PlayerView {
     combat_style: CombatStyle,
     spell: Option<String>,
     overhead: Option<String>,
+    active_prayers: Vec<String>,
     spec: f32,
     level: u8,
+    attack_current: i32,
+    strength_current: i32,
+    defence_current: i32,
+    ranged_current: i32,
+    magic_current: i32,
+    prayer_points: f32,
+    equipment: HashMap<String, InventoryItem>,
+    appearance: Appearance,
 }
 
 #[derive(Serialize)]
@@ -345,6 +488,73 @@ fn zone_at(x: f32, y: f32) -> Zone {
     }
 }
 
+fn near_bank(p: &Player) -> bool {
+    const BOOTHS: [(i32, i32); 4] = [(43, 43), (53, 43), (43, 53), (53, 53)];
+    BOOTHS
+        .iter()
+        .any(|(x, y)| (p.x as i32 - *x).abs().max((p.y as i32 - *y).abs()) <= 2)
+        && zone_at(p.x, p.y) == Zone::Safe
+}
+
+fn near_ge(p: &Player) -> bool {
+    zone_at(p.x, p.y) == Zone::Safe
+        && ((p.x + 0.5 - GE_CENTER).powi(2) + (p.y + 0.5 - GE_CENTER).powi(2)).sqrt() <= 6.5
+}
+
+fn migrate_profile(mut profile: PersistedProfile, seed: &str) -> PersistedProfile {
+    if profile.account_version < ACCOUNT_VERSION {
+        profile.inventory = starter_inventory();
+        profile.bank = starter_bank();
+        profile.equipment = starter_equipment();
+        profile.appearance = appearance_for(seed);
+        profile.prayer_points = 99.0;
+        profile.account_version = ACCOUNT_VERSION;
+    } else {
+        normalize_inventory(&mut profile.inventory);
+        profile.bank.retain(|b| {
+            item_info(&b.id).is_some()
+                && b.quantity > 0
+                && b.variant <= item_info(&b.id).map(|i| i.doses).unwrap_or(0)
+        });
+        if profile.appearance.hair_style > 2 {
+            profile.appearance.hair_style = 1;
+        }
+    }
+    profile
+}
+
+fn profile_from_player(player: &Player) -> PersistedProfile {
+    PersistedProfile {
+        name: player.name.clone(),
+        x: player.x,
+        y: player.y,
+        kills: player.kills,
+        deaths: player.deaths,
+        hp: player.hp,
+        prayer_points: player.prayer_points,
+        account_version: ACCOUNT_VERSION,
+        inventory: player.inventory.clone(),
+        bank: player.bank.clone(),
+        equipment: player.equipment.clone(),
+        appearance: player.appearance.clone(),
+    }
+}
+
+fn account_message(player: &Player, offers: &[GeOffer]) -> String {
+    serialize(&ServerMessage::AccountState {
+        inventory: player.inventory.clone(),
+        bank: player.bank.clone(),
+        equipment: player.equipment.clone(),
+        offers: owner_offers(offers, &player.token),
+        catalog: trade_catalog(),
+        appearance: player.appearance.clone(),
+    })
+}
+
+fn account_error(code: &'static str, message: &'static str) -> String {
+    serialize(&ServerMessage::Error { code, message })
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -388,8 +598,399 @@ fn combat_level_for(p: &Player) -> u8 {
     }
 }
 
-fn clean_overhead(value: Option<String>) -> Option<String> {
-    value.filter(|v| matches!(v.as_str(), "pmelee" | "pmissiles" | "pmagic"))
+#[derive(Clone, Copy)]
+struct BaseLevels {
+    attack: i32,
+    strength: i32,
+    defence: i32,
+    ranged: i32,
+    magic: i32,
+    prayer: i32,
+    hp: i32,
+}
+
+fn base_levels(loadout: &str) -> BaseLevels {
+    match loadout {
+        "melee" => BaseLevels {
+            attack: 99,
+            strength: 99,
+            defence: 92,
+            ranged: 80,
+            magic: 85,
+            prayer: 77,
+            hp: 99,
+        },
+        "zerker" => BaseLevels {
+            attack: 60,
+            strength: 99,
+            defence: 45,
+            ranged: 99,
+            magic: 94,
+            prayer: 52,
+            hp: 99,
+        },
+        "pure" => BaseLevels {
+            attack: 60,
+            strength: 99,
+            defence: 1,
+            ranged: 99,
+            magic: 94,
+            prayer: 52,
+            hp: 92,
+        },
+        "ranger" => BaseLevels {
+            attack: 70,
+            strength: 70,
+            defence: 70,
+            ranged: 99,
+            magic: 94,
+            prayer: 70,
+            hp: 94,
+        },
+        "mage" => BaseLevels {
+            attack: 60,
+            strength: 70,
+            defence: 40,
+            ranged: 70,
+            magic: 99,
+            prayer: 70,
+            hp: 90,
+        },
+        "hybrid" => BaseLevels {
+            attack: 75,
+            strength: 99,
+            defence: 75,
+            ranged: 99,
+            magic: 99,
+            prayer: 75,
+            hp: 99,
+        },
+        _ => BaseLevels {
+            attack: 99,
+            strength: 99,
+            defence: 99,
+            ranged: 99,
+            magic: 99,
+            prayer: 99,
+            hp: 99,
+        },
+    }
+}
+
+fn restore_stat(current: &mut i32, base: i32) {
+    if *current > base {
+        *current -= 1;
+    } else if *current < base {
+        *current += 1;
+    }
+}
+
+fn spell_runes(spell: &str) -> &'static [(&'static str, u32)] {
+    match spell {
+        "iceRush" => &[("death", 2), ("water", 2)],
+        "bloodRush" => &[("death", 2), ("blood", 2)],
+        "iceBurst" => &[("death", 4), ("water", 4)],
+        "bloodBurst" => &[("death", 2), ("blood", 4)],
+        "iceBlitz" => &[("death", 2), ("blood", 2), ("water", 3)],
+        "bloodBlitz" => &[("death", 2), ("blood", 4)],
+        "iceBarrage" => &[("death", 4), ("blood", 2), ("water", 6)],
+        "bloodBarrage" => &[("death", 4), ("blood", 4)],
+        _ => &[],
+    }
+}
+
+fn has_spell_runes(p: &Player, spell: &str) -> bool {
+    spell_runes(spell)
+        .iter()
+        .all(|(id, qty)| inventory_count(&p.inventory, id) >= *qty)
+}
+
+fn consume_spell_runes(p: &mut Player, spell: &str) -> bool {
+    if !has_spell_runes(p, spell) {
+        return false;
+    }
+    let mut inv = p.inventory.clone();
+    for (id, qty) in spell_runes(spell) {
+        if !inventory_remove(&mut inv, id, *qty) {
+            return false;
+        }
+    }
+    p.inventory = inv;
+    true
+}
+
+fn ranged_ammo(p: &Player) -> Option<(&str, u32)> {
+    let ammo = p.equipment.get("ammo")?;
+    match (p.weapon.as_str(), ammo.id.as_str()) {
+        ("rcb", "dbolts") => Some(("dbolts", ammo.amount)),
+        ("msb", "rarrows") => Some(("rarrows", ammo.amount)),
+        _ => None,
+    }
+}
+
+fn consume_ammo(p: &mut Player, amount: u32) -> bool {
+    let Some((_, available)) = ranged_ammo(p) else {
+        return false;
+    };
+    if available < amount {
+        return false;
+    }
+    if let Some(ammo) = p.equipment.get_mut("ammo") {
+        ammo.amount -= amount;
+        if ammo.amount == 0 {
+            p.equipment.remove("ammo");
+        }
+        true
+    } else {
+        false
+    }
+}
+
+fn sync_consumable_counters(p: &mut Player) {
+    p.food = inventory_count(&p.inventory, "shark").min(u8::MAX as u32) as u8;
+}
+
+fn drink_potion(p: &mut Player, index: usize) -> Result<(), String> {
+    let item = p
+        .inventory
+        .get(index)
+        .and_then(|s| s.as_ref())
+        .cloned()
+        .ok_or("Nothing is in that inventory slot.")?;
+    let info = item_info(&item.id).ok_or("That potion is unknown.")?;
+    if info.doses == 0 || item.amount == 0 || item.amount > info.doses {
+        return Err("That item is not a drinkable potion.".into());
+    }
+    let base = base_levels(&p.loadout);
+    match item.id.as_str() {
+        "supatk" => {
+            p.attack_current = p
+                .attack_current
+                .max(base.attack + 5 + (base.attack * 15) / 100);
+        }
+        "supstr" => {
+            p.strength_current = p
+                .strength_current
+                .max(base.strength + 5 + (base.strength * 15) / 100);
+        }
+        "supdef" => {
+            p.defence_current = p
+                .defence_current
+                .max(base.defence + 5 + (base.defence * 15) / 100);
+        }
+        "ranging" => {
+            p.ranged_current = p
+                .ranged_current
+                .max(base.ranged + 4 + (base.ranged * 10) / 100);
+        }
+        "prayer" => {
+            p.prayer_points =
+                (p.prayer_points + (base.prayer / 4 + 7) as f32).min(base.prayer as f32);
+        }
+        "restore" => {
+            p.prayer_points =
+                (p.prayer_points + (base.prayer / 4 + 8) as f32).min(base.prayer as f32);
+            p.attack_current = p.attack_current.max(base.attack);
+            p.strength_current = p.strength_current.max(base.strength);
+            p.defence_current = p.defence_current.max(base.defence);
+            p.ranged_current = p.ranged_current.max(base.ranged);
+            p.magic_current = p.magic_current.max(base.magic);
+        }
+        "brew" => {
+            let heal = (base.hp * 15) / 100 + 2;
+            p.hp = (p.hp + heal).min(base.hp + heal);
+            p.defence_current = p
+                .defence_current
+                .max(base.defence + (base.defence * 20) / 100 + 2);
+            p.attack_current = (p.attack_current - ((base.attack * 10) / 100 + 2)).max(1);
+            p.strength_current = (p.strength_current - ((base.strength * 10) / 100 + 2)).max(1);
+            p.ranged_current = (p.ranged_current - ((base.ranged * 10) / 100 + 2)).max(1);
+            p.magic_current = (p.magic_current - ((base.magic * 10) / 100 + 2)).max(1);
+        }
+        _ => return Err("That item is not a supported combat potion.".into()),
+    }
+    if let Some(slot) = p.inventory.get_mut(index) {
+        if let Some(s) = slot.as_mut() {
+            s.amount -= 1;
+            if s.amount == 0 {
+                *slot = None;
+            }
+        }
+    }
+    sync_consumable_counters(p);
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct PrayerInfo {
+    level: i32,
+    drain_seconds: f32,
+    group: &'static str,
+    overhead: Option<&'static str>,
+}
+
+fn prayer_info(id: &str) -> Option<PrayerInfo> {
+    let p = match id {
+        "thick" => PrayerInfo {
+            level: 1,
+            drain_seconds: 12.0,
+            group: "def",
+            overhead: None,
+        },
+        "burst" => PrayerInfo {
+            level: 4,
+            drain_seconds: 12.0,
+            group: "str",
+            overhead: None,
+        },
+        "clarity" => PrayerInfo {
+            level: 7,
+            drain_seconds: 12.0,
+            group: "atk",
+            overhead: None,
+        },
+        "rock" => PrayerInfo {
+            level: 10,
+            drain_seconds: 6.0,
+            group: "def",
+            overhead: None,
+        },
+        "super" => PrayerInfo {
+            level: 13,
+            drain_seconds: 6.0,
+            group: "str",
+            overhead: None,
+        },
+        "improved" => PrayerInfo {
+            level: 16,
+            drain_seconds: 6.0,
+            group: "atk",
+            overhead: None,
+        },
+        "rapidrestore" => PrayerInfo {
+            level: 19,
+            drain_seconds: 26.0,
+            group: "rapidrestore",
+            overhead: None,
+        },
+        "rapidheal" => PrayerInfo {
+            level: 22,
+            drain_seconds: 18.0,
+            group: "rapidheal",
+            overhead: None,
+        },
+        "protitem" => PrayerInfo {
+            level: 25,
+            drain_seconds: 18.0,
+            group: "protitem",
+            overhead: None,
+        },
+        "steel" => PrayerInfo {
+            level: 28,
+            drain_seconds: 3.0,
+            group: "def",
+            overhead: None,
+        },
+        "ultimate" => PrayerInfo {
+            level: 31,
+            drain_seconds: 3.0,
+            group: "str",
+            overhead: None,
+        },
+        "incredible" => PrayerInfo {
+            level: 34,
+            drain_seconds: 3.0,
+            group: "atk",
+            overhead: None,
+        },
+        "pmagic" => PrayerInfo {
+            level: 37,
+            drain_seconds: 3.0,
+            group: "overhead",
+            overhead: Some("pmagic"),
+        },
+        "pmissiles" => PrayerInfo {
+            level: 40,
+            drain_seconds: 3.0,
+            group: "overhead",
+            overhead: Some("pmissiles"),
+        },
+        "pmelee" => PrayerInfo {
+            level: 43,
+            drain_seconds: 4.0,
+            group: "overhead",
+            overhead: Some("pmelee"),
+        },
+        "retribution" => PrayerInfo {
+            level: 46,
+            drain_seconds: 12.0,
+            group: "overhead",
+            overhead: Some("retribution"),
+        },
+        "redemption" => PrayerInfo {
+            level: 49,
+            drain_seconds: 6.0,
+            group: "overhead",
+            overhead: Some("redemption"),
+        },
+        "smite" => PrayerInfo {
+            level: 52,
+            drain_seconds: 2.0,
+            group: "overhead",
+            overhead: Some("smite"),
+        },
+        _ => return None,
+    };
+    Some(p)
+}
+
+fn active_overhead(p: &Player) -> Option<String> {
+    p.active_prayers
+        .iter()
+        .rev()
+        .find_map(|id| prayer_info(id).and_then(|info| info.overhead.map(str::to_string)))
+}
+
+fn set_prayer(p: &mut Player, id: &str, enabled: bool, tick: u64) -> Result<(), String> {
+    let info = prayer_info(id).ok_or("Unknown prayer.")?;
+    let base = base_levels(&p.loadout);
+    if enabled {
+        if p.prayer_points <= 0.0 {
+            return Err("You have run out of Prayer points.".into());
+        }
+        if base.prayer < info.level {
+            return Err("Your Prayer level is too low.".into());
+        }
+        if info.overhead.is_some() && tick < p.prayer_block_until {
+            return Err("Your protection prayers are temporarily disabled.".into());
+        }
+        p.active_prayers
+            .retain(|other| prayer_info(other).is_none_or(|old| old.group != info.group));
+        if !p.active_prayers.iter().any(|x| x == id) {
+            p.active_prayers.push(id.to_string());
+        }
+    } else {
+        p.active_prayers.retain(|x| x != id);
+    }
+    p.overhead = active_overhead(p);
+    Ok(())
+}
+
+fn drain_prayers(p: &mut Player, tick: u64) {
+    if p.active_prayers.is_empty() || tick % 2 != 0 {
+        return;
+    }
+    let drain = p
+        .active_prayers
+        .iter()
+        .filter_map(|id| prayer_info(id))
+        .map(|info| 0.6f32 / info.drain_seconds)
+        .sum::<f32>();
+    p.prayer_points = (p.prayer_points - drain).max(0.0);
+    if p.prayer_points <= 0.0 {
+        p.active_prayers.clear();
+        p.overhead = None;
+    }
 }
 
 fn valid_spell(value: Option<String>) -> Option<String> {
@@ -471,6 +1072,59 @@ fn spell_max(spell: Option<&str>) -> i32 {
         Some("bloodBarrage") => 29,
         _ => 20,
     }
+}
+
+fn spell_freeze_ticks(spell: Option<&str>) -> u64 {
+    match spell {
+        Some("iceRush") => 8,
+        Some("iceBurst") => 16,
+        Some("iceBlitz") => 25,
+        Some("iceBarrage") => 33,
+        _ => 0,
+    }
+}
+
+fn scaled_max_hit(p: &Player) -> i32 {
+    let base = base_levels(&p.loadout);
+    let raw = base_max_hit(p) as f32;
+    match p.combat_style {
+        CombatStyle::Melee => {
+            (raw * (p.strength_current.max(1) as f32 / base.strength.max(1) as f32)).floor() as i32
+        }
+        CombatStyle::Ranged => {
+            (raw * (p.ranged_current.max(1) as f32 / base.ranged.max(1) as f32)).floor() as i32
+        }
+        CombatStyle::Magic => raw as i32,
+    }
+}
+
+fn accuracy_percent(a: &Player, t: &Player, special: bool) -> u64 {
+    let ab = base_levels(&a.loadout);
+    let tb = base_levels(&t.loadout);
+    let (attack_cur, attack_base) = match a.combat_style {
+        CombatStyle::Melee => (a.attack_current, ab.attack),
+        CombatStyle::Ranged => (a.ranged_current, ab.ranged),
+        CombatStyle::Magic => (a.magic_current, ab.magic),
+    };
+    let defence_cur = match a.combat_style {
+        CombatStyle::Magic => ((t.magic_current * 7 + t.defence_current * 3) / 10).max(1),
+        _ => t.defence_current.max(1),
+    };
+    let defence_base = match a.combat_style {
+        CombatStyle::Magic => ((tb.magic * 7 + tb.defence * 3) / 10).max(1),
+        _ => tb.defence.max(1),
+    };
+    let base_acc = match a.combat_style {
+        CombatStyle::Melee => 72.0,
+        CombatStyle::Ranged => 68.0,
+        CombatStyle::Magic => 70.0,
+    };
+    let mut acc = base_acc * (attack_cur.max(1) as f32 / attack_base.max(1) as f32)
+        / (defence_cur as f32 / defence_base as f32);
+    if special {
+        acc += 12.0;
+    }
+    acc.clamp(5.0, 95.0).round() as u64
 }
 
 fn base_max_hit(p: &Player) -> i32 {
@@ -599,18 +1253,26 @@ fn make_resident(name: &str, role: ResidentRole, home: Tile, personality: u8) ->
         ),
         _ => ("main", "ags", CombatStyle::Melee, None),
     };
+    let levels = base_levels(loadout);
     Player {
         id,
         token: format!("resident-{id}"),
         name: name.into(),
         x: home.x as f32,
         y: home.y as f32,
-        hp: MAX_HP,
+        hp: levels.hp,
+        attack_current: levels.attack,
+        strength_current: levels.strength,
+        defence_current: levels.defence,
+        ranged_current: levels.ranged,
+        magic_current: levels.magic,
+        prayer_points: levels.prayer as f32,
         kills: 0,
         deaths: 0,
         path: VecDeque::new(),
         motion: vec![home],
         motion_tick: 0,
+        position_epoch: 0,
         command_seq: 0,
         run_on: pker,
         run_energy: 100.,
@@ -624,11 +1286,18 @@ fn make_resident(name: &str, role: ResidentRole, home: Tile, personality: u8) ->
         combat_style: style,
         spell,
         overhead: None,
+        active_prayers: Vec::new(),
+        prayer_block_until: 0,
         spec_energy: 100.,
         special_pending: false,
         food: 18,
-        last_eat_tick: 0,
+        last_eat_tick: u64::MAX,
+        last_pot_tick: u64::MAX,
         frozen_until: 0,
+        inventory: vec![None; INVENTORY_SLOTS],
+        bank: Vec::new(),
+        equipment: starter_equipment(),
+        appearance: appearance_for(name),
         resident: Some(ResidentAi {
             role,
             home,
@@ -838,10 +1507,12 @@ fn player_view(p: &Player) -> PlayerView {
         zone: zone_at(p.x, p.y),
         motion: p.motion.clone(),
         motion_tick: p.motion_tick,
+        position_epoch: p.position_epoch,
         command_seq: p.command_seq,
         destination: p.path.back().copied(),
         moving: !p.path.is_empty(),
         run: p.run_energy,
+        run_on: p.run_on,
         attack_target: p.attack_target,
         simulated: p.simulated,
         loadout: p.loadout.clone(),
@@ -849,8 +1520,32 @@ fn player_view(p: &Player) -> PlayerView {
         combat_style: p.combat_style,
         spell: p.spell.clone(),
         overhead: p.overhead.clone(),
+        active_prayers: p.active_prayers.clone(),
         spec: p.spec_energy,
         level: combat_level_for(p),
+        attack_current: p.attack_current,
+        strength_current: p.strength_current,
+        defence_current: p.defence_current,
+        ranged_current: p.ranged_current,
+        magic_current: p.magic_current,
+        prayer_points: p.prayer_points,
+        equipment: {
+            let mut eq = p.equipment.clone();
+            if p.simulated && valid_weapon(&p.weapon) && p.weapon != "unarmed" {
+                eq.insert(
+                    "weapon".into(),
+                    InventoryItem {
+                        id: p.weapon.clone(),
+                        amount: 1,
+                    },
+                );
+                if item_info(&p.weapon).is_some_and(|i| i.two_handed) {
+                    eq.remove("shield");
+                }
+            }
+            eq
+        },
+        appearance: p.appearance.clone(),
     }
 }
 
@@ -948,7 +1643,7 @@ async fn connection(socket: WebSocket, state: AppState) {
     else {
         unreachable!()
     };
-    if protocol != 2 {
+    if protocol != 3 {
         let _ = sink
             .send(Message::Text(
                 serialize(&ServerMessage::Error {
@@ -1004,32 +1699,51 @@ async fn connection(socket: WebSocket, state: AppState) {
             return;
         }
 
-        let profile = world
-            .profiles
-            .get(&token)
-            .cloned()
-            .unwrap_or_else(|| PersistedProfile {
-                name: name.clone(),
-                x: GE_CENTER,
-                y: 42.0,
-                kills: 0,
-                deaths: 0,
-                hp: MAX_HP,
-            });
+        let profile = migrate_profile(
+            world
+                .profiles
+                .get(&token)
+                .cloned()
+                .unwrap_or_else(|| PersistedProfile {
+                    name: name.clone(),
+                    x: GE_CENTER,
+                    y: 42.0,
+                    kills: 0,
+                    deaths: 0,
+                    hp: MAX_HP,
+                    prayer_points: 99.0,
+                    account_version: 0,
+                    inventory: Vec::new(),
+                    bank: Vec::new(),
+                    equipment: HashMap::new(),
+                    appearance: Appearance::default(),
+                }),
+            &name,
+        );
 
         let pos = state.collision.legal_position(profile.x, profile.y);
+        let weapon = equipment_weapon(&profile.equipment);
+        let food = inventory_count(&profile.inventory, "shark").min(u8::MAX as u32) as u8;
+        let levels = base_levels("main");
         let player = Player {
             id,
             token: token.clone(),
             name,
             x: pos.x as f32,
             y: pos.y as f32,
-            hp: profile.hp.clamp(1, MAX_HP),
+            hp: profile.hp.clamp(1, levels.hp),
+            attack_current: levels.attack,
+            strength_current: levels.strength,
+            defence_current: levels.defence,
+            ranged_current: levels.ranged,
+            magic_current: levels.magic,
+            prayer_points: profile.prayer_points.clamp(0.0, levels.prayer as f32),
             kills: profile.kills,
             deaths: profile.deaths,
             path: VecDeque::new(),
             motion: vec![pos],
             motion_tick: world.tick,
+            position_epoch: 0,
             command_seq: 0,
             run_on: true,
             run_energy: 100.0,
@@ -1039,15 +1753,22 @@ async fn connection(socket: WebSocket, state: AppState) {
             last_attack_tick: None,
             simulated: false,
             loadout: "main".into(),
-            weapon: "whip".into(),
+            weapon,
             combat_style: CombatStyle::Melee,
             spell: None,
             overhead: None,
+            active_prayers: Vec::new(),
+            prayer_block_until: 0,
             spec_energy: 100.0,
             special_pending: false,
-            food: 16,
-            last_eat_tick: 0,
+            food,
+            last_eat_tick: u64::MAX,
+            last_pot_tick: u64::MAX,
             frozen_until: 0,
+            inventory: profile.inventory.clone(),
+            bank: profile.bank.clone(),
+            equipment: profile.equipment.clone(),
+            appearance: profile.appearance.clone(),
             resident: None,
         };
         let view = player_view(&player);
@@ -1065,7 +1786,7 @@ async fn connection(socket: WebSocket, state: AppState) {
         resume_token: &token,
         tick_ms: TICK_MS,
         version: VERSION,
-        protocol: 2,
+        protocol: 3,
         world_hash: state.collision.hash(),
         safe_zone: safe_zone(),
         server_time_ms: now_ms(),
@@ -1075,6 +1796,16 @@ async fn connection(socket: WebSocket, state: AppState) {
         .await
         .is_err()
     {
+        disconnect(id, &state).await;
+        return;
+    }
+
+    let account = {
+        let world = state.world.read().await;
+        let player = world.players.get(&id).expect("connected player");
+        account_message(player, &world.ge_offers)
+    };
+    if sink.send(Message::Text(account.into())).await.is_err() {
         disconnect(id, &state).await;
         return;
     }
@@ -1141,7 +1872,12 @@ async fn connection(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
-                        if let Some(reply) = handle_command(id, command, &state).await {
+                        let durable = command.durable();
+                        let reply = handle_command(id, command, &state).await;
+                        if durable {
+                            persist(&state).await;
+                        }
+                        if let Some(reply) = reply {
                             if sink.send(Message::Text(reply.into())).await.is_err() {
                                 break;
                             }
@@ -1244,6 +1980,44 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             }
             None
         }
+        ClientMessage::Prayer {
+            id: prayer_id,
+            enabled,
+        } => {
+            let mut w = state.world.write().await;
+            let tick = w.tick;
+            let Some(p) = w.players.get_mut(&id) else {
+                return None;
+            };
+            if p.simulated {
+                return None;
+            }
+            match set_prayer(p, &prayer_id, enabled, tick) {
+                Ok(()) => None,
+                Err(_) => Some(account_error(
+                    "prayer",
+                    "That prayer cannot be changed right now.",
+                )),
+            }
+        }
+        ClientMessage::InventoryMove { from, to } => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let Some(p) = players.get_mut(&id) else {
+                return None;
+            };
+            let (from, to) = (from as usize, to as usize);
+            if from >= INVENTORY_SLOTS || to >= INVENTORY_SLOTS {
+                return Some(account_error(
+                    "inventory_move",
+                    "That inventory move is invalid.",
+                ));
+            }
+            p.inventory.swap(from, to);
+            Some(account_message(p, ge_offers))
+        }
         ClientMessage::Follow { target_id, seq } => {
             let mut w = state.world.write().await;
             if target_id == id || !w.players.contains_key(&target_id) {
@@ -1271,7 +2045,7 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             style,
             spell,
             special,
-            overhead,
+            _overhead: _,
         } => {
             let mut w = state.world.write().await;
             let Some(target) = w.players.get(&target_id) else {
@@ -1296,16 +2070,48 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
                     message: "PvP is disabled inside the Grand Exchange stone boundary.",
                 }));
             }
-            if let Some(value) = weapon.filter(|v| valid_weapon(v)) {
-                attacker.weapon = value;
+            let equipped = equipment_weapon(&attacker.equipment);
+            if weapon.as_deref().is_some_and(|value| value != equipped) {
+                return Some(account_error(
+                    "equipment_mismatch",
+                    "Equip that weapon before attacking.",
+                ));
             }
+            attacker.weapon = equipped;
             attacker.spell = valid_spell(spell);
             attacker.combat_style = weapon_style(
                 &attacker.weapon,
                 style.unwrap_or(attacker.combat_style),
                 &attacker.spell,
             );
-            attacker.overhead = clean_overhead(overhead);
+            if attacker.combat_style == CombatStyle::Ranged {
+                let needed = if special && attacker.weapon == "msb" {
+                    2
+                } else {
+                    1
+                };
+                if ranged_ammo(attacker).is_none_or(|(_, amount)| amount < needed) {
+                    return Some(account_error(
+                        "ammo",
+                        "You do not have enough compatible ammunition equipped.",
+                    ));
+                }
+            }
+            if attacker.combat_style == CombatStyle::Magic {
+                let Some(spell) = attacker.spell.as_deref() else {
+                    return Some(account_error(
+                        "runes",
+                        "Choose a spell before attacking with magic.",
+                    ));
+                };
+                if !has_spell_runes(attacker, spell) {
+                    return Some(account_error(
+                        "runes",
+                        "You do not have enough runes to cast that spell.",
+                    ));
+                }
+            }
+            attacker.overhead = active_overhead(attacker);
             attacker.special_pending = special
                 && spec_cost(&attacker.weapon).is_some_and(|cost| attacker.spec_energy >= cost);
             attacker.attack_target = Some(target_id);
@@ -1318,7 +2124,7 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             style,
             spell,
             special,
-            overhead,
+            _overhead: _,
         } => {
             let mut w = state.world.write().await;
             let Some(p) = w.players.get_mut(&id) else {
@@ -1327,28 +2133,340 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             if p.simulated {
                 return None;
             }
-            if valid_weapon(&weapon) {
-                p.weapon = weapon;
+            let equipped = equipment_weapon(&p.equipment);
+            if weapon != equipped {
+                return Some(account_error(
+                    "equipment_mismatch",
+                    "Equip that weapon before using it.",
+                ));
             }
+            p.weapon = equipped;
             p.spell = valid_spell(spell);
             p.combat_style = weapon_style(&p.weapon, style, &p.spell);
-            p.overhead = clean_overhead(overhead);
+            p.overhead = active_overhead(p);
             p.special_pending =
                 special && spec_cost(&p.weapon).is_some_and(|cost| p.spec_energy >= cost);
             None
         }
-        ClientMessage::Eat {} => {
+        ClientMessage::Eat { index } => {
             let mut w = state.world.write().await;
             let tick = w.tick;
-            let Some(p) = w.players.get_mut(&id) else {
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let Some(p) = players.get_mut(&id) else {
                 return None;
             };
-            if p.food > 0 && p.hp < MAX_HP && tick.saturating_sub(p.last_eat_tick) >= 3 {
-                p.food -= 1;
-                p.hp = (p.hp + 20).min(MAX_HP);
-                p.last_eat_tick = tick;
+            let base_hp = base_levels(&p.loadout).hp;
+            if p.hp < base_hp
+                && (p.last_eat_tick == u64::MAX || tick.saturating_sub(p.last_eat_tick) >= 3)
+            {
+                let slot = index
+                    .map(usize::from)
+                    .filter(|i| {
+                        p.inventory
+                            .get(*i)
+                            .and_then(|s| s.as_ref())
+                            .is_some_and(|s| s.id == "shark")
+                    })
+                    .or_else(|| {
+                        p.inventory
+                            .iter()
+                            .position(|s| s.as_ref().is_some_and(|s| s.id == "shark"))
+                    });
+                if let Some(slot) = slot {
+                    p.inventory[slot] = None;
+                    p.hp = (p.hp + 20).min(base_hp);
+                    p.last_eat_tick = tick;
+                }
             }
-            None
+            sync_consumable_counters(p);
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::Drink { index } => {
+            let mut w = state.world.write().await;
+            let tick = w.tick;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if p.last_pot_tick != u64::MAX && tick.saturating_sub(p.last_pot_tick) < 3 {
+                return Some(account_error(
+                    "potion_delay",
+                    "You need to wait before drinking another potion.",
+                ));
+            }
+            match drink_potion(p, index as usize) {
+                Ok(()) => {
+                    p.last_pot_tick = tick;
+                    Some(account_message(p, ge_offers))
+                }
+                Err(_) => Some(account_error("potion", "That potion could not be drunk.")),
+            }
+        }
+        ClientMessage::BankOpen {} => {
+            let w = state.world.read().await;
+            let p = w.players.get(&id)?;
+            if !near_bank(p) {
+                return Some(account_error(
+                    "bank_range",
+                    "Stand beside a Grand Exchange bank booth first.",
+                ));
+            }
+            Some(account_message(p, &w.ge_offers))
+        }
+        ClientMessage::BankDeposit { index, amount } => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if !near_bank(p) {
+                return Some(account_error(
+                    "bank_range",
+                    "Stand beside a Grand Exchange bank booth first.",
+                ));
+            }
+            if bank_deposit(&mut p.inventory, &mut p.bank, index as usize, amount).is_err() {
+                return Some(account_error(
+                    "bank_action",
+                    "That deposit could not be completed.",
+                ));
+            }
+            p.food = inventory_count(&p.inventory, "shark").min(u8::MAX as u32) as u8;
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::BankDepositAll {} => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if !near_bank(p) {
+                return Some(account_error(
+                    "bank_range",
+                    "Stand beside a Grand Exchange bank booth first.",
+                ));
+            }
+            if bank_deposit_all(&mut p.inventory, &mut p.bank).is_err() {
+                return Some(account_error(
+                    "bank_action",
+                    "Your bank could not accept every item.",
+                ));
+            }
+            p.food = inventory_count(&p.inventory, "shark").min(u8::MAX as u32) as u8;
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::BankDepositEquipment {} => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if !near_bank(p) {
+                return Some(account_error(
+                    "bank_range",
+                    "Stand beside a Grand Exchange bank booth first.",
+                ));
+            }
+            if bank_deposit_equipment(&mut p.equipment, &mut p.bank).is_err() {
+                return Some(account_error(
+                    "bank_action",
+                    "Your bank could not accept your worn equipment.",
+                ));
+            }
+            p.weapon = equipment_weapon(&p.equipment);
+            p.spell = None;
+            p.special_pending = false;
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::BankWithdraw { index, amount } => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if !near_bank(p) {
+                return Some(account_error(
+                    "bank_range",
+                    "Stand beside a Grand Exchange bank booth first.",
+                ));
+            }
+            if bank_withdraw(&mut p.inventory, &mut p.bank, index as usize, amount).is_err() {
+                return Some(account_error(
+                    "bank_action",
+                    "You do not have enough inventory space.",
+                ));
+            }
+            p.food = inventory_count(&p.inventory, "shark").min(u8::MAX as u32) as u8;
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::Equip { index } => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            match equip(&mut p.inventory, &mut p.equipment, index as usize) {
+                Ok(weapon) => p.weapon = weapon,
+                Err(_) => return Some(account_error("equip", "That item could not be equipped.")),
+            }
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::Unequip { slot } => {
+            let slot = slot.chars().take(10).collect::<String>();
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            match unequip(&mut p.inventory, &mut p.equipment, &slot) {
+                Ok(weapon) => p.weapon = weapon,
+                Err(_) => {
+                    return Some(account_error("equip", "That item could not be unequipped."));
+                }
+            }
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::GeOpen {} => {
+            let w = state.world.read().await;
+            let p = w.players.get(&id)?;
+            if !near_ge(p) {
+                return Some(account_error(
+                    "ge_range",
+                    "Speak to a Grand Exchange clerk first.",
+                ));
+            }
+            Some(account_message(p, &w.ge_offers))
+        }
+        ClientMessage::GePlace {
+            slot,
+            sell,
+            item,
+            quantity,
+            price,
+        } => {
+            let mut w = state.world.write().await;
+            let tick = w.tick;
+            let World {
+                players,
+                ge_offers,
+                next_offer_id,
+                ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if !near_ge(p) {
+                return Some(account_error(
+                    "ge_range",
+                    "Speak to a Grand Exchange clerk first.",
+                ));
+            }
+            let owner = p.token.clone();
+            if place_offer(
+                ge_offers,
+                next_offer_id,
+                &owner,
+                slot,
+                sell,
+                &item,
+                quantity,
+                price,
+                tick,
+                &mut p.inventory,
+            )
+            .is_err()
+            {
+                return Some(account_error(
+                    "ge_offer",
+                    "That Grand Exchange offer could not be placed.",
+                ));
+            }
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::GeCancel { slot } => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if !near_ge(p) {
+                return Some(account_error(
+                    "ge_range",
+                    "Speak to a Grand Exchange clerk first.",
+                ));
+            }
+            if cancel_offer(ge_offers, &p.token, slot).is_err() {
+                return Some(account_error(
+                    "ge_offer",
+                    "That offer could not be cancelled.",
+                ));
+            }
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::GeCollect { slot, to_bank } => {
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if !near_ge(p) {
+                return Some(account_error(
+                    "ge_range",
+                    "Speak to a Grand Exchange clerk first.",
+                ));
+            }
+            let result = if to_bank {
+                collect_offer_to_bank(ge_offers, &p.token, slot, &mut p.bank)
+            } else {
+                collect_offer(ge_offers, &p.token, slot, &mut p.inventory)
+            };
+            if result.is_err() {
+                return Some(account_error(
+                    "ge_collect",
+                    if to_bank {
+                        "Your bank could not accept that collection."
+                    } else {
+                        "Make room in your inventory before collecting."
+                    },
+                ));
+            }
+            Some(account_message(p, ge_offers))
+        }
+        ClientMessage::Appearance {
+            skin,
+            hair,
+            shirt,
+            pants,
+            boots,
+            hair_style,
+        } => {
+            if hair_style > 2
+                || [skin, hair, shirt, pants, boots]
+                    .into_iter()
+                    .any(|c| c > 0x00ff_ffff)
+            {
+                return Some(account_error("appearance", "That appearance is invalid."));
+            }
+            let mut w = state.world.write().await;
+            let World {
+                players, ge_offers, ..
+            } = &mut *w;
+            let p = players.get_mut(&id)?;
+            if zone_at(p.x, p.y) != Zone::Safe || p.attack_target.is_some() {
+                return Some(account_error(
+                    "appearance",
+                    "Change appearance while safe and out of combat.",
+                ));
+            }
+            p.appearance = Appearance {
+                skin,
+                hair,
+                shirt,
+                pants,
+                boots,
+                hair_style,
+            };
+            Some(account_message(p, ge_offers))
         }
         ClientMessage::Chat { text } => {
             let text = clean_chat(&text);
@@ -1387,14 +2505,7 @@ async fn disconnect(id: Uuid, state: &AppState) {
     let profile = {
         let mut world = state.world.write().await;
         world.players.remove(&id).map(|player| {
-            let profile = PersistedProfile {
-                name: player.name.clone(),
-                x: player.x,
-                y: player.y,
-                kills: player.kills,
-                deaths: player.deaths,
-                hp: player.hp,
-            };
+            let profile = profile_from_player(&player);
             world.profiles.insert(player.token.clone(), profile.clone());
             (player.token, profile, player.name)
         })
@@ -1438,7 +2549,11 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
                     if d >= 1 && d <= range && c.has_los(from, *target) {
                         p.path.clear();
                     } else {
-                        p.path = c.path_to_range(from, *target, range).unwrap_or_default();
+                        p.path = c
+                            .path_to_range_where(from, *target, range, |tile| {
+                                zone_at(tile.x as f32, tile.y as f32) == Zone::Pvp
+                            })
+                            .unwrap_or_default();
                     }
                 }
             } else {
@@ -1466,6 +2581,14 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
                 p.path.clear();
                 break;
             }
+            // Normal clicks may enter the safe GE. A combat-generated chase may
+            // not: stop on the last PvP tile instead of running one/two tiles
+            // across the boundary before the next tick notices.
+            if p.attack_target.is_some() && zone_at(to.x as f32, to.y as f32) == Zone::Safe {
+                p.attack_target = None;
+                p.path.clear();
+                break;
+            }
             p.x = to.x as f32;
             p.y = to.y as f32;
             p.motion.push(to);
@@ -1475,13 +2598,45 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
         } else {
             p.run_energy = (p.run_energy + 0.3).min(100.0);
         }
+        let base = base_levels(&p.loadout);
+        drain_prayers(p, tick);
         if tick % 100 == 0 {
-            p.hp = (p.hp + 1).min(MAX_HP);
+            if p.hp < base.hp {
+                p.hp = (p.hp + 1).min(base.hp);
+            } else if p.hp > base.hp {
+                p.hp -= 1;
+            }
+            restore_stat(&mut p.attack_current, base.attack);
+            restore_stat(&mut p.strength_current, base.strength);
+            restore_stat(&mut p.defence_current, base.defence);
+            restore_stat(&mut p.ranged_current, base.ranged);
+            restore_stat(&mut p.magic_current, base.magic);
         }
         if tick % 50 == 0 {
             p.spec_energy = (p.spec_energy + 10.).min(100.);
         }
     }
+    let zones_after_move = w
+        .players
+        .iter()
+        .map(|(id, p)| (*id, zone_at(p.x, p.y)))
+        .collect::<HashMap<_, _>>();
+    for id in &ids {
+        let cancel = w.players.get(id).is_some_and(|p| {
+            p.attack_target.is_some_and(|tid| {
+                zones_after_move.get(id) == Some(&Zone::Safe)
+                    || zones_after_move.get(&tid) == Some(&Zone::Safe)
+                    || !w.players.contains_key(&tid)
+            })
+        });
+        if cancel {
+            if let Some(p) = w.players.get_mut(id) {
+                p.attack_target = None;
+                p.path.clear();
+            }
+        }
+    }
+
     for id in ids {
         let a = &w.players[&id];
         let Some(tid) = a.attack_target else {
@@ -1510,6 +2665,28 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
             a.special_pending && spec_cost(&weapon).is_some_and(|cost| a.spec_energy >= cost);
         let hits = if special && weapon == "dds" { 2 } else { 1 };
         let delay = if style == CombatStyle::Melee { 0 } else { 1 };
+
+        // Consume combat resources on the authoritative tick, not when the
+        // browser asks to attack. Chasing, switching or banking can therefore
+        // invalidate a pending attack before it fires.
+        let resources_ok = {
+            let attacker = w.players.get_mut(&id).unwrap();
+            match style {
+                CombatStyle::Melee => true,
+                CombatStyle::Ranged => consume_ammo(attacker, hits as u32),
+                CombatStyle::Magic => spell
+                    .as_deref()
+                    .is_some_and(|spell_id| consume_spell_runes(attacker, spell_id)),
+            }
+        };
+        if !resources_ok {
+            let attacker = w.players.get_mut(&id).unwrap();
+            attacker.attack_target = None;
+            attacker.path.clear();
+            attacker.special_pending = false;
+            continue;
+        }
+
         events.push(serialize(&ServerMessage::AttackVisual {
             attacker_id: id,
             target_id: tid,
@@ -1527,25 +2704,22 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
                     ^ ((tid.as_u128() >> 64) as u64)
                     ^ ((hit as u64) << 32),
             );
-            let mut max = base_max_hit(a);
+            let attacker = &w.players[&id];
+            let defender = &w.players[&tid];
+            let mut max = scaled_max_hit(attacker);
             if special && weapon == "ags" {
                 max = ((max as f32) * 1.1) as i32 + 8;
             }
             if special && weapon == "dds" {
                 max = ((max as f32) * 1.15) as i32;
             }
-            let base_acc = match style {
-                CombatStyle::Melee => 72,
-                CombatStyle::Ranged => 68,
-                CombatStyle::Magic => 70,
-            };
-            let acc = (base_acc + if special { 12 } else { 0 }).min(95) as u64;
+            let acc = accuracy_percent(attacker, defender, special);
             let mut dmg = if (roll >> 32) % 100 < acc {
                 (roll % (max.max(1) as u64 + 1)) as i32
             } else {
                 0
             };
-            let protect = w.players[&tid].overhead.as_deref()
+            let protect = defender.overhead.as_deref()
                 == Some(match style {
                     CombatStyle::Melee => "pmelee",
                     CombatStyle::Ranged => "pmissiles",
@@ -1565,23 +2739,61 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
                     a.spec_energy = (a.spec_energy - cost).max(0.);
                 }
             }
+            if style == CombatStyle::Magic
+                && spell.as_deref().is_some_and(|x| x.starts_with("blood"))
+                && total > 0
+            {
+                let base = base_levels(&a.loadout);
+                a.hp = (a.hp + total / 4).min(base.hp);
+            }
         }
+        let smiting = w.players[&id].active_prayers.iter().any(|x| x == "smite");
         let t = w.players.get_mut(&tid).unwrap();
         t.hp = (t.hp - total).max(0);
         if style == CombatStyle::Magic
             && spell.as_deref().is_some_and(|x| x.starts_with("ice"))
             && total > 0
         {
-            t.frozen_until = tick + 8;
+            t.frozen_until = tick + spell_freeze_ticks(spell.as_deref());
         }
         if special && weapon == "dscim" {
+            t.active_prayers
+                .retain(|id| prayer_info(id).is_none_or(|info| info.overhead.is_none()));
+            t.overhead = active_overhead(t);
+            t.prayer_block_until = tick + 8;
+        }
+        if total > 0 && smiting {
+            t.prayer_points = (t.prayer_points - total as f32 / 4.0).max(0.0);
+            if t.prayer_points <= 0.0 {
+                t.active_prayers.clear();
+                t.overhead = None;
+            }
+        }
+        let tbase = base_levels(&t.loadout);
+        if t.hp > 0
+            && t.hp < (tbase.hp as f32 * 0.10).ceil() as i32
+            && t.active_prayers.iter().any(|x| x == "redemption")
+        {
+            t.hp = (t.hp + tbase.prayer / 4).min(tbase.hp);
+            t.prayer_points = 0.0;
+            t.active_prayers.clear();
             t.overhead = None;
         }
         let hp = t.hp;
         let killed = hp == 0;
         if killed {
             t.deaths = t.deaths.saturating_add(1);
-            t.hp = MAX_HP;
+            let base = base_levels(&t.loadout);
+            t.hp = base.hp;
+            t.attack_current = base.attack;
+            t.strength_current = base.strength;
+            t.defence_current = base.defence;
+            t.ranged_current = base.ranged;
+            t.magic_current = base.magic;
+            t.prayer_points = base.prayer as f32;
+            t.active_prayers.clear();
+            t.overhead = None;
+            t.prayer_block_until = 0;
             t.path.clear();
             t.attack_target = None;
             t.follow_target = None;
@@ -1599,6 +2811,7 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
             t.x = respawn.x as f32;
             t.y = respawn.y as f32;
             t.motion = vec![respawn];
+            t.position_epoch = t.position_epoch.saturating_add(1);
         }
         if killed {
             let a = w.players.get_mut(&id).unwrap();
@@ -1630,7 +2843,7 @@ async fn tick_loop(state: AppState) {
         tokio::select! {_=stop.changed()=>break,_=interval.tick()=>{
             let events={let mut w=state.world.write().await;advance_world(&mut w,&state.collision)};
             for msg in events{let _=state.tx.send(msg);}let _=state.tx.send(snapshot_message(&state).await);
-            if state.world.read().await.tick%50==0{let clone=state.clone();tokio::spawn(async move{persist(&clone).await;});}
+            if state.world.read().await.tick%5==0{let clone=state.clone();tokio::spawn(async move{persist(&clone).await;});}
         }}
     }
 }
@@ -1642,22 +2855,18 @@ async fn persist(state: &AppState) {
         let world = state.world.read().await;
         let mut profiles = world.profiles.clone();
         for player in world.players.values().filter(|p| !p.simulated) {
-            profiles.insert(
-                player.token.clone(),
-                PersistedProfile {
-                    name: player.name.clone(),
-                    x: player.x,
-                    y: player.y,
-                    kills: player.kills,
-                    deaths: player.deaths,
-                    hp: player.hp,
-                },
-            );
+            profiles.insert(player.token.clone(), profile_from_player(player));
         }
-        let data = match serde_json::to_vec_pretty(&profiles) {
+        let stored = PersistedState {
+            version: 1,
+            profiles,
+            ge_offers: world.ge_offers.clone(),
+            next_offer_id: world.next_offer_id,
+        };
+        let data = match serde_json::to_vec_pretty(&stored) {
             Ok(v) => v,
             Err(err) => {
-                error!(?err, "failed to serialize profiles");
+                error!(?err, "failed to serialize server state");
                 return;
             }
         };
@@ -1676,7 +2885,9 @@ async fn persist(state: &AppState) {
         return;
     }
     if let Ok(bytes) = fs::read(&path).await {
-        if serde_json::from_slice::<HashMap<String, PersistedProfile>>(&bytes).is_ok() {
+        let valid = serde_json::from_slice::<PersistedState>(&bytes).is_ok()
+            || serde_json::from_slice::<HashMap<String, PersistedProfile>>(&bytes).is_ok();
+        if valid {
             if let Err(err) = fs::write(path.with_extension("json.backup"), bytes).await {
                 error!(?err, "profile backup failed");
                 return;
@@ -1688,26 +2899,49 @@ async fn persist(state: &AppState) {
     }
 }
 
-async fn load_profiles(path: &Path) -> HashMap<String, PersistedProfile> {
-    match fs::read(path).await {
-        Ok(bytes) => match serde_json::from_slice(&bytes) {
-            Ok(data) => data,
-            Err(err) => {
-                if let Ok(backup) = fs::read(path.with_extension("json.backup")).await {
-                    if let Ok(data) = serde_json::from_slice(&backup) {
-                        warn!(?err, "using previous valid profile backup");
-                        return data;
-                    }
-                }
-                panic!(
-                    "Profile data is unreadable; refusing to overwrite {}: {err}",
-                    path.display()
-                );
-            }
-        },
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
-        Err(err) => panic!("Cannot read profile data at {}: {err}", path.display()),
+async fn load_state(path: &Path) -> PersistedState {
+    async fn parse(bytes: &[u8]) -> Option<PersistedState> {
+        if let Ok(state) = serde_json::from_slice::<PersistedState>(bytes) {
+            return Some(state);
+        }
+        // v0.6 and earlier persisted only the profile map. Upgrade it without
+        // discarding existing position/score data.
+        serde_json::from_slice::<HashMap<String, PersistedProfile>>(bytes)
+            .ok()
+            .map(|profiles| PersistedState {
+                version: 1,
+                profiles,
+                ge_offers: Vec::new(),
+                next_offer_id: 0,
+            })
     }
+
+    match fs::read(path).await {
+        Ok(bytes) => {
+            if let Some(state) = parse(&bytes).await {
+                return state;
+            }
+            if let Ok(backup) = fs::read(path.with_extension("json.backup")).await {
+                if let Some(state) = parse(&backup).await {
+                    warn!("using previous valid server-state backup");
+                    return state;
+                }
+            }
+            panic!(
+                "Server state is unreadable; refusing to overwrite {}",
+                path.display()
+            );
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => PersistedState {
+            version: 1,
+            ..Default::default()
+        },
+        Err(err) => panic!("Cannot read server state at {}: {err}", path.display()),
+    }
+}
+
+async fn load_profiles(path: &Path) -> HashMap<String, PersistedProfile> {
+    load_state(path).await.profiles
 }
 
 async fn load_collision(path: &Path) -> Collision {
@@ -1754,8 +2988,19 @@ async fn main() {
     let state_file = PathBuf::from(
         env::var("SONNET_STATE").unwrap_or_else(|_| "/var/lib/sonnetosrs/profiles.json".into()),
     );
-    let profiles = load_profiles(&state_file).await;
-    info!(count = profiles.len(), ?state_file, "loaded profiles");
+    let stored = load_state(&state_file).await;
+    let profile_count = stored.profiles.len();
+    let offer_count = stored
+        .ge_offers
+        .iter()
+        .filter(|o| o.state != OfferState::Removed)
+        .count();
+    info!(
+        count = profile_count,
+        offers = offer_count,
+        ?state_file,
+        "loaded server state"
+    );
     let collision_file = PathBuf::from(
         env::var("OLDSKOOL_COLLISION")
             .unwrap_or_else(|_| "/opt/oldskool/world_collision.json".into()),
@@ -1777,7 +3022,9 @@ async fn main() {
         world: Arc::new(RwLock::new(World {
             tick: 0,
             players: HashMap::new(),
-            profiles,
+            profiles: stored.profiles,
+            ge_offers: stored.ge_offers,
+            next_offer_id: stored.next_offer_id,
         })),
         tx,
         state_file: Arc::new(state_file),
@@ -1883,11 +3130,18 @@ mod regression {
             x: 10.,
             y: 10.,
             hp: 99,
+            attack_current: 99,
+            strength_current: 99,
+            defence_current: 99,
+            ranged_current: 99,
+            magic_current: 99,
+            prayer_points: 99.0,
             kills: 0,
             deaths: 0,
             path: VecDeque::new(),
             motion: vec![Tile::new(10, 10)],
             motion_tick: 0,
+            position_epoch: 0,
             command_seq: 0,
             run_on: true,
             run_energy: 100.,
@@ -1901,11 +3155,18 @@ mod regression {
             combat_style: CombatStyle::Melee,
             spell: None,
             overhead: None,
+            active_prayers: Vec::new(),
+            prayer_block_until: 0,
             spec_energy: 100.0,
             special_pending: false,
             food: 16,
-            last_eat_tick: 0,
+            last_eat_tick: u64::MAX,
+            last_pot_tick: u64::MAX,
             frozen_until: 0,
+            inventory: starter_inventory(),
+            bank: starter_bank(),
+            equipment: starter_equipment(),
+            appearance: appearance_for("Tester"),
             resident: None,
         }
     }
@@ -1916,6 +3177,8 @@ mod regression {
                 tick: 0,
                 players: HashMap::new(),
                 profiles: HashMap::new(),
+                ge_offers: Vec::new(),
+                next_offer_id: 0,
             })),
             tx,
             state_file: Arc::new(
@@ -1997,6 +3260,243 @@ mod regression {
         );
     }
     #[tokio::test]
+    async fn combat_state_cannot_use_weapon_that_is_only_in_inventory() {
+        let s = state();
+        let id = Uuid::new_v4();
+        let mut p = player(id);
+        p.inventory[0] = Some(InventoryItem {
+            id: "ags".into(),
+            amount: 1,
+        });
+        p.weapon = "whip".into();
+        p.equipment.insert(
+            "weapon".into(),
+            InventoryItem {
+                id: "whip".into(),
+                amount: 1,
+            },
+        );
+        s.world.write().await.players.insert(id, p);
+        let response = handle_command(
+            id,
+            ClientMessage::CombatState {
+                weapon: "ags".into(),
+                style: CombatStyle::Melee,
+                spell: None,
+                special: true,
+                _overhead: None,
+            },
+            &s,
+        )
+        .await
+        .unwrap();
+        assert!(response.contains("equipment_mismatch"));
+        assert_eq!(s.world.read().await.players[&id].weapon, "whip");
+    }
+
+    #[tokio::test]
+    async fn client_cannot_spoof_protection_prayer_through_combat_state() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        handle_command(
+            id,
+            ClientMessage::CombatState {
+                weapon: "whip".into(),
+                style: CombatStyle::Melee,
+                spell: None,
+                special: false,
+                _overhead: Some("pmelee".into()),
+            },
+            &s,
+        )
+        .await;
+        let w = s.world.read().await;
+        assert!(w.players[&id].overhead.is_none());
+        assert!(w.players[&id].active_prayers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn prayer_toggle_is_server_authoritative_and_group_exclusive() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        handle_command(
+            id,
+            ClientMessage::Prayer {
+                id: "pmagic".into(),
+                enabled: true,
+            },
+            &s,
+        )
+        .await;
+        handle_command(
+            id,
+            ClientMessage::Prayer {
+                id: "pmelee".into(),
+                enabled: true,
+            },
+            &s,
+        )
+        .await;
+        let mut w = s.world.write().await;
+        assert_eq!(w.players[&id].active_prayers, vec!["pmelee".to_string()]);
+        assert_eq!(w.players[&id].overhead.as_deref(), Some("pmelee"));
+        let before = w.players[&id].prayer_points;
+        advance_world(&mut w, &s.collision);
+        advance_world(&mut w, &s.collision);
+        assert!(w.players[&id].prayer_points < before);
+    }
+
+    #[tokio::test]
+    async fn potion_dose_and_boost_change_only_on_server_command() {
+        let s = state();
+        let id = Uuid::new_v4();
+        let mut p = player(id);
+        p.inventory[0] = Some(InventoryItem {
+            id: "supstr".into(),
+            amount: 2,
+        });
+        s.world.write().await.players.insert(id, p);
+        handle_command(id, ClientMessage::Drink { index: 0 }, &s).await;
+        let w = s.world.read().await;
+        assert_eq!(w.players[&id].inventory[0].as_ref().unwrap().amount, 1);
+        assert!(w.players[&id].strength_current > 99);
+    }
+
+    #[tokio::test]
+    async fn inventory_reorder_is_applied_by_server() {
+        let s = state();
+        let id = Uuid::new_v4();
+        let mut p = player(id);
+        p.inventory[0] = Some(InventoryItem {
+            id: "whip".into(),
+            amount: 1,
+        });
+        p.inventory[1] = Some(InventoryItem {
+            id: "shark".into(),
+            amount: 1,
+        });
+        s.world.write().await.players.insert(id, p);
+        handle_command(id, ClientMessage::InventoryMove { from: 0, to: 1 }, &s).await;
+        let w = s.world.read().await;
+        assert_eq!(w.players[&id].inventory[0].as_ref().unwrap().id, "shark");
+        assert_eq!(w.players[&id].inventory[1].as_ref().unwrap().id, "whip");
+    }
+
+    #[tokio::test]
+    async fn ranged_attack_consumes_authoritative_ammunition() {
+        let s = state();
+        let aid = Uuid::from_u128(100);
+        let tid = Uuid::from_u128(101);
+        let mut a = player(aid);
+        let mut t = player(tid);
+        a.x = 10.;
+        a.y = 10.;
+        t.x = 12.;
+        t.y = 10.;
+        a.equipment.insert(
+            "weapon".into(),
+            InventoryItem {
+                id: "rcb".into(),
+                amount: 1,
+            },
+        );
+        a.equipment.insert(
+            "ammo".into(),
+            InventoryItem {
+                id: "dbolts".into(),
+                amount: 3,
+            },
+        );
+        a.weapon = "rcb".into();
+        a.combat_style = CombatStyle::Ranged;
+        a.attack_target = Some(tid);
+        let mut w = s.world.write().await;
+        w.players.insert(aid, a);
+        w.players.insert(tid, t);
+        advance_world(&mut w, &s.collision);
+        assert_eq!(w.players[&aid].equipment["ammo"].amount, 2);
+    }
+
+    #[tokio::test]
+    async fn magic_attack_consumes_authoritative_runes() {
+        let s = state();
+        let aid = Uuid::from_u128(110);
+        let tid = Uuid::from_u128(111);
+        let mut a = player(aid);
+        let mut t = player(tid);
+        a.x = 10.;
+        a.y = 10.;
+        t.x = 12.;
+        t.y = 10.;
+        a.equipment.insert(
+            "weapon".into(),
+            InventoryItem {
+                id: "ancstaff".into(),
+                amount: 1,
+            },
+        );
+        a.weapon = "ancstaff".into();
+        a.combat_style = CombatStyle::Magic;
+        a.spell = Some("iceRush".into());
+        a.inventory = vec![None; INVENTORY_SLOTS];
+        assert!(inventory_add(&mut a.inventory, "death", 2, 0));
+        assert!(inventory_add(&mut a.inventory, "water", 2, 0));
+        a.attack_target = Some(tid);
+        let mut w = s.world.write().await;
+        w.players.insert(aid, a);
+        w.players.insert(tid, t);
+        advance_world(&mut w, &s.collision);
+        assert_eq!(inventory_count(&w.players[&aid].inventory, "death"), 0);
+        assert_eq!(inventory_count(&w.players[&aid].inventory, "water"), 0);
+    }
+
+    #[tokio::test]
+    async fn dscim_special_blocks_immediate_overhead_reactivation() {
+        let s = state();
+        let aid = Uuid::from_u128(120);
+        let tid = Uuid::from_u128(121);
+        let mut a = player(aid);
+        let mut t = player(tid);
+        a.x = 10.;
+        a.y = 10.;
+        t.x = 11.;
+        t.y = 10.;
+        a.equipment.insert(
+            "weapon".into(),
+            InventoryItem {
+                id: "dscim".into(),
+                amount: 1,
+            },
+        );
+        a.weapon = "dscim".into();
+        a.special_pending = true;
+        a.attack_target = Some(tid);
+        t.active_prayers = vec!["pmelee".into()];
+        t.overhead = Some("pmelee".into());
+        let mut w = s.world.write().await;
+        w.players.insert(aid, a);
+        w.players.insert(tid, t);
+        advance_world(&mut w, &s.collision);
+        let block_until = w.players[&tid].prayer_block_until;
+        assert!(block_until > w.tick);
+        drop(w);
+        let response = handle_command(
+            tid,
+            ClientMessage::Prayer {
+                id: "pmelee".into(),
+                enabled: true,
+            },
+            &s,
+        )
+        .await
+        .unwrap();
+        assert!(response.contains("prayer"));
+        assert!(s.world.read().await.players[&tid].overhead.is_none());
+    }
+
+    #[tokio::test]
     async fn stop_cancels_route_and_combat() {
         let s = state();
         let id = Uuid::new_v4();
@@ -2044,6 +3544,147 @@ mod regression {
         advance_world(&mut w, &s.collision);
         assert_eq!(w.players[&id].x, 13.);
     }
+    #[test]
+    fn pvp_combat_path_routes_around_ge_instead_of_through_safe_tiles() {
+        let c = Collision {
+            n: 96,
+            block: vec![0; 96 * 96],
+        };
+        let from = Tile::new(38, 48);
+        let target = Tile::new(58, 48);
+        assert_eq!(zone_at(from.x as f32, from.y as f32), Zone::Pvp);
+        assert_eq!(zone_at(target.x as f32, target.y as f32), Zone::Pvp);
+        let path = c
+            .path_to_range_where(from, target, 1, |tile| {
+                zone_at(tile.x as f32, tile.y as f32) == Zone::Pvp
+            })
+            .expect("a route around the GE should exist in an empty test map");
+        assert!(!path.is_empty());
+        assert!(
+            path.iter()
+                .all(|tile| zone_at(tile.x as f32, tile.y as f32) == Zone::Pvp)
+        );
+    }
+
+    #[test]
+    fn combat_chase_cannot_run_across_safe_boundary() {
+        let c = Collision {
+            n: 96,
+            block: vec![0; 96 * 96],
+        };
+        let attacker_id = Uuid::from_u128(1);
+        let target_id = Uuid::from_u128(2);
+        let mut attacker = player(attacker_id);
+        attacker.x = 57.;
+        attacker.y = 48.;
+        attacker.attack_target = Some(target_id);
+        attacker.path = VecDeque::from([Tile::new(56, 48), Tile::new(55, 48)]);
+        attacker.run_on = true;
+        let mut target = player(target_id);
+        target.x = 58.;
+        target.y = 48.;
+        let mut w = World {
+            tick: 0,
+            players: HashMap::new(),
+            profiles: HashMap::new(),
+            ge_offers: Vec::new(),
+            next_offer_id: 0,
+        };
+        w.players.insert(attacker_id, attacker);
+        w.players.insert(target_id, target);
+        advance_world(&mut w, &c);
+        let a = &w.players[&attacker_id];
+        assert_eq!((a.x, a.y), (57., 48.));
+        assert_eq!(zone_at(a.x, a.y), Zone::Pvp);
+        assert!(a.path.is_empty());
+        assert!(
+            a.motion
+                .iter()
+                .all(|t| zone_at(t.x as f32, t.y as f32) == Zone::Pvp)
+        );
+    }
+
+    #[test]
+    fn target_entering_safe_zone_cancels_combat_in_same_tick() {
+        let c = Collision {
+            n: 96,
+            block: vec![0; 96 * 96],
+        };
+        let attacker_id = Uuid::from_u128(1);
+        let target_id = Uuid::from_u128(2);
+        let mut attacker = player(attacker_id);
+        attacker.x = 58.;
+        attacker.y = 48.;
+        attacker.attack_target = Some(target_id);
+        attacker.run_on = false;
+        let mut target = player(target_id);
+        target.x = 57.;
+        target.y = 48.;
+        target.path = VecDeque::from([Tile::new(56, 48)]);
+        target.run_on = false;
+        let mut w = World {
+            tick: 0,
+            players: HashMap::new(),
+            profiles: HashMap::new(),
+            ge_offers: Vec::new(),
+            next_offer_id: 0,
+        };
+        w.players.insert(attacker_id, attacker);
+        w.players.insert(target_id, target);
+        advance_world(&mut w, &c);
+        assert_eq!(
+            zone_at(w.players[&target_id].x, w.players[&target_id].y),
+            Zone::Safe
+        );
+        let a = &w.players[&attacker_id];
+        assert!(a.attack_target.is_none());
+        assert!(a.path.is_empty());
+    }
+
+    #[test]
+    fn manual_walk_still_enters_ge_safe_zone() {
+        let c = Collision {
+            n: 96,
+            block: vec![0; 96 * 96],
+        };
+        let id = Uuid::new_v4();
+        let mut p = player(id);
+        p.x = 57.;
+        p.y = 48.;
+        p.attack_target = None;
+        p.path = VecDeque::from([Tile::new(56, 48)]);
+        p.run_on = false;
+        let mut w = World {
+            tick: 0,
+            players: HashMap::from([(id, p)]),
+            profiles: HashMap::new(),
+            ge_offers: Vec::new(),
+            next_offer_id: 0,
+        };
+        advance_world(&mut w, &c);
+        assert_eq!((w.players[&id].x, w.players[&id].y), (56., 48.));
+        assert_eq!(zone_at(56., 48.), Zone::Safe);
+    }
+
+    #[test]
+    fn position_epoch_marks_only_explicit_discontinuities() {
+        let id = Uuid::new_v4();
+        let mut p = player(id);
+        assert_eq!(p.position_epoch, 0);
+        p.x = 11.;
+        p.y = 10.;
+        p.motion = vec![Tile::new(10, 10), Tile::new(11, 10)];
+        assert_eq!(
+            p.position_epoch, 0,
+            "ordinary movement must not become a teleport"
+        );
+        p.position_epoch = p.position_epoch.saturating_add(1);
+        p.x = 48.;
+        p.y = 42.;
+        p.motion = vec![Tile::new(48, 42)];
+        assert_eq!(player_view(&p).position_epoch, 1);
+    }
+
     #[tokio::test]
     async fn concurrent_persistence_is_serialized_and_valid() {
         let s = state();
@@ -2064,6 +3705,34 @@ mod regression {
         assert_eq!(p.kills, 4);
         assert_eq!(p.hp, 99);
     }
+
+    #[tokio::test]
+    async fn legacy_profile_map_is_not_mistaken_for_empty_new_state() {
+        let path = std::env::temp_dir().join(format!("oldskool-legacy-{}.json", Uuid::new_v4()));
+        let token = Uuid::new_v4().to_string();
+        let legacy = serde_json::json!({
+            token.clone(): {"name":"Legacy","x":43.0,"y":42.0,"kills":7,"deaths":3}
+        });
+        fs::write(&path, serde_json::to_vec(&legacy).unwrap())
+            .await
+            .unwrap();
+        let state = load_state(&path).await;
+        assert_eq!(state.profiles.len(), 1);
+        let migrated = migrate_profile(state.profiles.get(&token).unwrap().clone(), "Legacy");
+        assert_eq!(migrated.kills, 7);
+        assert_eq!(migrated.account_version, ACCOUNT_VERSION);
+        assert_eq!(migrated.inventory.len(), INVENTORY_SLOTS);
+        assert_eq!(
+            migrated
+                .bank
+                .iter()
+                .find(|b| b.id == "coins")
+                .unwrap()
+                .quantity,
+            250_000
+        );
+        let _ = fs::remove_file(path).await;
+    }
     #[test]
     fn safe_zone_matches_rendered_tile_centres() {
         assert_eq!(zone_at(57., 48.), Zone::Pvp);
@@ -2081,6 +3750,8 @@ mod regression {
             tick: 0,
             players: HashMap::new(),
             profiles: HashMap::new(),
+            ge_offers: Vec::new(),
+            next_offer_id: 0,
         };
         seed_residents(&mut w, &c, 20);
         assert_eq!(w.players.values().filter(|p| p.simulated).count(), 20);
