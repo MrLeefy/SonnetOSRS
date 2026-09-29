@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RuneScape - Grand Exchange PvP (2007)</title>
-<style>
-html,body{margin:0;height:100%;background:#000;overflow:hidden;-webkit-user-select:none;user-select:none}
-#wrap{position:absolute;left:0;top:0;transform-origin:0 0;width:765px;height:503px;background:#000}
-canvas{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges}
-</style></head><body>
-<div id="wrap"><canvas id="gl" width="512" height="334" style="left:4px;top:4px"></canvas><canvas id="ui" width="765" height="503" style="left:0;top:0"></canvas></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#18251f"><title>SonnetOSRS — Leefy Expedition</title>
+<style>html,body{margin:0;width:100%;height:100%;background:#14211b;overflow:hidden;user-select:none}#wrap{position:absolute;left:0;top:0;transform-origin:0 0;width:765px;height:503px}canvas{position:absolute;image-rendering:pixelated}</style></head><body>
+<div id="wrap"><canvas id="gl" width="512" height="334" style="left:4px;top:4px;width:512px;height:334px"></canvas><canvas id="ui" width="765" height="503" style="left:0;top:0"></canvas></div>
 <script>
 /* ---- font_data.js ---- */
 const FONT_DATA = {"p11": {"cw": 20, "ch": 24, "base": 17, "cols": 32, "adv": [3, 3, 4, 7, 6, 9, 8, 2, 3, 3, 6, 6, 3, 4, 3, 4, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 3, 3, 6, 6, 6, 5, 10, 7, 7, 7, 8, 6, 6, 8, 8, 4, 3, 7, 6, 10, 8, 9, 7, 9, 7, 6, 6, 8, 7, 10, 6, 6, 6, 4, 4, 4, 6, 5, 3, 6, 7, 5, 7, 6, 4, 7, 7, 3, 3, 6, 3, 10, 7, 7, 7, 7, 5, 5, 4, 7, 6, 9, 6, 6, 5, 4, 6, 4, 6], "asc": 12, "desc": 4, "size": 11, "png": "data:image/png;base64,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"}, "b12": {"cw": 20, "ch": 24, "base": 17, "cols": 32, "adv": [3, 4, 6, 7, 7, 11, 9, 3, 4, 4, 5, 7, 3, 4, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 4, 4, 7, 7, 7, 7, 12, 9, 9, 9, 9, 8, 7, 9, 9, 3, 7, 9, 7, 10, 9, 9, 8, 9, 9, 8, 7, 9, 8, 11, 8, 8, 7, 4, 3, 4, 7, 7, 4, 7, 7, 7, 7, 7, 4, 7, 7, 3, 3, 7, 3, 11, 7, 7, 7, 7, 5, 7, 4, 7, 7, 9, 7, 7, 6, 5, 3, 5, 7], "asc": 9, "desc": 4, "size": 12, "png": "data:image/png;base64,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"}, "q8": {"cw": 20, "ch": 24, "base": 17, "cols": 32, "adv": [2, 2, 3, 5, 5, 8, 6, 2, 3, 3, 4, 5, 2, 3, 2, 2, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 2, 5, 5, 5, 5, 9, 6, 6, 6, 6, 6, 6, 7, 6, 2, 4, 6, 5, 8, 6, 7, 6, 7, 6, 6, 6, 6, 6, 8, 6, 6, 6, 2, 2, 2, 4, 5, 3, 5, 5, 4, 5, 5, 2, 5, 5, 2, 2, 4, 2, 8, 5, 5, 5, 5, 3, 4, 2, 5, 4, 6, 4, 4, 4, 3, 2, 3, 5], "asc": 7, "desc": 3, "size": 9, "png": "data:image/png;base64,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"}, "q16": {"cw": 20, "ch": 24, "base": 17, "cols": 32, "adv": [4, 5, 7, 8, 8, 13, 11, 4, 5, 5, 6, 9, 4, 5, 4, 4, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 5, 5, 9, 9, 9, 9, 15, 11, 11, 11, 11, 10, 9, 12, 11, 4, 8, 11, 9, 12, 11, 12, 10, 12, 11, 10, 9, 11, 10, 14, 10, 10, 9, 5, 4, 5, 9, 8, 5, 8, 9, 8, 9, 8, 5, 9, 9, 4, 4, 8, 4, 13, 9, 9, 9, 9, 6, 8, 5, 9, 8, 12, 8, 8, 8, 6, 4, 6, 9], "asc": 11, "desc": 5, "size": 15, "png": "data:image/png;base64,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"}};
@@ -3058,19 +3053,1195 @@ function sfx(name, x, y) {
   try { SFX[name](); } catch (e) { }
 }
 
+/* ---- engine_ext.js ---- */
+'use strict';
+/* Explicit compatibility layer for the original global-script engine.
+ * Transactional inventory writes and actor-lifetime guards live here so both
+ * Arena and Expedition use the same invariants. No network or eval involved.
+ */
+const Engine = (() => {
+  const old = { newActor, queueHit, applyHit, killActor, respawn, doAttack, gameTick,
+    stepActor, cmdWalk, cmdAttack, cmdFollow, cmdJob, togglePrayer, drainPrayer,
+    equipFromInv, restock, setBotCount, openBank, talkClerk, contextMenuFor, itemMenu };
+  const MAX_STACK = 2147483647;
+  const validQty = n => Number.isSafeInteger(n) && n > 0 && n <= MAX_STACK;
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const validItem = id => typeof id === 'string' && own(ITEMS, id);
+  const copy = s => s ? { id: s.id, n: s.n } : null;
+  const cloneInv = inv => inv.map(copy);
+  function insert(inv, id, n = 1) {
+    if (!validItem(id) || !validQty(n) || !Array.isArray(inv) || inv.length !== 28) return false;
+    const it = ITEMS[id];
+    if (it.doses && n > it.doses) return false;
+    if (it.stack) {
+      const s = inv.find(s => s && s.id === id);
+      if (s) { if (s.n > MAX_STACK - n) return false; s.n += n; return true; }
+    }
+    const needed = it.stack || it.doses ? 1 : n;
+    if (needed > inv.filter(s => !s).length) return false;
+    let left = needed;
+    for (let i = 0; i < 28 && left; i++) if (!inv[i]) {
+      inv[i] = { id, n: it.stack || it.doses ? n : 1 }; left--;
+    }
+    return true;
+  }
+  function count(inv, id) {
+    if (!validItem(id)) return 0;
+    return inv.reduce((n, s) => n + (s && s.id === id ? (ITEMS[id].stack ? s.n : 1) : 0), 0);
+  }
+  function remove(inv, id, n = 1) {
+    if (!validItem(id) || !validQty(n) || count(inv, id) < n) return false;
+    for (let i = 0; i < 28 && n; i++) {
+      const s = inv[i]; if (!s || s.id !== id) continue;
+      const k = ITEMS[id].stack ? Math.min(n, s.n) : 1;
+      if (ITEMS[id].stack && s.n > k) s.n -= k; else inv[i] = null;
+      n -= k;
+    }
+    return true;
+  }
+  function alive(a) { return !!a && !a.dead && a.hp > 0; }
+  function blockedMessage(a) { if (a.isPlayer) gameMsg('You need more free inventory space. Nothing was changed.'); }
+  addItem = (a, id, n = 1) => insert(a.inv, id, n);
+  countItem = (a, id) => count(a.inv, id);
+  removeItem = (a, id, n = 1) => remove(a.inv, id, n);
+  styleOf = a => {
+    const w = weaponOf(a), arr = STYLES[w.cat] || STYLES.unarmed;
+    const i = Number.isInteger(a.style) ? clamp(a.style, 0, arr.length - 1) : 0;
+    return arr[i];
+  };
+  equipFromInv = (a, idx) => {
+    if (!alive(a) || !Number.isInteger(idx) || idx < 0 || idx >= 28) return false;
+    const s = a.inv[idx]; if (!s || !validItem(s.id)) return false;
+    const it = ITEMS[s.id]; if (!SLOTS.includes(it.slot)) return false;
+    if (it.required && a.stats[it.required.skill] < it.required.level) {
+      if (a.isPlayer) gameMsg('Requires ' + it.required.level + ' ' + it.required.skill + '.'); return false;
+    }
+    const inv = cloneInv(a.inv), eq = Object.fromEntries(Object.entries(a.eq).map(([k, v]) => [k, copy(v)]));
+    inv[idx] = null;
+    if (it.slot === 'ammo' && eq.ammo && eq.ammo.id === s.id) {
+      if (eq.ammo.n > MAX_STACK - s.n) return false;
+      eq.ammo.n += s.n;
+    } else {
+      const displaced = [];
+      if (eq[it.slot]) displaced.push(eq[it.slot]);
+      if (it.two && eq.shield) { displaced.push(eq.shield); eq.shield = null; }
+      if (it.slot === 'shield' && eq.weapon && ITEMS[eq.weapon.id].two) { displaced.push(eq.weapon); eq.weapon = null; }
+      for (const d of displaced) if (!insert(inv, d.id, d.n)) { blockedMessage(a); return false; }
+      eq[it.slot] = copy(s);
+    }
+    a.inv = inv; a.eq = eq;
+    if (it.slot === 'weapon' || it.slot === 'shield') {
+      a.style = 0; a.specOn = false;
+      if (!weaponOf(a).magic) a.autocast = null;
+    }
+    recalcBonus(a); if (a.isPlayer) sfx('equip'); return true;
+  };
+  unequipSlot = (a, slot) => {
+    if (!alive(a) || !SLOTS.includes(slot)) return false;
+    const s = a.eq[slot]; if (!s) return false;
+    if (!insert(a.inv, s.id, s.n)) { blockedMessage(a); return false; }
+    a.eq[slot] = null;
+    if (slot === 'weapon') { a.style = 0; a.specOn = false; a.autocast = null; }
+    recalcBonus(a); return true;
+  };
+  const oldEat = eatFood, oldDrink = drinkPotion;
+  eatFood = (a, idx) => {
+    const s = a && a.inv[idx];
+    if (!alive(a) || !s || !validItem(s.id) || !ITEMS[s.id].food || a.eatCd > 0) return false;
+    oldEat(a, idx); return true;
+  };
+  drinkPotion = (a, idx) => {
+    const s = a && a.inv[idx];
+    if (!alive(a) || !s || !validItem(s.id) || !ITEMS[s.id].pot || !validQty(s.n) || a.potCd > 0) return false;
+    oldDrink(a, idx); return true;
+  };
+  newActor = o => Object.assign(old.newActor(o), { life: 1, protectUntil: 0 });
+  function clearTransient(a) {
+    a.life = (a.life || 0) + 1; a.job = a.follow = a.pendingSpell = null;
+    a.target = null; a.path.length = a.seg.length = a.splats.length = 0;
+    a.atkCd = 2; a.eatCd = a.potCd = a.prayerBlock = a.freezeImm = a.drain = 0;
+    a.attackedBy = {}; a.lastAtk = a.lastHitTick = -999; a.specOn = false;
+    a.boostT = a.hpT = a.specT = 0;
+    G.hitQ = G.hitQ.filter(h => h.dst !== a && h.src !== a);
+    G.projs = G.projs.filter(p => p.tgt !== a);
+    if (a.isPlayer) { UI.drag = null; UI.menu = null; G.dialog = null; }
+  }
+  queueHit = h => {
+    if (!h || !alive(h.dst) || !h.src || !Number.isFinite(h.dmg)) return;
+    h.srcLife = h.src.life; h.dstLife = h.dst.life;
+    h.dmg = clamp(Math.floor(h.dmg), 0, 10000);
+    h.delay = Number.isFinite(h.delay) ? clamp(Math.floor(h.delay), 0, 50) : 0;
+    old.queueHit(h);
+  };
+  applyHit = h => {
+    if (!h || !alive(h.dst) || !h.src || !Number.isFinite(h.dmg) || h.dmg < 0) return;
+    if (!G.actors.includes(h.src) || !G.actors.includes(h.dst)) return;
+    if (h.dstLife !== undefined && h.dst.life !== h.dstLife) return;
+    if (h.srcLife !== undefined && h.src.life !== h.srcLife) return;
+    if (h.dst.npc || h.dst === h.src) return;
+    if (h.dst.isPlayer && G.tick < h.dst.protectUntil) return;
+    if (typeof Expedition !== 'undefined' && !Expedition.canFight(h.src, h.dst)) return;
+    const hp = h.dst.hp;
+    if (h.dst.isPlayer && typeof Expedition !== 'undefined') Expedition.cancelGather();
+    old.applyHit(h);
+    const dealt = Math.max(0, hp - h.dst.hp);
+    // A blood projectile may land after its caster died; it must never revive them.
+    if (h.src.dead) h.src.hp = 0;
+    if (typeof Expedition !== 'undefined') Expedition.onDamage(h.src, h.dst, dealt, h.type);
+    if (typeof Polish !== 'undefined' && dealt) Polish.burst(h.dst.x + .5, h.dst.y + .5, h.type === 'pmagic' ? 0x86d6ef : 0xe0b678, Math.min(9, 3 + Math.floor(dealt / 5)));
+  };
+  doAttack = (a, t) => {
+    if (!alive(a) || !alive(t) || t.npc || t === a || !G.actors.includes(t)) return;
+    if (!inRangeAt(a.x, a.y, t, attackRange(a))) return;
+    if (t.isPlayer && G.tick < t.protectUntil) { a.target = null; return; }
+    if (typeof Expedition !== 'undefined' && !Expedition.canFight(a, t)) { a.target = null; return; }
+    const spell = a.pendingSpell || (a.autocast && weaponOf(a).magic && a.autocast);
+    if (spell && !own(SPELL_BY_ID, spell)) { a.pendingSpell = a.autocast = a.target = null; return; }
+    const w = weaponOf(a);
+    if (!spell && w.ranged) {
+      const ammo = a.eq.ammo;
+      if (!ammo || !validQty(ammo.n) || !validItem(ammo.id) || ITEMS[ammo.id].ammoType !== w.ammo) { a.target = null; if (a.isPlayer) gameMsg('Equip compatible ammunition first.'); return; }
+      if (a.specOn && w.spec && a.spec >= w.spec.cost && ammo.n < (w.spec.hits || 1)) { a.specOn = false; if (a.isPlayer) gameMsg('Not enough ammunition for the special; firing a normal shot.'); }
+    }
+    // Initiating an attack forfeits spawn protection.
+    if (a.isPlayer) a.protectUntil = 0;
+    old.doAttack(a, t);
+  };
+  killActor = (d, s) => {
+    if (d.dead) return;
+    const pvm = d.monster && s.isPlayer;
+    const before = pvm ? { kills:G.kills, streak:G.streak, best:G.best, actorKills:s.kills } : null;
+    old.killActor(d, s);
+    if (before) { G.kills=before.kills; G.streak=before.streak; G.best=before.best; s.kills=before.actorKills; }
+    G.hitQ = G.hitQ.filter(h => h.dst !== d);
+    if (typeof Expedition !== 'undefined') Expedition.onKill(d, s);
+  };
+  respawn = a => {
+    if (a.monster && typeof Expedition !== 'undefined') { Expedition.respawnMonster(a); return; }
+    if (a.isPlayer && typeof Expedition !== 'undefined' && Expedition.active) {
+      clearTransient(a); a.dead = false; a.hp = a.maxHp; a.pp = a.stats.pray;
+      a.cur = Object.assign({}, a.stats); a.run = a.spec = 100; a.frozen = a.skull = 0;
+      a.prayers.clear(); a.overhead = a.anim = null; a.x = 48; a.y = 34;
+      a.protectUntil = G.tick + 20; G.spellSel = null;
+      gameMsg('You recover at the camp. Your expedition equipment was kept.'); return;
+    }
+    clearTransient(a); old.respawn(a);
+  };
+  togglePrayer = (a, id, quiet) => {
+    if (!alive(a) || !own(PRAYER_BY_ID, id)) return false;
+    old.togglePrayer(a, id, quiet); return true;
+  };
+  stepActor = a => {
+    if (!a.npc && G.tick % 100 === 0) for (const id of Object.keys(a.attackedBy)) if (G.tick - a.attackedBy[id] > 120) delete a.attackedBy[id];
+    if (a.monster && !a.dead && typeof Expedition !== 'undefined') Expedition.think(a);
+    old.stepActor(a);
+  };
+  gameTick = () => {
+    old.gameTick();
+    if (typeof Expedition !== 'undefined') Expedition.tick();
+    // Bounded off-screen lifetimes, independent of the renderer.
+    G.effects = G.effects.filter(e => G.now < e.t0 + e.dur).slice(-160);
+    G.projs = G.projs.filter(p => G.now < p.t1 + 30 && G.actors.includes(p.tgt)).slice(-160);
+    G.ground = G.ground.slice(-512);
+  };
+  cmdWalk = (x, y) => { if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdWalk(x, y); };
+  cmdFollow = a => { if (!G.player || !alive(G.player) || !a) return; if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdFollow(a); };
+  cmdAttack = a => { if (!G.player || !alive(a) || a.npc) return; if (typeof Expedition !== 'undefined') { Expedition.cancelGather(); if (!Expedition.canFight(G.player, a)) return; } old.cmdAttack(a); };
+  cmdJob = (x, y, near, run, label) => { if (typeof Expedition !== 'undefined') Expedition.cancelGather(); old.cmdJob(x, y, near, run, label); };
+  setBotCount = n => {
+    n = Number.isFinite(Number(n)) ? clamp(Math.floor(Number(n)), 0, 14) : 0;
+    if (typeof Expedition !== 'undefined' && Expedition.active) n = 0;
+    old.setBotCount(n);
+    const live = new Set(G.actors);
+    G.hitQ = G.hitQ.filter(h => live.has(h.src) && live.has(h.dst));
+    G.projs = G.projs.filter(p => live.has(p.tgt));
+    for (const a of G.actors) { if (!live.has(a.target)) a.target = null; if (!live.has(a.follow)) a.follow = null; }
+  };
+  restock = kind => {
+    if (!G.player || !alive(G.player) || !own(LOADOUTS, kind)) return;
+    if (typeof Expedition !== 'undefined' && Expedition.active) { gameMsg('Free combat kits are for Arena mode. Craft or loot expedition gear.'); return; }
+    old.restock(kind); clearTransient(G.player); G.player.protectUntil = G.tick + 5;
+  };
+  openBank = obj => { if (typeof Client !== 'undefined') Client.open('bank'); else old.openBank(obj); };
+  talkClerk = npc => { if (typeof Expedition !== 'undefined' && Expedition.active) { Client.open('journal'); return; } old.talkClerk(npc); };
+  contextMenuFor = (mx, my) => {
+    const out = old.contextMenuFor(mx, my);
+    if (typeof Expedition !== 'undefined' && Expedition.active && inRect(mx, my, {x:VX,y:VY,w:VW,h:VH})) {
+      const obj = pickObject(mx - VX, my - VY, INP.cam);
+      if (obj && obj.expedition) {
+        const label = obj.kind === 'resource' ? 'Gather ' : obj.kind === 'forge' ? 'Use ' : 'Open ';
+        return [ent(label + col('80ddb0', obj.name), () => Expedition.interact(obj), {red:true}), ent('Examine ' + obj.name, () => gameMsg(obj.description || obj.name)), CANCEL()];
+      }
+    }
+    return out;
+  };
+  itemMenu = (a, idx) => {
+    const s = a.inv[idx]; const entries = old.itemMenu(a, idx);
+    // Menu closures refer to an exact item, never a new occupant of the slot.
+    for (const e of entries) { const fn = e.fn; e.fn = () => { if (a.inv[idx] === s && alive(a)) fn(); }; }
+    return entries;
+  };
+  passable = (x, y) => Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < MAPN && y < MAPN && !WORLD.block[y * MAPN + x];
+  canStep = (x, y, dx, dy) => Number.isInteger(dx) && Number.isInteger(dy) && Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && (dx !== 0 || dy !== 0) && passable(x + dx, y + dy) && (!dx || !dy || (passable(x + dx, y) && passable(x, y + dy)));
+  const path = findPath;
+  findPath = (sx, sy, goal, nearest, maxNodes) => {
+    if (!passable(sx, sy) || typeof goal !== 'function') return null;
+    if (PF.stamp >= 2147483646) { PF.stamp = 0; PF.seen.fill(0); }
+    return path(sx, sy, goal, nearest && Number.isFinite(nearest.x) && Number.isFinite(nearest.y) ? nearest : null, Number.isFinite(maxNodes) ? clamp(Math.floor(maxNodes), 1, MAPN * MAPN) : 4000);
+  };
+  moveAlong = a => {
+    const steps = a.runOn && a.run >= 1 ? 2 : 1; let moved = 0;
+    for (let i = 0; i < steps && a.path.length; i++) {
+      const n = a.path.shift(), dx = n.x - a.x, dy = n.y - a.y;
+      if (!canStep(a.x, a.y, dx, dy)) { a.path.length = 0; break; }
+      a.seg.push({fx:a.x,fy:a.y,tx:n.x,ty:n.y}); faceStep(a, dx, dy); a.x = n.x; a.y = n.y; moved++;
+      if (a.target && inRangeAt(a.x, a.y, a.target, attackRange(a))) { a.path.length = 0; break; }
+    }
+    if (moved === 2) a.run = Math.max(0, a.run - .67);
+    return moved;
+  };
+  hasLoS = (x0, y0, x1, y1) => {
+    if (![x0,y0,x1,y1].every(Number.isInteger) || !inMap(x0,y0) || !inMap(x1,y1)) return false;
+    const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx-dy, x=x0, y=y0;
+    while (x!==x1 || y!==y1) {
+      const prevX=x, prevY=y, e2=err*2;
+      if(e2 > -dy){err-=dy;x+=sx;} if(e2 < dx){err+=dx;y+=sy;}
+      if (x!==prevX && y!==prevY && (LOSB[prevY*MAPN+x] || LOSB[y*MAPN+prevX])) return false;
+      if ((x!==x1 || y!==y1) && LOSB[y*MAPN+x]) return false;
+    }
+    return true;
+  };
+  return { MAX_STACK, validQty, validItem, insert, remove, count, cloneInv, copy, clearTransient, alive, old };
+})();
+
+/* ---- expedition.js ---- */
+'use strict';
+/* A data-driven, offline progression loop alongside the original PvP sandbox.
+ * Balance is original to this fork; it is not a claim of OSRS authenticity.
+ */
+const Expedition = (() => {
+  const xpKeys = ['atk','str','def','rng','mag','hp','pray','mining','woodcutting','fishing','cooking','smithing'];
+  const xpFor = level => Math.floor(80 * Math.pow(Math.max(0, level - 1), 1.65));
+  const levelFor = xp => { let l=1; while(l<99 && xp>=xpFor(l+1)) l++; return l; };
+  const icon = (base, tint) => p => { ICON_FN[base](p); if (tint) p.line(6,27,26,7,tint,2); };
+  const material = (id,name,col,stack=false) => def(id,{name,ex:name+' gathered on an expedition.',stack,val:10},p=>{
+    p.poly([[6,23],[8,12],[17,6],[26,13],[25,26],[13,28]],col);
+    p.line(10,13,17,9,shadeCol(col,1.45),2); p.line(17,9,23,14,shadeCol(col,1.2),1);
+  });
+  material('ironOre','Iron ore',0x978777);
+  material('logs','Timber',0x8b5a30);
+  material('ironBar','Iron bar',0xb3b4a8);
+  material('trailToken','Trail token',0xcfa755,true);
+  material('guardianSigil','Guardian sigil',0x56ccd1,true);
+  def('rawFish',{name:'River trout',ex:'Cook this at the campfire.',val:8},icon('shark'));
+  def('cookedFish',{name:'Grilled trout',ex:'Restores 9 Hitpoints.',food:{heal:9},val:15},p=>{ICON_FN.shark(p);p.line(9,17,23,17,0xbd8452,4);});
+  def('trailPick',{name:'Trail pickaxe',ex:'Keep this in your inventory to mine ore.',val:5},p=>{p.line(8,27,22,8,0x89603d,3);p.line(9,8,26,12,0xbac1c6,4);});
+  def('trailAxe',{name:'Trail hatchet',ex:'Keep this in your inventory to chop timber.',val:5},p=>{p.line(10,28,19,6,0x89603d,3);p.poly([[17,5],[27,9],[25,18],[15,12]],0xbac1c6);});
+  def('trailNet',{name:'Fishing net',ex:'Keep this in your inventory to fish.',val:5},p=>{p.line(6,28,19,13,0x89603d,3);p.ellipse(21,10,8,6,0xcbc6ab);for(let i=0;i<4;i++)p.line(16+i*3,5,19+i*2,16,0x797666,1);});
+  def('bronzeBlade',{name:'Trail blade',ex:'A dependable starter blade.',slot:'weapon',bonus:bon({[A_SLASH]:12,[B_STR]:12}),speed:4,range:1,cat:'scim',catName:'Slash Sword',model:'scim',color:0xbb8d5c,val:50},icon('rscim',0xbb8d5c));
+  def('ironBlade',{name:'Forged iron blade',ex:'Made at the expedition forge.',slot:'weapon',bonus:bon({[A_SLASH]:29,[B_STR]:26}),speed:4,range:1,cat:'scim',catName:'Slash Sword',model:'scim',color:0xb9c4c5,val:200},icon('rscim',0xb9c4c5));
+  def('guardianBlade',{name:'Warden blade',ex:'A sigil-forged weapon. Special attack: Resolute strike.',slot:'weapon',bonus:bon({[A_SLASH]:46,[B_STR]:42}),speed:4,range:1,cat:'scim',catName:'Slash Sword',model:'scim',color:0x63c8cd,val:1000,spec:{name:'Resolute strike',cost:50,acc:1.5,dmg:1.25}},icon('dscim',0x63c8cd));
+  // Low-level spells make progression magic usable without granting 94 Magic.
+  for (const s of [
+    {id:'frostDart',name:'Frost Dart',lvl:1,max:6,freeze:0,runes:{water:2},kind:'ice',d:'A small frost projectile.'},
+    {id:'sanguineDart',name:'Sanguine Dart',lvl:15,max:9,runes:{blood:1},kind:'blood',d:'Restores a quarter of damage dealt.'}
+  ]) { SPELLS.unshift(s); SPELL_BY_ID[s.id]=s; }
+  const recipes = [
+    {id:'trout',name:'Grill trout',station:'fire',input:{rawFish:1,logs:1},output:['cookedFish',1],skill:'cooking',xp:35},
+    {id:'bar',name:'Smelt iron bar',station:'forge',input:{ironOre:2},output:['ironBar',1],skill:'smithing',xp:45},
+    {id:'blade',name:'Forge iron blade',station:'forge',input:{ironBar:3,logs:1},output:['ironBlade',1],skill:'smithing',xp:90},
+    {id:'warden',name:'Forge Warden blade',station:'forge',input:{ironBar:5,guardianSigil:1},output:['guardianBlade',1],skill:'smithing',xp:200}
+  ];
+  const quests = [
+    {id:'ore',name:'Prospector',text:'Mine 6 iron ore.',event:'mine',goal:6,coins:120,xp:['mining',60]},
+    {id:'wood',name:'A warm welcome',text:'Gather 4 timber.',event:'wood',goal:4,coins:80,xp:['woodcutting',60]},
+    {id:'cook',name:'Camp cook',text:'Grill 3 river trout.',event:'cook',goal:3,coins:120,xp:['cooking',90]},
+    {id:'bandits',name:'Road warden',text:'Defeat 3 trail bandits.',event:'bandit',goal:3,coins:250,xp:['def',100]},
+    {id:'forge',name:'Made by hand',text:'Forge an iron blade.',event:'forge',goal:1,coins:200,xp:['smithing',120]},
+    {id:'guardian',name:'The silent sentinel',text:'Defeat the Stone Guardian. Move out of its marked slam.',event:'guardian',goal:1,coins:750,xp:['atk',250]}
+  ];
+  const monsters = {
+    bandit:{name:'Trail bandit',stats:{atk:12,str:10,def:6,rng:1,mag:1,pray:1,hp:28},weapon:'bronzeBlade',coins:20,respawn:35,radius:6,kit:{skin:0xc99870,hair:0x33251e,shirt:0x795449,pants:0x363d38}},
+    raider:{name:'Iron raider',stats:{atk:20,str:20,def:14,rng:1,mag:1,pray:1,hp:48},weapon:'ironBlade',coins:45,respawn:45,radius:6,kit:{skin:0x9c7555,hair:0x202a2a,shirt:0x3c5661,pants:0x404943}},
+    guardian:{name:'Stone Guardian',stats:{atk:26,str:25,def:22,rng:1,mag:1,pray:1,hp:180},weapon:'ironBlade',coins:160,respawn:80,radius:9,kit:{skin:0x9aa7a3,hair:0x3f545b,shirt:0x667979,pants:0x506269}}
+  };
+  const E={active:false,xp:{},progress:{},claimed:{},bank:[],pvmKills:0,gather:null,nodes:[],warnings:[],waypoint:null,
+    recipes,quests,monsters,xpKeys,xpFor,levelFor};
+  E.safe = (x,y) => x>=39 && x<=57 && y>=28 && y<=38;
+  E.canFight = (a,b) => !E.active || (!a.npc && !b.npc && (a.isPlayer||b.isPlayer) && !(a.monster&&b.monster) && !E.safe(a.x,a.y) && !E.safe(b.x,b.y));
+  E.cancelGather = () => { E.gather=null; };
+  E.nearBank = () => !!G.player && WORLD.objs.some(o=>o.kind==='bank' && dist2(o.x,o.y,G.player.x,G.player.y)<=2);
+  E.inCombat = () => !!G.player && (G.player.target || G.tick-G.player.lastHitTick<10 || G.hitQ.some(h=>h.dst===G.player));
+  E.canBank = () => Engine.alive(G.player) && E.nearBank() && !E.inCombat();
+  E.goBank = () => {
+    if (!G.player || E.inCombat()) { gameMsg('Leave combat before banking.'); return; }
+    const o=WORLD.objs.filter(o=>o.kind==='bank').sort((a,b)=>dist2(a.x,a.y,G.player.x,G.player.y)-dist2(b.x,b.y,G.player.x,G.player.y))[0];
+    if(o) cmdJob(o.x,o.y,a=>dist2(a.x,a.y,o.x,o.y)<=2,()=>Client.open('bank'));
+  };
+  E.addXp = (key,amount) => {
+    if(!E.active || !xpKeys.includes(key) || !Number.isFinite(amount) || amount<=0) return;
+    const before=levelFor(E.xp[key]||0); E.xp[key]=Math.min(xpFor(99), (E.xp[key]||0)+Math.floor(amount));
+    const after=levelFor(E.xp[key]);
+    if(after>before){
+      if(Object.prototype.hasOwnProperty.call(G.player.stats,key)){
+        G.player.stats[key]=after; G.player.cur[key]=Math.max(G.player.cur[key],after);
+        if(key==='hp'){G.player.maxHp=after;G.player.hp=Math.min(after,G.player.hp+after-before);}
+        G.player.level=combatLevel(G.player.stats);
+      }
+      gameMsg(key+' reached level '+after+'!');
+      if(typeof Polish!=='undefined') Polish.burst(G.player.x+.5,G.player.y+.5,0xf2cd76,18);
+    }
+  };
+  E.track = (event,amount=1) => { for(const q of quests) if(q.event===event) E.progress[q.id]=Math.min(q.goal,(E.progress[q.id]||0)+amount); };
+  E.claim = id => {
+    const q=quests.find(q=>q.id===id); if(!q || !E.active || E.claimed[id] || (E.progress[id]||0)<q.goal) return false;
+    const inv=Engine.cloneInv(G.player.inv);
+    if(!Engine.insert(inv,'coins',q.coins) || !Engine.insert(inv,'trailToken',1)){gameMsg('Make room for the contract reward.');return false;}
+    G.player.inv=inv; E.claimed[id]=true; E.addXp(...q.xp); gameMsg(q.name+' complete! +'+q.coins+' coins and a trail token.'); return true;
+  };
+  E.deposit = (idx,all=false) => {
+    if(!E.canBank()) return false;
+    const inv=Engine.cloneInv(G.player.inv), bank=E.bank.map(s=>({...s}));
+    const indices=all ? inv.map((_,i)=>i) : [idx];
+    for(const i of indices){
+      const s=inv[i];if(!s)continue;
+      const it=ITEMS[s.id], match=bank.find(b=>b.id===s.id && (!it.doses || b.n===s.n));
+      if(match){const key=it.stack?'n':'qty', n=it.stack?s.n:1;if(match[key]>Engine.MAX_STACK-n)return false;match[key]+=n;}
+      else{if(bank.length>=120){gameMsg('Bank is full. Nothing was deposited.');return false;}bank.push({id:s.id,n:s.n,qty:1});}
+      inv[i]=null;
+    }
+    G.player.inv=inv;E.bank=bank;return true;
+  };
+  E.withdraw = (idx,amount=1) => {
+    if(!E.canBank() || !Number.isInteger(idx) || idx<0 || idx>=E.bank.length) return false;
+    const s=E.bank[idx], it=ITEMS[s.id], max=it.stack?s.n:s.qty;
+    const n=amount==='all'?max:Math.min(max,amount);
+    if(!Engine.validQty(n))return false;
+    const inv=Engine.cloneInv(G.player.inv);
+    if(it.stack){if(!Engine.insert(inv,s.id,n))return false;}
+    else{if(n>inv.filter(s=>!s).length)return false;for(let i=0;i<n;i++)if(!Engine.insert(inv,s.id,s.n))return false;}
+    G.player.inv=inv;
+    if(it.stack)s.n-=n;else s.qty-=n;
+    if((it.stack?s.n:s.qty)<=0)E.bank.splice(idx,1);
+    return true;
+  };
+  E.buy = (id,n,price) => {
+    if(!E.canBank() || !Engine.validItem(id) || !Engine.validQty(n) || !Number.isSafeInteger(price) || price<=0)return false;
+    // Merchant stock is deliberately small and finite per purchase.
+    const stock={cookedFish:[1,15],water:[30,20],blood:[10,40],trailPick:[1,5],trailAxe:[1,5],trailNet:[1,5],ancstaff:[1,100],msb:[1,100],rarrows:[50,30]};
+    if(!stock[id] || stock[id][0]!==n || stock[id][1]!==price)return false;
+    const inv=Engine.cloneInv(G.player.inv);
+    if(!Engine.remove(inv,'coins',price) || !Engine.insert(inv,id,n)){gameMsg('You need enough coins and inventory space.');return false;}
+    G.player.inv=inv;return true;
+  };
+  E.craft = id => {
+    const r=recipes.find(r=>r.id===id), pl=G.player;
+    if(!E.active || !r || !Engine.alive(pl) || E.inCombat() || !WORLD.objs.some(o=>o.expedition && o.station===r.station && dist2(o.x,o.y,pl.x,pl.y)<=2))return false;
+    const inv=Engine.cloneInv(pl.inv);
+    for(const [item,n] of Object.entries(r.input))if(!Engine.remove(inv,item,n)){gameMsg('Missing ingredients for '+r.name+'.');return false;}
+    if(!Engine.insert(inv,...r.output)){gameMsg('Make room for the crafted item.');return false;}
+    pl.inv=inv;E.addXp(r.skill,r.xp);E.track(id==='trout'?'cook':id==='blade'?'forge':'craft');
+    gameMsg(r.name+' completed.');if(typeof Polish!=='undefined')Polish.burst(pl.x+.5,pl.y+.5,0xe8b965,8);return true;
+  };
+  function nearestClear(x,y){
+    for(let r=0;r<8;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)if(Math.max(Math.abs(dx),Math.abs(dy))===r && passable(x+dx,y+dy) && !WORLD.objs.some(o=>o.x===x+dx&&o.y===y+dy))return{x:x+dx,y:y+dy};
+    throw new Error('No clear tile for expedition object.');
+  }
+  function node(x,y,kind,name,extra={}){
+    const p=nearestClear(x,y),i=p.y*MAPN+p.x;
+    const o={...p,kind,name,h:kind==='resource'&&extra.skill==='woodcutting'?2.5:1,expedition:true,charges:3,respawnAt:0,oldBlock:WORLD.block[i],oldColor:WORLD.mm[i],...extra};
+    WORLD.objs.push(o);E.nodes.push(o);WORLD.block[i]=1;WORLD.mm[i]=extra.color||0xb99460;return o;
+  }
+  E.installWorld = () => {
+    E.nodes=[];
+    for(const [x,y] of [[37,31],[35,33],[37,35]])node(x,y,'resource','Iron seam',{skill:'mining',tool:'trailPick',output:'ironOre',xp:25,event:'mine',color:0x9e8c79,description:'Three ore per seam; regrows after 18 seconds.'});
+    for(const [x,y] of [[43,25],[46,25],[49,25]])node(x,y,'resource','Coppice tree',{skill:'woodcutting',tool:'trailAxe',output:'logs',xp:25,event:'wood',color:0x72ad65,description:'Three timber per tree. Keep a trail hatchet in your bag.'});
+    for(const [x,y] of [[60,29],[62,30]])node(x,y,'resource','Fishing pool',{skill:'fishing',tool:'trailNet',output:'rawFish',xp:25,event:'fish',color:0x72c4d8,description:'Catch river trout, then cook them with timber.'});
+    node(44,32,'forge','Camp forge',{station:'forge',description:'Smelt ore and forge weapons.'});
+    node(51,32,'forge','Campfire',{station:'fire',description:'Cook fish with timber.'});
+    initLoS();
+    for(const [type,x,y] of [['bandit',61,40],['bandit',65,37],['bandit',66,43],['raider',69,57],['raider',65,59],['guardian',61,67]]){
+      const spec=monsters[type],p=nearestClear(x,y);
+      const a=newActor({name:spec.name,...p,stats:spec.stats,kit:spec.kit});
+      a.monster=type;a.home={...p};a.runOn=false;a.nextSlam=G.tick+14;a.wanderAt=0;
+      a.eq.weapon={id:spec.weapon,n:1};recalcBonus(a);G.actors.push(a);
+    }
+  };
+  E.uninstallWorld = () => {
+    for(const o of E.nodes){const i=o.y*MAPN+o.x;WORLD.block[i]=o.oldBlock;WORLD.mm[i]=o.oldColor;}
+    WORLD.objs=WORLD.objs.filter(o=>!o.expedition);G.actors=G.actors.filter(a=>!a.monster);
+    E.nodes=[];E.warnings=[];E.gather=null;E.waypoint=null;initLoS();
+  };
+  E.begin = mode => {
+    E.active=mode==='expedition'; E.xp={};E.progress={};E.claimed={};E.bank=[];E.pvmKills=0;E.gather=null;E.warnings=[];
+    if(!E.active)return;
+    const pl=G.player;
+    Object.assign(pl.stats,{atk:15,str:15,def:10,rng:15,mag:15,pray:10,hp:30});
+    pl.cur={...pl.stats};pl.hp=pl.maxHp=30;pl.pp=10;pl.level=combatLevel(pl.stats);
+    pl.eq={weapon:{id:'bronzeBlade',n:1}};pl.inv=new Array(28).fill(null);
+    for(const [id,n] of [['trailPick',1],['trailAxe',1],['trailNet',1],['cookedFish',8],['coins',40]])addItem(pl,id,n);
+    recalcBonus(pl);pl.x=48;pl.y=34;
+    for(const key of xpKeys)E.xp[key]=xpFor(pl.stats[key]||1);
+    E.installWorld();
+  };
+  E.interact = obj => {
+    if(!E.active || !E.nodes.includes(obj) || !Engine.alive(G.player))return;
+    const near=a=>dist2(a.x,a.y,obj.x,obj.y)<=1;
+    cmdJob(obj.x,obj.y,near,()=>{
+      if(obj.kind!=='resource'){Client.open(obj.station==='fire'?'cooking':'craft');return;}
+      if(!countItem(G.player,obj.tool)){gameMsg('Keep a '+ITEMS[obj.tool].name+' in your inventory.');return;}
+      if(obj.charges<=0){gameMsg('This resource is recovering. Try another node.');return;}
+      G.player.target=null;E.gather={node:obj,due:G.tick+4};gameMsg('You begin '+obj.skill+'.');
+    });
+  };
+  E.tick = () => {
+    if(!E.active)return;
+    for(const o of E.nodes)if(o.kind==='resource' && o.charges===0 && G.tick>=o.respawnAt)o.charges=3;
+    const job=E.gather;
+    if(job){const pl=G.player,o=job.node;
+      if(!Engine.alive(pl) || pl.target || pl.path.length || dist2(pl.x,pl.y,o.x,o.y)>1 || !countItem(pl,o.tool) || o.charges<=0)E.gather=null;
+      else if(G.tick>=job.due){
+        if(!addItem(pl,o.output,1)){gameMsg('Your inventory is full. Gathering stopped.');E.gather=null;}
+        else{o.charges--;E.addXp(o.skill,o.xp);E.track(o.event);job.due=G.tick+4;pl.anim={type:o.skill==='mining'?'crush':'slash',t0:G.now,dur:450};
+          if(typeof Polish!=='undefined')Polish.burst(o.x+.5,o.y+.5,o.color,6);
+          if(!o.charges){o.respawnAt=G.tick+30;E.gather=null;gameMsg(o.name+' depleted. It will recover shortly.');}
+        }
+      }
+    }
+    const due=E.warnings.filter(w=>w.due<=G.tick);E.warnings=E.warnings.filter(w=>w.due>G.tick && !w.source.dead && w.source.life===w.life);
+    for(const w of due){
+      if(w.source.dead || w.source.life!==w.life)continue;
+      const pl=G.player;
+      if(Engine.alive(pl) && Math.hypot(pl.x+.5-w.x,pl.y+.5-w.y)<w.radius){
+        applyHit({src:w.source,dst:pl,srcLife:w.life,dstLife:pl.life,dmg:w.enraged?15:11,type:'pmelee'});
+        gameMsg('The guardian slam strikes you!');
+      }
+      if(typeof Polish!=='undefined')Polish.burst(w.x,w.y,0xefbd83,18);
+    }
+  };
+  E.think = a => {
+    const spec=monsters[a.monster],pl=G.player;
+    if(!Engine.alive(pl) || E.safe(pl.x,pl.y) || dist2(pl.x,pl.y,a.home.x,a.home.y)>spec.radius || dist2(a.x,a.y,a.home.x,a.home.y)>spec.radius+2){
+      a.target=null;
+      if(dist2(a.x,a.y,a.home.x,a.home.y)>1 && !a.path.length)a.path=findPath(a.x,a.y,(x,y)=>x===a.home.x&&y===a.home.y,a.home,1200)||[];
+      if(!a.path.length && G.tick>=a.wanderAt){a.wanderAt=G.tick+8+rint(8);const x=a.home.x+rrange(-2,2),y=a.home.y+rrange(-2,2);if(passable(x,y))a.path=findPath(a.x,a.y,(px,py)=>px===x&&py===y,null,700)||[];}
+      if(a.hp<a.maxHp && G.tick%10===0)a.hp=Math.min(a.maxHp,a.hp+3);
+      return;
+    }
+    a.target=pl;
+    if(a.monster==='guardian' && G.tick>=a.nextSlam && dist2(a.x,a.y,pl.x,pl.y)<=6){
+      const enraged=a.hp<a.maxHp/2;a.nextSlam=G.tick+(enraged?10:16);
+      E.warnings.push({source:a,life:a.life,x:pl.x+.5,y:pl.y+.5,radius:2.1,due:G.tick+3,enraged});
+      a.atkCd=Math.max(a.atkCd,4);gameMsg(enraged?'The guardian enrages! Move out of the bright ring!':'The guardian prepares a ground slam. Move out of the ring!');
+    }
+  };
+  E.respawnMonster = a => {
+    Engine.clearTransient(a);const spec=monsters[a.monster];a.dead=false;a.hp=a.maxHp;a.cur={...spec.stats};a.x=a.home.x;a.y=a.home.y;
+    a.frozen=a.skull=0;a.anim=null;a.prayers.clear();a.overhead=null;a.nextSlam=G.tick+14;a.wanderAt=G.tick+3;
+  };
+  E.onDamage = (src,dst,dealt,type) => {
+    if(!E.active || !src.isPlayer || !dst.monster || dealt<=0)return;
+    if(type==='pmagic')E.addXp('mag',dealt*4);
+    else if(type==='pmissiles')E.addXp('rng',dealt*4);
+    else{const b=styleOf(src).b;if(b==='ctl'){for(const k of ['atk','str','def'])E.addXp(k,dealt*1.4);}else E.addXp(b==='agg'?'str':b==='def'?'def':'atk',dealt*4);}
+    E.addXp('hp',dealt*1.34);
+  };
+  const originalDrops=dropLoot;
+  dropLoot = d => {
+    if(!d.monster){originalDrops(d);return;}
+    const spec=monsters[d.monster],list=[['coins',spec.coins+rrange(0,15)],['cookedFish',1]];
+    if(d.monster==='guardian')list.push(['guardianSigil',1],['ironBar',2]);
+    else if(chance(.35))list.push(['ironOre',1]);
+    for(const [id,n]of list)for(let i=0;i<(ITEMS[id].stack?1:n);i++)G.ground.push({id,n:ITEMS[id].stack?n:1,x:d.x,y:d.y,t:G.tick});
+  };
+  E.onKill = (d,s) => {
+    if(!E.active)return;
+    if(d.monster){d.respawnAt=G.tick+monsters[d.monster].respawn;
+      if(s.isPlayer){E.pvmKills++;E.track(d.monster);E.addXp('def',15);}
+    }
+    if(d.isPlayer){E.cancelGather();E.warnings=[];}
+  };
+  const originalCommand=chatCommand;
+  chatCommand = t => {
+    if(t==='::save'){Profiles.save(true);return;}
+    if(t==='::journal'){Client.open('journal');return;}
+    if(t==='::bank'){E.goBank();return;}
+    if(E.active && /^::(heal|restock|bots)(?:\s|$)/i.test(t)){gameMsg('Sandbox commands are disabled in Expedition. Your Arena save is separate.');return;}
+    if(/^::bots(?:\s|$)/i.test(t)){const n=Number(t.split(/\s+/)[1]);if(Number.isFinite(n)){setBotCount(n);gameMsg('Opponents: '+UI.botCount);}return;}
+    originalCommand(t);
+  };
+  return E;
+})();
+
+/* ---- profiles.js ---- */
+'use strict';
+/* Versioned local profiles. Imports are data, never executable code.
+ * Arena and Expedition use separate keys; a practice kit cannot be imported
+ * into an Expedition profile through the UI. Storage failures do not stop play.
+ */
+const Profiles = (() => {
+  const VERSION=2, PREFIX='leefy.sonnet.v2.';
+  const P={version:VERSION,name:'Leefy',mode:'arena',status:'Not saved yet',blocked:false,storage:null,lastSave:0,
+    settings:{quality:'balanced',layout:'auto',sound:true,showFps:false,reduceMotion:false,cameraSmooth:true}};
+  const fail = s => {throw new Error(s);};
+  const object = x => x!==null && typeof x==='object' && !Array.isArray(x);
+  const int = (v,min,max,label) => Number.isSafeInteger(v)&&v>=min&&v<=max?v:fail('Invalid '+label);
+  const finite = (v,min,max,label) => Number.isFinite(v)&&v>=min&&v<=max?v:fail('Invalid '+label);
+  const cleanName = n => String(n||'Player').replace(/[^a-zA-Z0-9 _-]/g,'').trim().slice(0,12)||'Player';
+  const key=()=>PREFIX+P.mode+'.'+P.name.toLowerCase();
+  function item(s,bank=false){
+    if(s===null && !bank)return null;
+    if(!object(s)||!Engine.validItem(s.id))fail('Unknown item');
+    const it=ITEMS[s.id],n=int(s.n,1,it.stack?Engine.MAX_STACK:it.doses||1,'item quantity');
+    if(bank){const qty=int(s.qty,1,Engine.MAX_STACK,'bank count');if(it.stack&&qty!==1)fail('Stack bank count must be 1');return{id:s.id,n,qty};}
+    return{id:s.id,n};
+  }
+  P.validate = data => {
+    if(!object(data)||data.version!==VERSION)fail('Unsupported save version');
+    if(!['arena','expedition'].includes(data.mode))fail('Unknown game mode');
+    const name=cleanName(data.name);if(name!==data.name)fail('Invalid profile name');
+    const a=data.player;if(!object(a)||!object(a.stats)||!object(a.eq))fail('Missing character data');
+    if(!Array.isArray(a.inv)||a.inv.length!==28)fail('Inventory must have exactly 28 slots');
+    const stats={};for(const k of ['atk','str','def','rng','mag','pray','hp'])stats[k]=int(a.stats[k],1,99,k);
+    const eq={};for(const slot of SLOTS)if(a.eq[slot]){eq[slot]=item(a.eq[slot]);if(ITEMS[eq[slot].id].slot!==slot)fail('Equipment in wrong slot');}
+    if(eq.weapon&&ITEMS[eq.weapon.id].two&&eq.shield)fail('Two-handed weapon conflicts with shield');
+    const inv=a.inv.map(s=>item(s));
+    const bank=Array.isArray(data.bank)&&data.bank.length<=120?data.bank.map(s=>item(s,true)):fail('Invalid bank');
+    const xp={};for(const k of Expedition.xpKeys)xp[k]=int(data.xp&&data.xp[k]!==undefined?data.xp[k]:0,0,Expedition.xpFor(99),k+' XP');
+    if(data.mode==='expedition')for(const k of Object.keys(stats))if(stats[k]!==Expedition.levelFor(xp[k]))fail('XP does not match '+k+' level');
+    const progress={},claimed={};
+    for(const q of Expedition.quests){
+      progress[q.id]=int(data.progress&&data.progress[q.id]!==undefined?data.progress[q.id]:0,0,q.goal,'contract progress');
+      claimed[q.id]=!!(data.claimed&&data.claimed[q.id]===true);
+      if(claimed[q.id]&&progress[q.id]<q.goal)fail('Claimed contract is incomplete');
+    }
+    const metrics={};for(const k of ['kills','deaths','streak','best','dmgDealt','dmgTaken'])metrics[k]=int(data.metrics&&data.metrics[k]!==undefined?data.metrics[k]:0,0,Engine.MAX_STACK,k);
+    const kit={};for(const k of ['skin','hair','shirt','pants','boots'])if(a.kit&&a.kit[k]!==undefined)kit[k]=int(a.kit[k],0,0xffffff,'appearance');
+    kit.hairStyle=int(a.kit&&a.kit.hairStyle!==undefined?a.kit.hairStyle:1,0,2,'hair style');
+    const player={stats,eq,inv,kit,hp:finite(a.hp,0,stats.hp+30,'hitpoints'),pp:finite(a.pp,0,stats.pray,'prayer'),
+      x:int(a.x,0,MAPN-1,'x'),y:int(a.y,0,MAPN-1,'y'),run:finite(a.run,0,100,'energy'),
+      spec:finite(a.spec,0,100,'special energy'),runOn:a.runOn!==false,autoRetal:a.autoRetal!==false,
+      loadoutKind:Object.prototype.hasOwnProperty.call(LOADOUTS,a.loadoutKind)?a.loadoutKind:'main'};
+    return{version:VERSION,name,mode:data.mode,player,bank,xp,progress,claimed,metrics,pvmKills:int(data.pvmKills||0,0,Engine.MAX_STACK,'PvM kills'),savedAt:typeof data.savedAt==='string'?data.savedAt.slice(0,40):''};
+  };
+  P.parse = raw => {if(typeof raw!=='string'||raw.length>150000)fail('Save is too large');return P.validate(JSON.parse(raw));};
+  function store(){return P.storage||window.localStorage;}
+  P.loadSettings = () => {
+    try{
+      const raw=store().getItem(PREFIX+'settings'),s=raw?JSON.parse(raw):{};
+      if(['low','balanced','high'].includes(s.quality))P.settings.quality=s.quality;
+      if(['auto','classic','touch'].includes(s.layout))P.settings.layout=s.layout;
+      for(const k of ['sound','showFps','reduceMotion','cameraSmooth'])if(typeof s[k]==='boolean')P.settings[k]=s[k];
+    }catch(_){P.status='Browser storage unavailable';}
+  };
+  P.saveSettings = () => {try{store().setItem(PREFIX+'settings',JSON.stringify(P.settings));return true;}catch(_){P.status='Settings could not be stored';return false;}};
+  P.select = (name,mode) => {P.name=cleanName(name);P.mode=mode==='expedition'?'expedition':'arena';P.blocked=false;};
+  P.read = () => {
+    let raw,backup;
+    try{raw=store().getItem(key());backup=store().getItem(key()+'.backup');}catch(_){P.status='Storage unavailable — export a backup to keep progress';return null;}
+    if(!raw){P.status='New local profile';return null;}
+    try{const d=P.parse(raw);if(d.mode!==P.mode||d.name.toLowerCase()!==P.name.toLowerCase())fail('Wrong profile');P.status='Local profile loaded';return d;}
+    catch(_){
+      try{const d=P.parse(backup);if(d.mode!==P.mode||d.name.toLowerCase()!==P.name.toLowerCase())fail('Wrong backup');P.status='Recovered the previous valid backup';return d;}
+      catch(_){P.blocked=true;P.status='Damaged save preserved. Import a backup or explicitly reset this profile.';return null;}
+    }
+  };
+  P.capture = () => {
+    if(!G.player)fail('No active character');
+    const a=G.player,metrics={};for(const k of ['kills','deaths','streak','best','dmgDealt','dmgTaken'])metrics[k]=Math.floor(clamp(G[k]||0,0,Engine.MAX_STACK));
+    const data={version:VERSION,name:P.name,mode:P.mode,savedAt:new Date().toISOString(),
+      player:{stats:{...a.stats},eq:a.eq,inv:a.inv,kit:a.kit,hp:a.hp,pp:a.pp,x:a.x,y:a.y,run:a.run,spec:a.spec,runOn:a.runOn,autoRetal:a.autoRetal,loadoutKind:a.loadoutKind||'main'},
+      bank:Expedition.bank,xp:Expedition.xp,progress:Expedition.progress,claimed:Expedition.claimed,pvmKills:Expedition.pvmKills,metrics};
+    return P.validate(data);
+  };
+  P.apply = data => {
+    const d=P.validate(data);if(d.mode!==P.mode)fail('A save from another game mode cannot be loaded here.');
+    const a=G.player,s=d.player;
+    Engine.clearTransient(a);
+    a.name=P.name=d.name;a.stats={...s.stats};a.cur={...s.stats};a.maxHp=s.stats.hp;
+    a.eq=s.eq;a.inv=s.inv;a.kit=s.kit;a.hp=s.hp>0?s.hp:a.maxHp;a.pp=s.hp>0?s.pp:s.stats.pray;
+    const valid=s.hp>0&&passable(s.x,s.y);a.x=valid?s.x:48;a.y=valid?s.y:34;
+    a.run=s.run;a.spec=s.spec;a.dead=false;a.prayers.clear();a.overhead=null;a.anim=null;a.frozen=0;a.skull=0;
+    a.style=0;a.autocast=null;a.specOn=false;a.runOn=s.runOn;a.autoRetal=s.autoRetal;a.loadoutKind=s.loadoutKind;
+    a.level=combatLevel(a.stats);a.protectUntil=G.tick+20;recalcBonus(a);
+    Expedition.bank=d.bank;Expedition.xp=d.xp;Expedition.progress=d.progress;Expedition.claimed=d.claimed;Expedition.pvmKills=d.pvmKills;
+    for(const k of Object.keys(d.metrics))G[k]=d.metrics[k];
+    if(typeof Polish!=='undefined')Polish.snapCamera=true;
+  };
+  P.save = (notify=false) => {
+    if(!G.player||P.blocked)return false;
+    try{
+      const raw=JSON.stringify(P.capture()),s=store(),previous=s.getItem(key());
+      if(previous){try{P.parse(previous);s.setItem(key()+'.backup',previous);}catch(_){/* Do not replace a good backup with corrupt data. */}}
+      s.setItem(key(),raw);P.lastSave=performance.now();P.status='Saved '+new Date().toLocaleTimeString();
+      if(notify)gameMsg('Profile saved in this browser.');return true;
+    }catch(err){P.status='Save failed — export a backup to keep progress';if(notify)gameMsg(P.status);return false;}
+  };
+  P.exportFile = () => {
+    try{
+      const raw=JSON.stringify(P.capture(),null,2),blob=new Blob([raw],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download='SonnetOSRS-'+P.name+'-'+P.mode+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);P.status='Backup exported';
+    }catch(err){P.status=err.message;}
+  };
+  P.importFile = async file => {
+    if(!file||file.size>150000)fail('Choose a save smaller than 150 KB.');
+    const d=P.parse(await file.text());
+    if(d.mode!==P.mode)fail('Switch to '+d.mode+' before importing this save.');
+    if(!window.confirm('Replace the current '+P.mode+' session with '+d.name+'? The current session will be saved first.'))return false;
+    P.save();P.name=d.name;P.blocked=false;P.apply(d);P.save(true);return true;
+  };
+  P.reset = () => {
+    if(!window.confirm('Permanently reset only '+P.name+' / '+P.mode+' on this browser? Export a backup first.'))return false;
+    try{store().removeItem(key());store().removeItem(key()+'.backup');P.blocked=false;return true;}catch(_){P.status='Storage unavailable';return false;}
+  };
+  P.key=key;P.cleanName=cleanName;
+  return P;
+})();
+
+/* ---- client.js ---- */
+'use strict';
+/* Responsive presentation of the existing logical client. The original UI
+ * remains the source of inventory/prayer/combat interactions; touch crops map
+ * back to those exact logical coordinates rather than approximating clicks.
+ */
+const Client = (() => {
+  const C={mobile:false,regions:[],panel:null,menu:null,dialog:null,withdrawQty:1,width:0,height:0};
+  const el=(tag,props={},parent)=>{const e=document.createElement(tag);for(const [k,v]of Object.entries(props)){if(k==='text')e.textContent=v;else if(k==='class')e.className=v;else if(k==='onClick')e.addEventListener('click',v);else e[k]=v;}if(parent)parent.appendChild(e);return e;};
+  const button=(text,fn,parent,disabled=false)=>el('button',{type:'button',text,onClick:fn,disabled},parent);
+  const refresh=fn=>()=>{fn();C.renderPanel();};
+  C.init=()=>{
+    const style=el('style',{text:`
+      :root{color-scheme:dark;--ink:#d7e0db;--muted:#9bafa4;--gold:#d6bb7f;--edge:#415448;--bg:#121b18}
+      *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101715;color:var(--ink);font-family:system-ui,sans-serif}
+      button,input,select{font:inherit}button{border:1px solid var(--edge);border-radius:7px;background:#26382f;color:var(--ink);padding:9px 12px;min-height:44px;cursor:pointer;touch-action:manipulation}
+      button:hover,button:focus-visible{border-color:var(--gold);background:#354a3d;outline:2px solid transparent}button:disabled{opacity:.45;cursor:default}
+      input,select{min-height:44px;border:1px solid #536358;border-radius:6px;background:#1a2821;color:var(--ink);padding:8px;width:100%}
+      #client-bar{position:fixed;inset:0 0 auto;z-index:20;min-height:48px;display:flex;gap:6px;align-items:center;padding:4px max(8px,env(safe-area-inset-right)) 4px max(8px,env(safe-area-inset-left));background:#18251fed;border-bottom:1px solid #3b5142;padding-top:max(4px,env(safe-area-inset-top))}
+      #client-bar strong{font-size:13px;letter-spacing:2px;color:var(--gold);margin-right:auto;white-space:nowrap}#client-bar button{min-height:40px;padding:7px 11px;font-size:13px}
+      #client-surface{position:fixed;inset:0;z-index:3;touch-action:none;display:none}
+      #client-footer{position:fixed;inset:auto 0 0;z-index:21;background:#14231fee;border-top:1px solid #455646;padding:5px 6px max(5px,env(safe-area-inset-bottom));display:none}
+      .client-row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin:2px 0}.client-row button{padding:6px 2px;font-size:12px}.client-row button.active{border-color:var(--gold);color:#ffe1a0;background:#3e4832}
+      #client-status{position:fixed;inset:auto 0 4px;text-align:center;color:var(--muted);font-size:12px;z-index:10;pointer-events:none}
+      #client-shade{position:fixed;inset:0;z-index:40;background:#080e0bd9;display:none;align-items:center;justify-content:center;padding:14px}
+      #client-panel{position:relative;width:min(760px,100%);max-height:calc(100dvh - 28px);overflow:auto;border:1px solid #819477;border-radius:14px;background:linear-gradient(145deg,#22362c,#14221c);padding:22px;box-shadow:0 24px 90px #0009;overscroll-behavior:contain}
+      #client-panel h1{font-size:29px;letter-spacing:-1px;color:#f0d49a;margin:2px 0 10px}#client-panel h2{font-size:17px;margin:15px 0 8px;color:#dfd5b7}#client-panel p{line-height:1.6;margin:8px 0;color:#bed0c1}.client-close{position:absolute;right:14px;top:12px;min-width:44px}
+      .client-lead{font-size:13px;letter-spacing:2px;color:#95c3a1}.client-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0}.client-card{background:#1021199c;border:1px solid #405748;padding:15px;border-radius:10px}.client-card h2{margin-top:0!important}.client-card small{display:block;color:#abc0ad;margin:6px 0 12px;line-height:1.5}
+      .client-card progress{width:100%;height:9px;accent-color:#b8cb8a}.client-card label{display:block;font-size:13px;margin:10px 0 5px;color:#c8d9cd}.client-controls{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.client-help{font-size:13px;color:#a4b9ab!important}
+      .client-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}.client-items button{font-size:11px;min-height:86px;padding:6px;overflow-wrap:anywhere}.client-items canvas{display:block;position:static!important;width:32px;height:32px;margin:0 auto 4px;image-rendering:pixelated}
+      .client-message{padding:10px;border:1px solid #657551;background:#263724;color:#e5dfb8;font-size:13px;border-radius:6px;margin:10px 0}
+      #client-context{position:fixed;z-index:35;display:none;max-width:calc(100vw - 16px);width:260px;max-height:60dvh;overflow:auto;background:#1d2d25;border:1px solid #b2a575;box-shadow:0 8px 30px #0008;border-radius:8px;padding:5px}#client-context button{display:block;width:100%;text-align:left;border:0;background:transparent;font-size:14px;min-height:44px}
+      #client-dialog{position:fixed;z-index:34;inset:auto 10px 106px;padding:14px;background:#25382bed;border:1px solid #8da37a;border-radius:10px;max-height:50dvh;overflow:auto;display:none}#client-dialog p{font-size:14px;margin:6px 0}#client-dialog button{margin:4px;width:calc(100% - 8px)}
+      @media(max-width:580px){#client-bar strong{font-size:11px;letter-spacing:1px}#client-bar button{padding:6px 8px;font-size:12px}#client-panel{padding:18px 14px}#client-panel h1{font-size:25px;padding-right:46px}}
+      @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+    `},document.head);
+    C.bar=el('div',{id:'client-bar'},document.body);
+    el('strong',{text:'SONNET / LEEFY'},C.bar);
+    button('Journal',()=>C.open('journal'),C.bar);button('Bank',()=>Expedition.goBank(),C.bar);button('Save',()=>{Profiles.save(true);C.status.textContent=Profiles.status;},C.bar);button('Menu',()=>C.open('menu'),C.bar);
+    C.surface=el('canvas',{id:'client-surface'},document.body);C.ctx=C.surface.getContext('2d');
+    C.footer=el('div',{id:'client-footer'},document.body);
+    const tabs=el('div',{class:'client-row'},C.footer);C.tabButtons=[];
+    for(const [text,tab]of [['Bag',3],['Gear',4],['Prayer',5],['Magic',6],['Fight',0]])C.tabButtons.push([button(text,()=>{UI.tab=tab;G.spellSel=null;},tabs),tab]);
+    button('Skills',()=>C.open('skills'),tabs);
+    const quick=el('div',{class:'client-row'},C.footer);
+    button('Eat',()=>{if(G.player)eatFood(G.player,findFoodIdx(G.player));},quick);
+    button('Potion',()=>{if(G.player){let i=findPotIdx(G.player,'prayer');if(i<0)i=findPotIdx(G.player,'restore');drinkPotion(G.player,i);}},quick);
+    button('Run',()=>{if(G.player)G.player.runOn=!G.player.runOn;},quick);
+    button('Special',()=>{if(G.player&&weaponOf(G.player).spec)G.player.specOn=!G.player.specOn;},quick);
+    button('Chat',()=>C.open('chat'),quick);
+    button('Full',async()=>{try{if(!document.fullscreenElement)await document.documentElement.requestFullscreen();else await document.exitFullscreen();}catch(_){gameMsg('Fullscreen is unavailable in this browser.');}},quick);
+    C.status=el('div',{id:'client-status'},document.body);
+    C.shade=el('div',{id:'client-shade'},document.body);
+    C.root=el('section',{id:'client-panel',role:'dialog'},C.shade);C.root.setAttribute('aria-modal','true');C.root.setAttribute('aria-label','Game menu');
+    C.context=el('div',{id:'client-context'},document.body);C.dialogRoot=el('div',{id:'client-dialog'},document.body);
+    C.root.addEventListener('keydown',e=>{
+      if(e.key==='Escape'&&App.mode==='game'){e.preventDefault();C.close();}
+      if(e.key==='Tab'){
+        const nodes=[...C.root.querySelectorAll('button:not(:disabled),input,select,[tabindex="0"]')].filter(x=>x.offsetParent);
+        if(!nodes.length)return;const first=nodes[0],last=nodes[nodes.length-1];
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+      }
+    });
+    C.layout();
+  };
+  C.layout=()=>{
+    if(!C.surface)return;
+    C.width=Math.max(1,document.documentElement.clientWidth||innerWidth);C.height=Math.max(1,innerHeight);
+    C.mobile=Profiles.settings.layout==='touch'||(Profiles.settings.layout==='auto'&&matchMedia('(pointer: coarse)').matches);
+    const gl=App.glCanvas,wrap=document.getElementById('wrap'),top=C.bar.getBoundingClientRect().bottom+6;
+    C.surface.style.display=C.mobile?'block':'none';C.footer.style.display=C.mobile?'block':'none';C.status.style.display=C.mobile?'none':'block';
+    C.regions=[];
+    if(C.mobile){
+      if(gl.parentNode!==document.body)document.body.insertBefore(gl,C.surface);
+      wrap.style.display='none';
+      const bottom=C.footer.getBoundingClientRect().height+10,avail=C.height-top-bottom,w=C.width;
+      const landscape=w>C.height;
+      let world,panel,map;
+      if(landscape){
+        const panelW=Math.min(206,w*.27),s=Math.min(panelW/200,Math.max(1,avail)/265),ph=265*s;
+        panel={x:w-panelW-8,y:top,w:200*s,h:ph};
+        world={x:8,y:top,w:Math.max(120,w-panelW-24),h:Math.max(80,avail)};
+        // The minimap is available in the classic client; on short landscape
+        // screens the panel receives the space instead of covering combat.
+        map=null;
+      }else{
+        const wh=Math.max(120,Math.min(w*.74,avail*.47));world={x:8,y:top,w:w-16,h:wh};
+        const ph=Math.max(90,avail-wh-12),s=Math.min((w*.53)/200,ph/265);
+        panel={x:w-200*s-8,y:top+wh+10,w:200*s,h:265*s};
+        const mw=Math.max(70,panel.x-16);map={x:8,y:panel.y,w:mw,h:mw*166/238};
+      }
+      C.world=world;C.panelRect=panel;C.mapRect=map;
+      C.regions.push({src:{x:VX,y:VY,w:VW,h:VH},dst:world},{src:{x:543,y:201,w:200,h:265},dst:panel});
+      if(map)C.regions.push({src:{x:523,y:0,w:238,h:166},dst:map});
+      Object.assign(gl.style,{position:'fixed',left:world.x+'px',top:world.y+'px',width:world.w+'px',height:world.h+'px',zIndex:'1',imageRendering:Profiles.settings.quality==='low'?'pixelated':'auto'});
+      const dpr=Math.min(devicePixelRatio||1,2);C.surface.width=Math.round(w*dpr);C.surface.height=Math.round(C.height*dpr);C.surface.style.width=w+'px';C.surface.style.height=C.height+'px';C.ctx.setTransform(dpr,0,0,dpr,0,0);
+      if(App.cam)App.cam.aspect=world.w/world.h;
+    }else{
+      if(gl.parentNode!==wrap)wrap.insertBefore(gl,document.getElementById('ui'));
+      wrap.style.display='block';
+      Object.assign(gl.style,{position:'absolute',left:VX+'px',top:VY+'px',width:VW+'px',height:VH+'px',zIndex:'',imageRendering:'auto'});
+      const max=Math.max(.01,Math.min(C.width/W,(C.height-top-26)/H,4));
+      let s=max;const dpr=devicePixelRatio||1;
+      if(UI.sharp&&s*dpr>=1)s=Math.floor(s*dpr)/dpr;
+      App.scale=s;wrap.style.transform='translate('+Math.max(0,Math.floor((C.width-W*s)/2))+'px,'+Math.max(top,Math.floor(top+(C.height-top-26-H*s)/2))+'px) scale('+s+')';
+      if(App.cam)App.cam.aspect=VW/VH;
+    }
+    if(typeof Polish!=='undefined')Polish.resize();
+  };
+  C.toGame=(x,y)=>{
+    if(!C.mobile){const r=INP.canvas.getBoundingClientRect();return{x:(x-r.left)*W/r.width,y:(y-r.top)*H/r.height};}
+    for(const r of C.regions)if(inRect(x,y,r.dst))return{x:r.src.x+(x-r.dst.x)*r.src.w/r.dst.w,y:r.src.y+(y-r.dst.y)*r.src.h/r.dst.h};
+    return{x:-100,y:-100};
+  };
+  C.fromGame=(x,y)=>{for(const r of C.regions)if(inRect(x,y,r.src))return{x:r.dst.x+(x-r.src.x)*r.dst.w/r.src.w,y:r.dst.y+(y-r.src.y)*r.dst.h/r.src.h};return{x:8,y:60};};
+  C.draw=()=>{
+    if(!C.surface)return;
+    if(C.mobile){
+      const p=C.ctx;p.clearRect(0,0,C.width,C.height);p.imageSmoothingEnabled=false;
+      for(const r of C.regions)p.drawImage(INP.canvas,r.src.x,r.src.y,r.src.w,r.src.h,r.dst.x,r.dst.y,r.dst.w,r.dst.h);
+      if(C.mapRect){
+        const r=C.mapRect,x=r.x,y=r.y+r.h+16,w=r.w;
+        p.font='12px system-ui';p.fillStyle='#d8c99d';p.fillText(Expedition.active?'EXPEDITION':'ARENA',x,y);
+        p.fillStyle='#c4d7c8';p.fillText('HP '+Math.ceil(G.player.hp)+' / '+G.player.maxHp,x,y+22);p.fillText('Run '+Math.floor(G.player.run)+'%  Spec '+Math.floor(G.player.spec)+'%',x,y+42);
+        const lines=G.msgs.slice(-3).map(m=>stripTags(m.text||'').slice(0,Math.max(10,Math.floor(w/6))));
+        p.fillStyle='#96b6a3';lines.forEach((line,i)=>p.fillText(line,x,y+66+i*17,w));
+      }
+      for(const [b,tab]of C.tabButtons)b.classList.toggle('active',UI.tab===tab);
+    }
+    C.syncMenu();C.syncDialog();
+    if(!C.lastStatus||G.now-C.lastStatus>1000){C.lastStatus=G.now;C.status.textContent=Profiles.status+' · '+(Expedition.active?'Offline Expedition':'Offline Arena')+' · '+(Profiles.settings.showFps?Math.round(Polish.fps)+' fps · ':'')+'600 ms simulation';}
+  };
+  C.syncMenu=()=>{
+    if(!C.mobile){C.context.style.display='none';return;}
+    const m=UI.menu;if(m===C.menu)return;C.menu=m;C.context.replaceChildren();
+    if(!m){C.context.style.display='none';return;}
+    for(const entry of m.entries)button(stripTags(entry.text),()=>{if(UI.menu!==m)return;UI.menu=null;C.menu=null;C.context.style.display='none';entry.fn();},C.context);
+    C.context.style.display='block';const pt=C.fromGame(UI.mouse.x,UI.mouse.y),h=C.context.getBoundingClientRect().height;
+    C.context.style.left=clamp(pt.x-30,8,Math.max(8,C.width-268))+'px';C.context.style.top=clamp(pt.y-20,58,Math.max(58,C.height-h-12))+'px';
+  };
+  C.syncDialog=()=>{
+    const d=C.mobile?G.dialog:null;if(C.dialog===d)return;C.dialog=d;C.dialogRoot.replaceChildren();C.dialogRoot.style.display=d?'block':'none';if(!d)return;
+    el('strong',{text:d.name||d.title||'Conversation'},C.dialogRoot);
+    if(d.type==='options'){for(const o of d.opts)button(o.t,()=>{if(G.dialog!==d)return;G.dialog=null;o.fn();},C.dialogRoot);}
+    else{for(const l of d.lines||[])el('p',{text:l},C.dialogRoot);button('Continue',dialogContinue,C.dialogRoot);}
+  };
+  C.close=()=>{if(App.mode!=='game')return;C.panel=null;C.shade.style.display='none';if(typeof Controls!=='undefined')Controls.cancelAll();};
+  C.open=page=>{
+    if(!G.player && !['menu','welcome'].includes(page))page='welcome';
+    if(page==='bank'&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
+    C.panel=page;C.shade.style.display='flex';UI.menu=null;if(typeof Controls!=='undefined')Controls.cancelAll();C.renderPanel();
+    const f=C.root.querySelector('input,button');if(f)f.focus({preventScroll:true});
+  };
+  C.renderPanel=()=>{
+    if(!C.panel)return;const root=C.root;root.replaceChildren();
+    if(App.mode==='game')button('×',C.close,root).className='client-close';
+    el('div',{class:'client-lead',text:'LEEFY EXPANSION · v0.2'},root);
+    const titles={welcome:'Choose your adventure',menu:'Your local world',journal:'Expedition journal',skills:'Character progression',bank:'Camp bank',craft:'The forge',cooking:'Camp cooking',chat:'Say something'};
+    el('h1',{text:titles[C.panel]||'SonnetOSRS'},root);
+    if(C.panel==='welcome'||C.panel==='menu'){
+      el('p',{text:'The original PvP sandbox, plus a persistent gathering and PvM expedition. Everything runs locally. No RuneScape account or password is needed.'},root);
+      const label=el('label',{text:'Local profile name'},root);label.htmlFor='profile-name';const name=el('input',{id:'profile-name',value:Profiles.name,maxLength:12,placeholder:'Your name',autocomplete:'off'},root);
+      const cards=el('div',{class:'client-grid'},root);
+      for(const [mode,title,desc]of [['arena','Arena','Practice PvP against tactical bots. Free kits, specials, prayers and magic.'],['expedition','Expedition','Gather, cook, smith, fight, bank your loot and complete six contracts.']]){
+        const card=el('div',{class:'client-card'},cards);el('h2',{text:title},card);el('small',{text:desc},card);
+        const b=button('Play '+title,()=>startGame(name.value,mode),card);b.dataset.mode=mode;
+      }
+      el('h2',{text:'Display & comfort'},root);const settings=el('div',{class:'client-grid'},root);
+      for(const [key,title,options]of [['quality','Render quality',['low','balanced','high']],['layout','Interface',['auto','classic','touch']]]){
+        const card=el('div',{class:'client-card'},settings);el('label',{text:title},card);const s=el('select',{},card);for(const value of options)el('option',{value,text:value,selected:Profiles.settings[key]===value},s);
+        s.onchange=()=>{Profiles.settings[key]=s.value;Profiles.saveSettings();Polish.configure();C.layout();};
+      }
+      const tog=el('div',{class:'client-controls'},root);
+      for(const [key,label]of [['sound','Sound'],['reduceMotion','Reduced motion'],['cameraSmooth','Smooth camera'],['showFps','FPS']])button(label+': '+(Profiles.settings[key]?'on':'off'),refresh(()=>{Profiles.settings[key]=!Profiles.settings[key];UI.sound=Profiles.settings.sound;Profiles.saveSettings();Polish.configure();}),tog);
+      if(G.player){
+        el('h2',{text:'Backups'},root);const row=el('div',{class:'client-controls'},root);
+        button('Save now',refresh(()=>Profiles.save(true)),row);button('Export save',refresh(()=>Profiles.exportFile()),row);
+        const file=el('input',{type:'file',accept:'.json,application/json'},root);file.setAttribute('aria-label','Import a local save');
+        file.onchange=async()=>{try{await Profiles.importFile(file.files[0]);}catch(err){Profiles.status=err.message;}C.renderPanel();};
+        button('Reset this profile',()=>{if(Profiles.reset())startGame(Profiles.name,Profiles.mode,{skipSave:true});},row);
+      }
+      el('div',{class:'client-message',text:Profiles.status},root);
+      el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause this offline simulation.'},root);
+    }else if(C.panel==='journal'){
+      if(!Expedition.active){el('p',{text:'Arena is the free-kit combat sandbox. Open Menu → Expedition for persistent gathering, crafting, enemies and contracts.'},root);}
+      else{
+        el('p',{text:'Camp is the safe zone. Ore seams lie west, coppice trees north and fishing pools east. Bandits are beyond the east arch; the Guardian is farther north on the map. Click a destination below to mark it.'},root);
+        const row=el('div',{class:'client-controls'},root);
+        for(const [name,x,y]of [['Camp',48,34],['Ore',37,32],['Timber',46,25],['Fish',60,29],['Bandits',63,40],['Guardian',61,67]])button(name,()=>{Expedition.waypoint={name,x,y};C.close();gameMsg(name+' marked on your map.');},row);
+        const grid=el('div',{class:'client-grid'},root);
+        for(const q of Expedition.quests){const card=el('div',{class:'client-card'},grid),n=Expedition.progress[q.id]||0;el('h2',{text:q.name},card);el('small',{text:q.text},card);el('progress',{value:n,max:q.goal},card);el('small',{text:n+' / '+q.goal+' · '+q.coins+' coins + trail token'},card);button(Expedition.claimed[q.id]?'Claimed':'Claim reward',refresh(()=>Expedition.claim(q.id)),card,n<q.goal||Expedition.claimed[q.id]);}
+        el('p',{class:'client-help',text:'PvM defeats: '+Expedition.pvmKills+'. Expedition death returns you to camp with equipment kept. Arena and Expedition profiles are separate.'},root);
+      }
+    }else if(C.panel==='skills'){
+      const grid=el('div',{class:'client-grid'},root);
+      for(const k of Expedition.xpKeys){const xp=Expedition.xp[k]||0,l=Expedition.active?Expedition.levelFor(xp):(G.player.stats[k]||0),card=el('div',{class:'client-card'},grid);el('h2',{text:k+' · '+(l||'not trained')},card);if(Expedition.active){el('progress',{value:xp-Expedition.xpFor(l),max:l===99?1:Expedition.xpFor(l+1)-Expedition.xpFor(l)},card);el('small',{text:fmtNum(xp)+' XP'+(l<99?' · '+fmtNum(Expedition.xpFor(l+1)-xp)+' to next level':' · MAX')},card);}else el('small',{text:'Arena uses preset combat stats; no expedition XP is earned.'},card);}
+    }else if(C.panel==='bank'){
+      const row=el('div',{class:'client-controls'},root);button('Deposit inventory',refresh(()=>Expedition.deposit(0,true)),row);button('Export backup',()=>Profiles.exportFile(),row);
+      const quantity=el('select',{},row);quantity.style.width='auto';quantity.setAttribute('aria-label','Withdraw quantity');for(const v of [1,5,10,'all'])el('option',{value:String(v),text:'Withdraw '+v,selected:C.withdrawQty===v},quantity);quantity.onchange=()=>C.withdrawQty=quantity.value==='all'?'all':Number(quantity.value);
+      el('p',{class:'client-help',text:'Tap inventory items to deposit. Tap bank entries to withdraw. Potion doses are preserved. '+Expedition.bank.length+' / 120 bank entries.'},root);
+      const grid=el('div',{class:'client-grid'},root);const left=el('div',{},grid),right=el('div',{},grid);el('h2',{text:'Inventory'},left);el('h2',{text:'Bank'},right);const inv=el('div',{class:'client-items'},left),bank=el('div',{class:'client-items'},right);
+      const itemButton=(s,text,fn,parent)=>{const b=button('',refresh(fn),parent),cv=el('canvas',{width:32,height:32},b);cv.getContext('2d').drawImage(itemIcon(s.id),0,0);el('span',{text},b);return b;};
+      G.player.inv.forEach((s,i)=>{if(s)itemButton(s,itemName(s)+(ITEMS[s.id].stack?' ×'+s.n:''),()=>Expedition.deposit(i),inv);});
+      Expedition.bank.forEach((s,i)=>itemButton(s,itemName(s)+' ×'+(ITEMS[s.id].stack?s.n:s.qty),()=>{if(!Expedition.withdraw(i,C.withdrawQty))gameMsg('Not enough room to withdraw that quantity.');},bank));
+      if(Expedition.active){el('h2',{text:'Supply counter · costs coins in your bag'},root);const stock=el('div',{class:'client-controls'},root);for(const [id,n,price]of [['cookedFish',1,15],['water',30,20],['blood',10,40],['trailPick',1,5],['trailAxe',1,5],['trailNet',1,5],['ancstaff',1,100],['msb',1,100],['rarrows',50,30]])button(ITEMS[id].name+' ×'+n+' · '+price,refresh(()=>Expedition.buy(id,n,price)),stock);}
+      else{el('h2',{text:'Practice loadouts · replaces carried gear'},root);const kits=el('div',{class:'client-controls'},root);for(const [kind,label]of [['main','Hybrid'],['pmelee','Melee'],['pranged','Ranged'],['pmage','Magic']])button(label,refresh(()=>restock(kind)),kits);}
+    }else if(C.panel==='craft'||C.panel==='cooking'){
+      el('p',{text:'Ingredients are consumed only when there is space for the complete result.'},root);const grid=el('div',{class:'client-grid'},root);
+      for(const r of Expedition.recipes.filter(r=>r.station===(C.panel==='cooking'?'fire':'forge'))){const card=el('div',{class:'client-card'},grid);el('h2',{text:r.name},card);el('small',{text:Object.entries(r.input).map(([id,n])=>n+' '+ITEMS[id].name).join(' + ')+' → '+ITEMS[r.output[0]].name},card);button('Craft · +'+r.xp+' '+r.skill+' XP',refresh(()=>Expedition.craft(r.id)),card);}
+    }else if(C.panel==='chat'){
+      const form=el('form',{},root),input=el('input',{type:'text',maxLength:78,placeholder:'Message or ::journal',autocomplete:'off'},form);input.setAttribute('aria-label','Chat message');el('button',{type:'submit',text:'Send'},form);form.onsubmit=e=>{e.preventDefault();const t=input.value.trim();C.close();if(t)chatCommand(t);};
+    }
+  };
+  return C;
+})();
+
+/* ---- controls.js ---- */
+'use strict';
+/* One gesture state machine. Cancellations never take the pointerup path. */
+const Controls = (() => {
+  const C={points:new Map(),mouseDown:false,timer:null,gesture:null,clickBlock:new Map()};
+  clientPos=e=>{const p=Client.toGame(e.clientX,e.clientY);return{x:Math.floor(p.x),y:Math.floor(p.y)};};
+  const virtual=(x,y,button=0)=>({clientX:x,clientY:y,button,preventDefault(){}});
+  const domUI=e=>e.target&&e.target.closest&&e.target.closest('#client-panel,#client-bar,#client-footer,#client-context,#client-dialog');
+  const playable=()=>App.mode==='game'&&!Client.panel&&!App.contextLost&&!App.manualPause&&!document.hidden;
+  const clearTimer=()=>{if(C.timer!==null)clearTimeout(C.timer);C.timer=null;};
+  function release(p){try{if(p.target.hasPointerCapture(p.id))p.target.releasePointerCapture(p.id);}catch(_){}}
+  C.cancelAll=()=>{
+    clearTimer();const points=[...C.points.values()];C.points.clear();C.gesture=null;C.mouseDown=false;
+    UI.drag=null;INP.mmb=false;INP.keys={};
+    for(const p of points)release(p);
+    // Clear the old compatibility structure as well for tooling/extensions.
+    if(INP.touch){INP.touch.points.clear();clearTouchLongPress();resetTouchGesture();}
+  };
+  function pair(){const p=[...C.points.values()];return p.length>=2?{dist:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)}:null;}
+  C.down=e=>{
+    if(!playable())return;e.preventDefault();sndInit();
+    const pos=clientPos(e);if(pos.x<0||pos.y<0||pos.x>=W||pos.y>=H)return;
+    UI.touchMode=e.pointerType==='touch';UI.mouse=pos;
+    if(e.pointerType!=='touch'){
+      C.mouseDown=true;onDown(e);
+      try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}return;
+    }
+    const world=inRect(pos.x,pos.y,{x:VX,y:VY,w:VW,h:VH})&&!UI.menu&&!UI.bonusWin;
+    const inventory=!world&&UI.tab===3&&inRect(pos.x,pos.y,PANEL)&&!UI.menu;
+    const p={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,lastX:e.clientX,lastY:e.clientY,
+      target:e.currentTarget,kind:world?'world':inventory?'inventory':'ui',moved:false,held:false,consumed:false,dragging:false};
+    C.points.set(p.id,p);try{p.target.setPointerCapture(p.id);}catch(_){}
+    if(C.points.size>1){
+      clearTimer();UI.drag=null;for(const point of C.points.values())point.consumed=true;
+      C.gesture=[...C.points.values()].every(point=>point.kind==='world')?pair():null;return;
+    }
+    if(world||(!UI.menu&&inRect(pos.x,pos.y,PANEL)&&[3,4,5,6].includes(UI.tab))){
+      C.timer=setTimeout(()=>{
+        C.timer=null;
+        if(!playable()||C.points.get(p.id)!==p||C.points.size!==1||p.moved||p.consumed)return;
+        p.held=true;p.consumed=true;onDown(virtual(p.x,p.y,2));
+      },480);
+    }
+  };
+  C.move=e=>{
+    if(e.pointerType!=='touch'){
+      if(!playable())return;
+      if(domUI(e)&&!C.mouseDown)return;
+      if(INP.mmb && !(e.buttons&4))INP.mmb=false;
+      UI.touchMode=false;onMove(e);return;
+    }
+    const p=C.points.get(e.pointerId);if(!p)return;
+    if(!playable()){C.cancelAll();return;}
+    e.preventDefault();p.x=e.clientX;p.y=e.clientY;UI.mouse=clientPos(e);
+    if(C.points.size>=2){
+      clearTimer();const now=pair();
+      if(C.gesture&&now&&C.gesture.dist>0)INP.cam.dist=clamp(INP.cam.dist* C.gesture.dist/Math.max(1,now.dist),8,26);
+      if(C.gesture)C.gesture=now;return;
+    }
+    if(p.held)return;
+    const delta=Math.hypot(p.x-p.sx,p.y-p.sy);
+    if(delta>7){p.moved=true;clearTimer();}
+    if(p.kind==='world'&&p.moved){
+      const scale=Client.mobile?Math.min(2,Math.max(.5,512/Client.world.w)):1;
+      INP.cam.yaw+=(p.x-p.lastX)*.006*scale;
+      INP.cam.pitch=clamp(INP.cam.pitch+(p.y-p.lastY)*.004*scale,.25,1.35);
+    }else if(p.kind==='inventory'&&p.moved&&!p.consumed){
+      if(!p.dragging){onDown(virtual(p.sx,p.sy));p.dragging=true;}
+      onMove(virtual(p.x,p.y));
+    }
+    p.lastX=p.x;p.lastY=p.y;
+  };
+  C.up=e=>{
+    if(e.pointerType!=='touch'){
+      if(!C.mouseDown)return;C.mouseDown=false;
+      if(!playable()){UI.drag=null;INP.mmb=false;return;}
+      if(UI.drag&&!UI.drag.active){const p=clientPos(e);if(!inRect(p.x,p.y,invSlotRect(UI.drag.from))){UI.drag=null;return;}}
+      onUp(e);return;
+    }
+    const p=C.points.get(e.pointerId);if(!p)return;
+    e.preventDefault();clearTimer();
+    if(playable()&&!p.consumed&&!p.held&&C.points.size===1){
+      if(p.dragging)onUp(virtual(e.clientX,e.clientY));
+      else if(!p.moved){onDown(virtual(e.clientX,e.clientY));onUp(virtual(e.clientX,e.clientY));}
+    }
+    // Chromium may retarget the synthetic click to a newly opened DOM menu.
+    // Canvas actions already ran above; this compatibility click must not run
+    // a second action (e.g. eat food immediately after opening its menu).
+    C.clickBlock.set(p.id,performance.now()+800);
+    C.points.delete(p.id);release(p);
+    if(!C.points.size){C.gesture=null;UI.drag=null;}
+    else{C.gesture=pair();for(const other of C.points.values()){other.consumed=true;other.lastX=other.x;other.lastY=other.y;}}
+  };
+  C.cancel=e=>{if(C.points.has(e.pointerId)||C.mouseDown)C.cancelAll();};
+  C.bind=()=>{
+    const targets=[INP.canvas,Client.surface];
+    addEventListener('pointerdown',e=>C.clickBlock.delete(e.pointerId),true);
+    addEventListener('click',e=>{
+      const until=C.clickBlock.get(e.pointerId);
+      if(until!==undefined){C.clickBlock.delete(e.pointerId);if(performance.now()<until){e.preventDefault();e.stopImmediatePropagation();}}
+      for(const [id,t]of C.clickBlock)if(t<performance.now())C.clickBlock.delete(id);
+    },true);
+    if('PointerEvent'in window){
+      for(const t of targets){t.style.touchAction='none';t.addEventListener('pointerdown',C.down,{passive:false});t.addEventListener('lostpointercapture',C.cancel);}
+      addEventListener('pointermove',C.move,{passive:false});addEventListener('pointerup',C.up,{passive:false});addEventListener('pointercancel',C.cancel);
+    }else{
+      // Conservative legacy mouse fallback; no fake touch-event translation.
+      for(const t of targets)t.addEventListener('mousedown',onDown);
+      addEventListener('mousemove',onMove);addEventListener('mouseup',onUp);
+    }
+    for(const t of targets){t.addEventListener('contextmenu',e=>e.preventDefault());t.addEventListener('wheel',e=>{if(playable())onWheel(e);},{passive:false});}
+    addEventListener('keydown',e=>{
+      if(e.key==='Escape'&&Client.panel&&App.mode==='game'){e.preventDefault();Client.close();return;}
+      if(domUI(e)||/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target&&e.target.tagName||''))return;
+      if(!playable())return;onKeyDown(e);
+    });
+    addEventListener('keyup',e=>onKeyUp(e));addEventListener('blur',C.cancelAll);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden){C.cancelAll();Profiles.save();}});
+    addEventListener('pagehide',()=>{C.cancelAll();Profiles.save();});
+  };
+  return C;
+})();
+
+/* ---- polish.js ---- */
+'use strict';
+/* Presentation-only changes: simulation rules stay at 600 ms.
+ * Dynamic buffers grow on demand and reuse storage between frames.
+ */
+const Polish = (() => {
+  const P={fps:0,particles:[],serial:0,snapCamera:true,dt:1/60,drawCalls:0,vertices:0,extra:null};
+  const settings=()=>Profiles.settings;
+  P.configure=()=>{
+    UI.sound=settings().sound;
+    if(App.R){App.R.fogCol=[.26,.34,.33];App.R.fogRange=settings().quality==='low'?[28,49]:[34,62];}
+    if(settings().reduceMotion)P.particles.length=0;
+    P.resize();
+  };
+  P.resize=()=>{
+    if(!App.glCanvas)return;
+    const aspect=Client.mobile&&Client.world?Client.world.w/Client.world.h:VW/VH;
+    const cap=settings().quality==='low'?512:settings().quality==='high'?1536:1024;
+    const cssWidth=Client.mobile&&Client.world?Client.world.w:VW*(App.scale||1);
+    const factor=settings().quality==='low'?1:Math.min(devicePixelRatio||1,settings().quality==='high'?2:1.5);
+    const width=Math.round(clamp(cssWidth*factor,256,cap)),height=Math.round(width/aspect);
+    if(App.glCanvas.width!==width)App.glCanvas.width=width;
+    if(App.glCanvas.height!==height)App.glCanvas.height=height;
+  };
+  Renderer.prototype.pack=function(mesh){
+    const need=mesh.count*24;
+    if(!mesh._packed||mesh._packed.byteLength<need){let cap=1024;while(cap<need)cap*=2;mesh._packed=new ArrayBuffer(cap);mesh._f32=new Float32Array(mesh._packed);mesh._u8=new Uint8Array(mesh._packed);}
+    const f=mesh._f32,u=mesh._u8;
+    for(let i=0;i<mesh.count;i++){const a=i*6,b=i*5,c=i*4;f[a]=mesh.p[b];f[a+1]=mesh.p[b+1];f[a+2]=mesh.p[b+2];f[a+3]=mesh.p[b+3];f[a+4]=mesh.p[b+4];const off=(a+5)*4;u[off]=mesh.c[c];u[off+1]=mesh.c[c+1];u[off+2]=mesh.c[c+2];u[off+3]=mesh.c[c+3];}
+    return new Uint8Array(mesh._packed,0,need);
+  };
+  Renderer.prototype.drawDynamic=function(mesh){
+    if(!mesh.count)return;const gl=this.gl,data=this.pack(mesh);
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.dynBuf);
+    if(!this.dynamicCapacity||data.byteLength>this.dynamicCapacity){let n=1024;while(n<data.byteLength)n*=2;this.dynamicCapacity=n;gl.bufferData(gl.ARRAY_BUFFER,n,gl.DYNAMIC_DRAW);}
+    gl.bufferSubData(gl.ARRAY_BUFFER,0,data);this.bindAttribs();
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.textures[mesh.tex]||this.textures.white);gl.uniform1i(this.uTex,0);
+    gl.drawArrays(gl.TRIANGLES,0,mesh.count);P.drawCalls++;P.vertices+=mesh.count;
+  };
+  const oldGPU=Renderer.prototype.drawGPU;
+  Renderer.prototype.drawGPU=function(g){oldGPU.call(this,g);if(g.count){P.drawCalls++;P.vertices+=g.count;}};
+  Renderer.prototype.begin=function(cam){
+    const gl=this.gl;P.drawCalls=0;P.vertices=0;
+    gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.clearColor(...this.fogCol,1);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(this.prog);
+    if(!this.vpBuffer)this.vpBuffer=new Float32Array(16);this.vpBuffer.set(cam.vp);
+    gl.uniformMatrix4fv(this.uVP,false,this.vpBuffer);gl.uniform3f(this.uEye,...cam.eye);gl.uniform2f(this.uFog,...this.fogRange);gl.uniform3f(this.uFogCol,...this.fogCol);
+  };
+  Camera.prototype.update=function(){
+    const smooth=settings().cameraSmooth&&!settings().reduceMotion;
+    this._visibleDist=this._visibleDist===undefined?this.dist:lerp(this._visibleDist,this.dist,smooth?1-Math.exp(-P.dt*16):1);
+    this.pitch=clamp(this.pitch,.25,1.35);this.yaw=((this.yaw%TAU)+TAU)%TAU;
+    const dh=Math.cos(this.pitch)*this._visibleDist,dv=Math.sin(this.pitch)*this._visibleDist;
+    this.eye=[this.tx-Math.sin(this.yaw)*dh,this.ty+dv,this.tz+Math.cos(this.yaw)*dh];
+    this.view=M4.lookAt(this.eye,[this.tx,this.ty,this.tz],[0,1,0]);
+    const aspect=this.aspect||VW/VH;this.vp=M4.mul(M4.persp(this.fovy,aspect,.25,90),this.view);
+    let fx=this.tx-this.eye[0],fy=this.ty-this.eye[1],fz=this.tz-this.eye[2];const l=Math.hypot(fx,fy,fz)||1;fx/=l;fy/=l;fz/=l;
+    let rx=-fz,rz=fx;const rl=Math.hypot(rx,rz)||1;rx/=rl;rz/=rl;
+    this.fwd=[fx,fy,fz];this.right=[rx,0,rz];this.up=[-rz*fy,rz*fx-rx*fz,rx*fy];
+    this.tanY=Math.tan(this.fovy/2);this.tanX=this.tanY*aspect;
+  };
+  P.camera=(cam,rp,gh,dt)=>{
+    P.dt=dt;const snap=P.snapCamera||Math.hypot(cam.tx-rp[0],cam.tz+rp[1])>8;
+    const t=snap||!settings().cameraSmooth||settings().reduceMotion?1:1-Math.exp(-dt*20);
+    cam.tx=lerp(cam.tx,rp[0],t);cam.ty=lerp(cam.ty,gh+.75,t);cam.tz=lerp(cam.tz,-rp[1],t);P.snapCamera=false;cam.update();
+    P.fps=lerp(P.fps,dt>0?1/dt:P.fps,.035);
+  };
+  P.burst=(x,y,color,n=8)=>{
+    if(settings().reduceMotion||settings().quality==='low')return;
+    const rng=mulberry32(++P.serial*131+G.tick);
+    for(let i=0;i<n&&P.particles.length<160;i++){const a=rng()*TAU,s=.4+rng()*1.2;P.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:1+rng()*2,t:G.now,color,dur:500+rng()*450});}
+  };
+  const SHADOW=new Mesh('white');SHADOW.blend=true;
+  function ring(mesh,x,y,r,width,color,alpha=180){
+    const N=settings().quality==='low'?12:24;
+    for(let i=0;i<N;i++){
+      const a=i/N*TAU,b=(i+1)/N*TAU;
+      const v=(ang,rr)=>{const px=x+Math.cos(ang)*rr,py=y+Math.sin(ang)*rr;return[px,groundH(px,py)+.025,-py];};
+      mesh.quad(v(a,r),v(b,r),v(b,r-width),v(a,r-width),color,false,null,alpha);
+    }
+  }
+  function shadow(a,frac){
+    if(a.dead)return;const p=renderPos(a,frac),r=a.monster==='guardian'?.56:.32;
+    for(let j=0;j<3;j++)ring(SHADOW,p[0],p[1],r+j*.10,.12,0x1c2926,28-j*7);
+  }
+  function drawNode(o){
+    const x=o.x+.5,y=o.y+.5,h=groundH(x,y),m=M4.trans(x,h,-y),live=o.charges>0;
+    if(o.station==='forge'){
+      DYN.box(m,0,.28,0,.47,.28,.42,0x6a7066);DYN.box(m,0,.62,0,.38,.08,.30,0xadb4ad);DYN.box(m,.27,.88,-.28,.13,.40,.12,0x7d8073);
+      DYN.box(m,-.20,.36,.43,.16,.11,.014,0xf4a85d);
+    }else if(o.station==='fire'){
+      for(let i=0;i<6;i++){const a=i/6*TAU;DYN.box(m,Math.cos(a)*.36,.12,Math.sin(a)*.36,.13,.10,.13,0x81877a);}
+      DYN.box(m,0,.13,0,.24,.05,.10,0x8a613a);
+      const pulse=settings().reduceMotion?0:Math.sin(G.now*.012)*.08;
+      BLD.blob(m,0,.35,0,.20,.28+pulse,.20,6,3,0xffb55a,0,null,185);DYN.blob(m,0,.27,0,.11,.17,.11,6,3,0xffde8b);
+    }else if(o.skill==='mining'){
+      const scale=live?1:.42;DYN.blob(m,0,.35*scale,0,.47,.48*scale,.43,7,4,live?0x8d9690:0x616d66,.10,mulberry32(o.x*71+o.y));
+      if(live)for(let i=0;i<3;i++)DYN.box(m,-.2+i*.19,.48,.22,.06,.09,.045,0xcdaf80);
+    }else if(o.skill==='woodcutting'){
+      DYN.prism(m,0,0,0,live?1.55:.28,.15,.15,7,0x775737);
+      if(live){DYN.blob(m,0,1.85,0,.72,.68,.65,8,4,0x63865c,.12,mulberry32(o.x));DYN.blob(m,.33,1.48,.2,.50,.45,.50,7,3,0x81985f,.08,mulberry32(o.y));}
+      else DYN.prism(m,0,0,.28,.30,.14,.14,7,0xc3aa78);
+    }else if(o.skill==='fishing'){
+      for(let i=0;i<16;i++){const a=i/16*TAU,b=(i+1)/16*TAU;DYN.tri([x,h+.016,-y],[x+Math.cos(a)*.7,h+.016,-(y+Math.sin(a)*.7)],[x+Math.cos(b)*.7,h+.016,-(y+Math.sin(b)*.7)],0x437d89,false);}
+      if(live)ring(BLD,x,y,.20+((G.now/1800)%1)*.45,.027,0xb5e1db,150);
+    }
+  }
+  function guardian(a,frac,dt){
+    const p=renderPos(a,frac),h=groundH(...p),t=G.now/700;
+    a.faceR+=angDiff(a.faceR,a.face)*(1-Math.exp(-dt*10));
+    const fallen=a.dead?clamp((G.now-a.anim.t0)/1200,0,1):0;
+    const root=M4.mul(M4.trans(p[0],h,-p[1]),M4.mul(M4.rotY(Math.PI-a.faceR),M4.rotX(-fallen*1.45)));
+    const glow=a.hp<a.maxHp/2?0xf1bf69:0x7fdbdf,stone=0x899c98;
+    DYN.box(root,0,.97,0,.33,.35,.22,stone);DYN.box(root,0,1.46,0,.24,.22,.23,0xa3b0a7);
+    DYN.box(root,0,1.44,.235,.15,.036,.02,glow);DYN.box(root,0,1.05,.23,.08,.11,.025,glow);
+    for(const s of [-1,1]){
+      const swing=!a.dead&&a.seg.length?Math.sin(t*6)*.28*s:0;
+      const leg=M4.mul(root,M4.mul(M4.trans(s*.18,.59,0),M4.rotX(swing)));
+      DYN.box(leg,0,-.20,0,.14,.25,.16,0x718783);DYN.box(leg,0,-.48,.045,.17,.08,.22,0x536e6d);
+      const arm=M4.mul(root,M4.mul(M4.trans(s*.48,1.12,0),M4.rotX(-swing)));
+      DYN.box(arm,0,-.12,0,.18,.22,.19,0x899c98);DYN.box(arm,0,-.47,.06,.20,.18,.21,0x5d7774);
+    }
+    a.wx=p[0];a.wy=h;a.wz=-p[1];
+  }
+  const oldActor=drawActor,oldWeapon=drawWeapon;
+  drawActor=(a,frac,dt,cam)=>{if(a.monster==='guardian')guardian(a,frac,dt);else oldActor(a,frac,dt,cam);};
+  drawWeapon=(m,model,it)=>{
+    if(model==='scim'&&it.color){
+      DYN.box(m,0,0,.05,.022,.028,.07,0x684c33);DYN.box(m,0,0,.13,.09,.022,.022,0xc9a86b);
+      DYN.box(m,0,.014,.32,.018,.040,.19,it.color);
+      DYN.tri(M4.pt(m,-.019,-.02,.48),M4.pt(m,.019,.04,.48),M4.pt(m,0,.12,.64),shadeCol(it.color,1.2),false);
+    }else if(model==='whip'){
+      DYN.box(m,0,0,.08,.026,.026,.10,0x6d4d2b);
+      const wave=settings().reduceMotion?0:Math.sin(G.now/140)*.10;
+      for(let i=0;i<8;i++){
+        const z=.19+i*.07,yy=-i*i*.006,xx=Math.sin(i*.6+G.now/230)*wave*i/8;
+        const b=M4.mul(m,basisMat(xx,yy,z,0,-.012*i,.07));DYN.box(b,0,0,.035,.016,.016,.044,i%2?0xd2b95b:0xefd880);
+      }
+    }else oldWeapon(m,model,it);
+  };
+  drawDynamic=(frac,dt,cam)=>{
+    DYN.clear();BLD.clear();SHADOW.clear();
+    for(const a of G.actors)if(dist2(a.x,a.y,G.player.x,G.player.y)<42){drawActor(a,frac,dt,cam);shadow(a,frac);}
+    drawGround();drawProjectiles();
+    if(Expedition.active){
+      for(const o of Expedition.nodes)if(dist2(o.x,o.y,G.player.x,G.player.y)<32)drawNode(o);
+      for(const w of Expedition.warnings){const pulse=settings().reduceMotion?1:.75+.25*Math.sin(G.now/80);ring(BLD,w.x,w.y,w.radius,.13,w.enraged?0xffc46d:0xe99b76,Math.floor(210*pulse));}
+      if(Expedition.gather){const o=Expedition.gather.node;ring(BLD,o.x+.5,o.y+.5,.77,.055,0xd8cd95,180);}
+    }
+    if(G.player.target&&!G.player.target.dead){const rp=renderPos(G.player.target,frac);ring(BLD,rp[0],rp[1],.62,.055,0xf1ba7a,205);}
+    if(G.player.path.length){const last=G.player.path[G.player.path.length-1];ring(BLD,last.x+.5,last.y+.5,.34,.045,0xd9e5ac,175);}
+    P.particles=P.particles.filter(q=>G.now<q.t+q.dur);
+    for(const q of P.particles){const t=(G.now-q.t)/1000,f=clamp((G.now-q.t)/q.dur,0,1);BLD.box(null,q.x+q.vx*t,groundH(q.x,q.y)+.35+q.vz*t-1.7*t*t,-(q.y+q.vy*t),.027,.027,.027,q.color,0,Math.floor(220*(1-f)));}
+  };
+  P.drawShadows=()=>{App.R.setDepthWrite(false);App.R.drawDynamic(SHADOW);App.R.setDepthWrite(true);};
+  const oldCursor=drawCursor,oldMenu=drawMenu,oldStats=drawStatsTab,oldQuest=drawQuestTab,oldOverlays=drawOverlays;
+  drawCursor=ctx=>{if(!UI.touchMode)oldCursor(ctx);};
+  drawMenu=ctx=>{if(!Client.mobile)oldMenu(ctx);};
+  drawStatsTab=(ctx,a)=>{
+    const keys={Attack:'atk',Strength:'str',Defence:'def',Ranged:'rng',Magic:'mag',Prayer:'pray',Hitpoints:'hp',Mining:'mining',Woodcutting:'woodcutting',Fishing:'fishing',Cooking:'cooking',Smithing:'smithing'};
+    let total=0;
+    for(let i=0;i<SKILLS.length;i++){
+      const x=PANEL.x+3+(i%3)*63,y=PANEL.y+4+Math.floor(i/3)*32,k=keys[SKILLS[i][0]];
+      const level=k?(Expedition.active?Expedition.levelFor(Expedition.xp[k]||0):(a.stats[k]||0)):0;if(level)total+=level;
+      fillR(ctx,x,y,61,30,0x344235);frameR(ctx,x,y,61,30,0x57604b);ctx.drawImage(IC['sk_'+SKILLS[i][2]],x+3,y+8);
+      drawTextR(ctx,'p11',level||'--',x+56,y+20,level?0xf2d994:0x8c9c8d,true);
+    }
+    drawTextC(ctx,'p11','Trained total: '+total,PANEL.x+95,PANEL.y+257,0xe2d8b2,true);
+  };
+  drawQuestTab=(ctx,a)=>{
+    if(!Expedition.active){oldQuest(ctx,a);return;}
+    drawTextC(ctx,'b12','Expedition',PANEL.x+95,PANEL.y+20,0xe6cf96,true);
+    Expedition.quests.forEach((q,i)=>{const y=PANEL.y+46+i*30;drawText(ctx,'p11',q.name,PANEL.x+6,y,0xc9d9c9,true);drawTextR(ctx,'p11',Expedition.claimed[q.id]?'Done':(Expedition.progress[q.id]||0)+'/'+q.goal,PANEL.x+182,y,0xe5ca80,true);});
+    drawTextC(ctx,'p11','Open Journal to claim rewards.',PANEL.x+95,PANEL.y+246,0xc4d0c1,true);
+  };
+  drawOverlays=(ctx,cam)=>{
+    oldOverlays(ctx,cam);
+    if(Profiles.settings.showFps){drawText(ctx,'p11',Math.round(P.fps)+' fps | '+P.drawCalls+' draws',VX+8,VY+VH-9,0xe4e8c7,true);}
+    if(Expedition.active&&Expedition.waypoint){const w=Expedition.waypoint,d=Math.round(Math.hypot(w.x-G.player.x,w.y-G.player.y));
+      drawText(ctx,'p11',w.name+' · '+d+' tiles',VX+8,VY+VH-25,0xeac786,true);
+      const s=cam.project(w.x+.5,groundH(w.x+.5,w.y+.5)+.15,-(w.y+.5));
+      if(s&&s[0]>=8&&s[0]<VW-8&&s[1]>=25&&s[1]<VH-10){ctx.save();ctx.strokeStyle='#efd598';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(VX+s[0]-6,VY+s[1]-12);ctx.lineTo(VX+s[0],VY+s[1]-4);ctx.lineTo(VX+s[0]+6,VY+s[1]-12);ctx.stroke();ctx.restore();}
+    }
+  };
+  P.buildScenery=()=>{
+    const mesh=new Mesh('white'),rng=mulberry32(11291);
+    for(let i=0;i<120;i++){
+      const x=16+rng()*65,y=10+rng()*63;if(poly12(x-GEC,y-GEC)<23||!passable(Math.floor(x),Math.floor(y)))continue;
+      const h=groundH(x,y),c=i%4?0x82915a:0xc1b772;
+      for(let j=0;j<3;j++){const a=j*1.05;mesh.tri([x-Math.cos(a)*.13,h,-y+Math.sin(a)*.13],[x+Math.cos(a)*.13,h,-y-Math.sin(a)*.13],[x,h+.20+rng()*.18,-y],c,false);}
+    }
+    P.extra=App.R.upload(mesh);
+  };
+  P.drawExtra=()=>{if(P.extra&&settings().quality!=='low')App.R.drawGPU(P.extra);};
+  return P;
+})();
+
 /* ---- main.js ---- */
 'use strict';
-/* ==========================================================================
-   main.js  -  boot sequence, login screen, main loop
-   ========================================================================== */
-const App = {
-  mode: 'load', progress: 0, status: 'Loading - please wait.', ctx: null, R: null, cam: null, loginStage: 0, user: 'Pk_Player', pass: '', field: 0, prev: 0, scale: 1, msg: '',
-  logout() { this.mode = 'login'; this.loginStage = 0; G.dialog = null; UI.menu = null; },
-  onDown(e) { loginDown(e); },
-  onKey(e) { loginKey(e); }
-};
-const tick = () => new Promise(r => setTimeout(r, 0));
-
+/* Boot, bounded fixed-step simulation, and lifecycle. No pretend network login. */
+const App={mode:'load',progress:0,status:'Preparing the world',ctx:null,R:null,cam:null,glCanvas:null,
+  scale:1,prev:0,contextLost:false,manualPause:false,error:null,
+  logout(){if(!Profiles.save()&&!Profiles.blocked&&!window.confirm('The save failed. Leave the current session anyway?'))return;this.mode='login';Controls.cancelAll();Client.open('welcome');},
+  onDown(){},onKey(){}};
+const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 /* extra player loadouts (bank restock) */
 LOADOUTS.pmelee = {
   eq: { head: 'rhelm', cape: 'firecape', neck: 'glory', weapon: 'whip', body: 'rbody', shield: 'rkite', legs: 'rlegs', hands: 'bgloves', feet: 'rboots' },
@@ -3085,169 +4256,97 @@ LOADOUTS.pmage = {
   inv: ['whip', 'dds', 'death:800', 'blood:600', 'water:1500', 'prayer', 'prayer', 'prayer', 'restore', 'restore', 'shark*16'], autocast: 'iceBarrage'
 };
 
-/* ---------------- loading screen (classic red bar) ---------------- */
-function drawLoading(ctx) {
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  const cx = W / 2, cy = H / 2 + 6;
-  if (Fonts.b12) { drawTextC(ctx, 'b12', 'RuneScape is loading - please wait...', cx, cy - 30, 0xffffff, false); }
-  fillR(ctx, cx - 152, cy - 18, 304, 34, 0x8c1111); fillR(ctx, cx - 150, cy - 16, 300, 30, 0x000000);
-  fillR(ctx, cx - 148, cy - 14, Math.round(296 * App.progress), 26, 0x8c1111);
-  if (Fonts.b12) drawTextC(ctx, 'b12', App.status + ' ' + Math.round(App.progress * 100) + '%', cx, cy + 4, 0xffffff, false);
-}
-/* ---------------- login screen ---------------- */
-let LOGIN_BG = null;
-function buildLoginBg() {
-  const p = new Pix(W, H); const r = mulberry32(3);
-  noiseFill(p, 0, 0, W, H, 0x4a4a44, 6, 21);
-  for (let row = 0; row < H / 26; row++) { const y = row * 26, off = (row & 1) ? 34 : 0; p.rect(0, y, W, 2, 0x2a2a26); for (let x = off; x < W + 68; x += 68) p.rect(x, y, 2, 26, 0x2a2a26); }
-  // columns
-  for (const cx of [130, 560]) { p.rect(cx, 0, 78, H, 0x6a6a64); for (let y = 0; y < H; y++) { for (let x = 0; x < 78; x++) { const t = x / 78; const c = 0x6a6a64 * 0 + rgb(clamp(90 + 40 * Math.sin(t * Math.PI) - (r() * 8) | 0, 0, 255), clamp(90 + 40 * Math.sin(t * Math.PI) | 0, 0, 255), clamp(84 + 40 * Math.sin(t * Math.PI) | 0, 0, 255)); p.set(cx + x, y, c); } } p.rect(cx - 8, 440, 94, 63, 0x4a4a46); }
-  // torches
-  for (const tx of [30, 705]) { p.rect(tx + 14, 300, 6, 180, 0x2a2a2a); p.ellipse(tx + 17, 300, 22, 10, 0x1a1a1a); for (let i = 0; i < 90; i++) { const fx = tx + 17 + Math.round((r() - 0.5) * 34 * (1 - i / 120)), fy = 296 - i * 1.3 * r() * 2; p.rect(fx, Math.round(fy), 3, 3, i < 40 ? 0xf0c030 : i < 70 ? 0xf08a20 : 0xc83c10); } }
-  // vignette
-  const q = p.canvas(); LOGIN_BG = q;
-}
-const LB = { boxX: 202, boxY: 190, boxW: 360, boxH: 200 };
-function loginStoneBox(ctx, x, y, w, h) {
-  fillR(ctx, x, y, w, h, 0x000000); fillR(ctx, x + 3, y + 3, w - 6, h - 6, 0x50504c);
-  const rr = mulberry32(8); for (let i = 0; i < 900; i++) { const px = x + 4 + (rr() * (w - 8) | 0), py = y + 4 + (rr() * (h - 8) | 0); ctx.fillStyle = css(rr() < 0.5 ? 0x5e5e5a : 0x444440); ctx.fillRect(px, py, 2, 1); }
-  frameR(ctx, x + 3, y + 3, w - 6, h - 6, 0x2a2a28); frameR(ctx, x + 4, y + 4, w - 8, h - 8, 0x6a6a66);
-}
-function loginBtn(ctx, x, y, w, h, label, hov) { fillR(ctx, x, y, w, h, 0x000000); fillR(ctx, x + 2, y + 2, w - 4, h - 4, hov ? 0x5c5c58 : 0x48484a); frameR(ctx, x + 2, y + 2, w - 4, h - 4, 0x6a6a6a); drawTextC(ctx, 'b12', label, x + w / 2, y + h / 2 + 5, 0xffffff, true); }
-const LBTN = { newUser: { x: 232, y: 300, w: 148, h: 34 }, exist: { x: 384, y: 300, w: 148, h: 34 }, login: { x: 232, y: 336, w: 148, h: 34 }, cancel: { x: 384, y: 336, w: 148, h: 34 } };
-function drawLogin(ctx) {
-  if (!LOGIN_BG) buildLoginBg();
-  ctx.drawImage(LOGIN_BG, 0, 0);
-  // title (plain text; no logo)
-  drawTextC(ctx, 'q16', 'RuneScape', W / 2, 90, 0xd8d8d0, true);
-  loginStoneBox(ctx, LB.boxX, LB.boxY, LB.boxW, LB.boxH);
-  const m = UI.mouse;
-  if (App.loginStage === 0) {
-    drawTextC(ctx, 'b12', 'Welcome to RuneScape', W / 2, 262, 0xffff00, true);
-    loginBtn(ctx, LBTN.newUser.x, LBTN.newUser.y, LBTN.newUser.w, LBTN.newUser.h, 'New user', inRect(m.x, m.y, LBTN.newUser));
-    loginBtn(ctx, LBTN.exist.x, LBTN.exist.y, LBTN.exist.w, LBTN.exist.h, 'Existing User', inRect(m.x, m.y, LBTN.exist));
-    drawTextC(ctx, 'p11', 'Grand Exchange PvP - World 301', W / 2, 372, 0xc8c8c0, true);
-  } else if (App.loginStage === 1) {
-    drawTextC(ctx, 'b12', 'Welcome to RuneScape', W / 2, 232, 0xffff00, true);
-    drawTextC(ctx, 'p11', App.msg || 'Enter your username & password.', W / 2, 252, 0xffffff, true);
-    const blink = Math.floor(performance.now() / 500) % 2 ? '|' : '';
-    drawText(ctx, 'b12', 'Username: ', 246, 278, 0xffffff, true); drawText(ctx, 'b12', App.user + (App.field === 0 ? blink : ''), 320, 278, 0xffff00, true);
-    drawText(ctx, 'b12', 'Password: ', 246, 298, 0xffffff, true); drawText(ctx, 'b12', '*'.repeat(App.pass.length) + (App.field === 1 ? blink : ''), 320, 298, 0xffff00, true);
-    loginBtn(ctx, LBTN.login.x, LBTN.login.y + 10, LBTN.login.w, LBTN.login.h, 'Login', inRect(m.x, m.y - 10, LBTN.login));
-    loginBtn(ctx, LBTN.cancel.x, LBTN.cancel.y + 10, LBTN.cancel.w, LBTN.cancel.h, 'Cancel', inRect(m.x, m.y - 10, LBTN.cancel));
-  } else {
-    drawTextC(ctx, 'b12', 'Connecting to server...', W / 2, 270, 0xffff00, true); drawTextC(ctx, 'p11', 'Please wait...', W / 2, 290, 0xffffff, true);
+
+function startGame(name,mode='arena',options={}){
+  if(App.mode==='game'&&!options.skipSave){
+    const ok=Profiles.save();
+    if(!ok&&!window.confirm('Your current profile could not be saved. Continue anyway? Export a backup to keep it.'))return;
   }
-  ctx.drawImage(IC.cursor, m.x, m.y);
+  Controls.cancelAll();Expedition.uninstallWorld();
+  G.tick=0;G.now=0;G.lastTick=0;G.nextId=1;G.actors=[];G.player=null;
+  G.ground=[];G.projs=[];G.effects=[];G.msgs=[];G.hitQ=[];G.dialog=null;G.spellSel=null;
+  for(const k of ['kills','deaths','streak','best','dmgDealt','dmgTaken','chatScroll'])G[k]=0;
+  Profiles.select(name,mode);createPlayer();G.player.name=Profiles.name;G.player.loadoutKind='main';createClerks();UI.botCount=0;
+  Expedition.begin(Profiles.mode);
+  if(!Expedition.active)setBotCount(6);
+  const saved=Profiles.read();if(saved)Profiles.apply(saved);
+  UI.tab=3;UI.menu=null;UI.drag=null;UI.chatInput='';UI.bonusWin=false;UI.mouse={x:-100,y:-100};
+  G.player.protectUntil=G.tick+25;App.mode='game';App.manualPause=false;App.prev=performance.now();
+  Polish.snapCamera=true;Polish.particles.length=0;App.cam._visibleDist=App.cam.dist;
+  Client.close();Client.layout();
+  gameMsg('Welcome, '+Profiles.name+'. '+(Expedition.active?'Your expedition begins at the safe camp.':'You are in the offline PvP practice arena.'));
+  gameMsg(Expedition.active?'Journal marks gathering spots and enemy camps. Bank your supplies; craft at the forge.':'Free combat kits are available at bank booths. Bots and specials use the 600 ms game tick.');
+  if(Profiles.blocked)gameMsg(Profiles.status);
 }
-function loginDown(e) {
-  const p = clientPos(e); UI.mouse = p; if (App.mode !== 'login') return;
-  if (App.loginStage === 0) {
-    if (inRect(p.x, p.y, LBTN.exist) || inRect(p.x, p.y, LBTN.newUser)) App.loginStage = 1;
-  } else if (App.loginStage === 1) {
-    if (inRect(p.x, p.y - 10, LBTN.login)) doLogin();
-    else if (inRect(p.x, p.y - 10, LBTN.cancel)) App.loginStage = 0;
-    else if (p.y > 266 && p.y < 286) App.field = 0; else if (p.y >= 286 && p.y < 304) App.field = 1;
-  }
+function respawnNow(a){respawn(a);}
+function fit(){Client.layout();}
+function drawLoading(ctx){
+  ctx.fillStyle='#14211b';ctx.fillRect(0,0,W,H);
+  if(!Fonts.b12)return;
+  drawTextC(ctx,'q16','SONNET / LEEFY',W/2,210,0xe9d099,true);
+  drawTextC(ctx,'p11',App.status,W/2,246,0xc7d7c8,true);
+  fillR(ctx,W/2-150,268,300,7,0x344b3b);fillR(ctx,W/2-150,268,Math.round(App.progress*300),7,0xb7ca94);
 }
-function loginKey(e) {
-  if (App.mode !== 'login' || App.loginStage !== 1) return; const k = e.key;
-  if (k === 'Enter') { doLogin(); return; } if (k === 'Tab') { App.field ^= 1; e.preventDefault(); return; }
-  const f = App.field === 0 ? 'user' : 'pass';
-  if (k === 'Backspace') App[f] = App[f].slice(0, -1); else if (k.length === 1 && App[f].length < 12) { App[f] += k; e.preventDefault(); }
+function fatal(err){
+  if(App.error)return;App.error=err;console.error(err);App.mode='error';Controls.cancelAll();
+  const box=document.createElement('section');box.style.cssText='position:fixed;inset:20px;z-index:100;background:#1b2c22;color:#eadfbf;padding:24px;border:1px solid #cfb777;overflow:auto;font:16px system-ui';
+  const title=document.createElement('h2');title.textContent='The game could not continue';box.appendChild(title);
+  const pre=document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.textContent=String(err&&err.stack||err);box.appendChild(pre);
+  const b=document.createElement('button');b.textContent='Reload';b.onclick=()=>location.reload();box.appendChild(b);document.body.appendChild(box);
 }
-function doLogin() {
-  const nm = App.user.trim() || 'Pk_Player'; App.loginStage = 2;
-  setTimeout(() => { startGame(nm); }, 700);
-}
-
-/* ---------------- game start ---------------- */
-function startGame(name) {
-  if (!App.gameInit) { initWorldState(); App.gameInit = true; }
-  const pl = G.player; pl.name = name; respawnNow(pl);
-  UI.tab = 3; UI.menu = null; G.dialog = null; UI.chatInput = '';
-  G.msgs.length = 0; gameMsg('Welcome to RuneScape.');
-  gameMsg('You are at the Grand Exchange, Varrock - a multi-combat PvP zone.', 'game');
-  gameMsg('Right-click players to attack. Ice Barrage + special attacks win fights!');
-  App.mode = 'game'; G.lastTick = performance.now(); pl.protectUntil = G.tick + 25;
-}
-function respawnNow(a) {
-  a.dead = false; a.hp = a.maxHp; a.pp = a.stats.pray; a.cur = Object.assign({}, a.stats); a.run = 100; a.spec = 100; a.frozen = 0; a.skull = 0; a.anim = null; a.prayers.clear(); a.overhead = null;
-  const sp = spawnPoint(true); a.x = sp.x; a.y = sp.y; a.path.length = 0; a.target = null; a.seg.length = 0; a.splats.length = 0; applyLoadout(a, a.loadoutKind || 'main');
-}
-function initWorldState() {
-  initLoS(); createPlayer(); createClerks(); G.player.loadoutKind = 'main'; UI.botCount = 0; setBotCount(6);
-}
-
-/* ---------------- window fitting ---------------- */
-function fit() {
-  const wrap = document.getElementById('wrap'); const dpr = window.devicePixelRatio || 1;
-  let s = Math.min(innerWidth / W, innerHeight / H); s = Math.max(0.5, Math.min(s, 6));
-  let sd = s * dpr; const r = Math.round(sd);
-  if (Math.abs(sd - r) < 0.1 * dpr || UI.sharp) sd = UI.sharp && sd >= 1 ? Math.floor(sd) : (Math.abs(sd - r) < 0.1 * dpr ? r : sd);
-  s = sd / dpr; App.scale = s;
-  const integer = sd === Math.floor(sd) && sd >= 1;
-  for (const c of [App.glCanvas, INP.canvas]) if (c) c.style.imageRendering = integer ? 'pixelated' : 'auto';
-  wrap.style.transform = 'translate(' + Math.floor((innerWidth - W * s) / 2) + 'px,' + Math.floor((innerHeight - H * s) / 2) + 'px) scale(' + s + ')';
-}
-
-/* ---------------- main loop ---------------- */
-function frame(t) {
+function frame(t){
   requestAnimationFrame(frame);
-  const ctx = App.ctx; const dt = Math.min(0.1, (t - (App.prev || t)) / 1000); App.prev = t; G.now = t;
-  if (App.mode === 'load') { drawLoading(ctx); return; }
-  if (App.mode === 'login') { App.glCanvas.style.visibility = 'hidden'; drawLogin(ctx); return; }
-  App.glCanvas.style.visibility = 'visible';
-  // ticks
-  if (t - G.lastTick > 3000) G.lastTick = t;
-  while (t - G.lastTick >= TICK_MS) { G.lastTick += TICK_MS; gameTick(); }
-  const frac = (t - G.lastTick) / TICK_MS;
-  const cam = App.cam, pl = G.player;
-  updateCameraKeys(dt);
-  const rp = renderPos(pl, frac); const gh = groundH(rp[0], rp[1]);
-  cam.tx = rp[0]; cam.ty = gh + 0.6; cam.tz = -rp[1]; cam.update();
-  drawDynamic(frac, dt, cam); updateScreenInfo(cam, frac);
-  const R = App.R; R.begin(cam);
-  for (const g of WORLD.statics) R.drawGPU(g);
-  R.drawDynamic(DYN);
-  R.setDepthWrite(false); R.drawDynamic(BLD); R.setDepthWrite(true);
-  updateHover();
-  drawUI(ctx, cam);
+  if(App.error)return;
+  try{
+    let elapsed=App.prev?t-App.prev:0;App.prev=t;
+    if(!Number.isFinite(elapsed)||elapsed<0||elapsed>3000)elapsed=0;
+    if(App.mode==='load'){drawLoading(App.ctx);return;}
+    if(App.mode!=='game')return;
+    const paused=!!Client.panel||document.hidden||App.manualPause||App.contextLost;
+    const dt=paused?0:Math.min(.1,elapsed/1000);
+    if(!paused){
+      G.now+=elapsed;
+      let steps=0;while(G.now-G.lastTick>=TICK_MS&&steps<4){G.lastTick+=TICK_MS;gameTick();steps++;}
+      // Drop an extreme backlog rather than spending seconds in catch-up.
+      if(G.now-G.lastTick>=TICK_MS)G.lastTick=G.now;
+      if(performance.now()-Profiles.lastSave>15000){Profiles.lastSave=performance.now();Profiles.save();}
+    }
+    if(App.contextLost)return;
+    const frac=clamp((G.now-G.lastTick)/TICK_MS,0,1),cam=App.cam;
+    if(!paused)updateCameraKeys(dt);
+    const rp=renderPos(G.player,frac);Polish.camera(cam,rp,groundH(...rp),dt);
+    drawDynamic(frac,dt,cam);updateScreenInfo(cam,frac);
+    const R=App.R;R.begin(cam);for(const g of WORLD.statics)R.drawGPU(g);Polish.drawExtra();Polish.drawShadows();
+    R.drawDynamic(DYN);R.setDepthWrite(false);R.drawDynamic(BLD);R.setDepthWrite(true);
+    if(!paused)updateHover();drawUI(App.ctx,cam);Client.draw();
+  }catch(err){fatal(err);}
 }
-
-async function boot() {
-  const ui = document.getElementById('ui'), glc = document.getElementById('gl');
-  App.ctx = ui.getContext('2d'); App.ctx.imageSmoothingEnabled = false; App.glCanvas = glc; INP.canvas = ui; INP.glCanvas = glc;
-  fit(); addEventListener('resize', fit); window.fitClient = fit;
-  await initFonts(); requestAnimationFrame(frame);
-  const steps = [
-    ['Loading textures', () => { App.R = new Renderer(glc); App.R.fogCol = [0.02, 0.02, 0.02]; App.R.fogRange = [34, 62]; }],
-    ['Constructing the Grand Exchange', () => buildWorld(App.R)],
-    ['Preparing interface', () => { buildAllIcons(); buildFrame(); }],
-    ['Loading items', () => { for (const id in ITEMS) itemIcon(id); }],
-    ['Preparing camera', () => { App.cam = new Camera(); App.cam.yaw = 0; App.cam.pitch = 0.95; App.cam.dist = 17; INP.cam = App.cam; }]
+async function boot(){
+  const ui=document.getElementById('ui'),glc=document.getElementById('gl');
+  App.ctx=ui.getContext('2d');if(!App.ctx)throw new Error('Canvas 2D is unavailable.');
+  App.ctx.imageSmoothingEnabled=false;App.glCanvas=glc;INP.canvas=ui;INP.glCanvas=glc;
+  Profiles.loadSettings();Client.init();fit();addEventListener('resize',fit);window.fitClient=fit;
+  if(window.visualViewport)window.visualViewport.addEventListener('resize',fit);
+  let timer;try{await Promise.race([initFonts(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Embedded font loading timed out.')),15000);})]);}finally{clearTimeout(timer);}
+  requestAnimationFrame(frame);
+  const steps=[
+    ['Preparing renderer',()=>{App.R=new Renderer(glc);Polish.configure();}],
+    ['Building the Grand Exchange',()=>{COL.grass=0x65794d;COL.grass2=0x89945c;buildWorld(App.R);initLoS();}],
+    ['Preparing interface',()=>{buildAllIcons();buildFrame();}],
+    ['Preparing items',()=>{for(const id of Object.keys(ITEMS))itemIcon(id);}],
+    ['Detailing the world',()=>Polish.buildScenery()],
+    ['Preparing camera',()=>{App.cam=new Camera();App.cam.yaw=0;App.cam.pitch=.88;App.cam.dist=15;INP.cam=App.cam;}]
   ];
-  for (let i = 0; i < steps.length; i++) { App.status = steps[i][0] + '.'; App.progress = i / steps.length; await tick(); await tick(); steps[i][1](); }
-  App.progress = 1; App.status = 'Loaded'; await tick();
-  // Pointer Events unify mouse, pen and touch without generating duplicate synthetic mouse events.
-  // Keep the legacy mouse path only for older browsers that do not expose PointerEvent.
-  if ('PointerEvent' in window) {
-    ui.style.touchAction = 'none';
-    ui.addEventListener('pointerdown', onPointerDown);
-    addEventListener('pointerup', onPointerUp);
-    addEventListener('pointermove', onPointerMove);
-    addEventListener('pointercancel', onPointerCancel);
-  } else {
-    ui.addEventListener('mousedown', onDown);
-    addEventListener('mouseup', onUp);
-    addEventListener('mousemove', onMove);
-  }
-  ui.addEventListener('wheel', onWheel, { passive: false }); ui.addEventListener('contextmenu', e => e.preventDefault());
-  addEventListener('keydown', onKeyDown); addEventListener('keyup', onKeyUp);
-  ui.style.cursor = 'none';
-  const q = new URLSearchParams(location.search);
-  setTimeout(() => { App.mode = 'login'; if (q.get('auto')) { App.loginStage = 1; startGame(App.user); } }, 350);
+  for(let i=0;i<steps.length;i++){App.status=steps[i][0];App.progress=i/steps.length;await tick();await tick();steps[i][1]();}
+  App.progress=1;Controls.bind();fit();
+  glc.addEventListener('webglcontextlost',e=>{
+    e.preventDefault();Profiles.save();App.contextLost=true;Controls.cancelAll();Profiles.status='Graphics context lost. Your local save was attempted; reload to rebuild the renderer.';
+    Client.open('menu');const b=document.createElement('button');b.textContent='Reload renderer';b.onclick=()=>location.reload();Client.root.appendChild(b);
+  });
+  document.addEventListener('visibilitychange',()=>{App.prev=performance.now();});
+  App.mode='login';Client.open('welcome');
+  const q=new URLSearchParams(location.search);if(q.get('auto')==='1')startGame(q.get('profile')||'Leefy',q.get('mode')||'arena',{skipSave:true});
 }
-boot().catch(err => { console.error(err); document.body.insertAdjacentHTML('beforeend', '<pre style="position:fixed;left:0;top:0;color:#f88;background:#200;padding:8px;z-index:9">' + (err && err.stack || err) + '</pre>'); });
+boot().catch(fatal);
 
 </script></body></html>
