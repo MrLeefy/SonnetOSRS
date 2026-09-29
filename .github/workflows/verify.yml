@@ -1,0 +1,82 @@
+name: Verify game
+on:
+  push:
+    branches: [main, leefy-foundation]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Detect regression harness
+        id: source
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then echo 'ready=true' >> "$GITHUB_OUTPUT"; else echo 'ready=false' >> "$GITHUB_OUTPUT"; fi
+      - name: Check and build original foundation
+        if: steps.source.outputs.ready != 'true'
+        run: |
+          for file in src/*.js; do node --check "$file"; done
+          python3 tools/build.py
+      - if: steps.source.outputs.ready == 'true'
+        run: npm ci --ignore-scripts
+      - if: steps.source.outputs.ready == 'true'
+        run: npm run check && npm test && npm run build
+      - if: steps.source.outputs.ready == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.source.outputs.ready == 'true'
+        run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: game-and-qa
+          path: |
+            dist/index.html
+            qa/
+          retention-days: 14
+  publish-generated:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/leefy-foundation'
+    needs: regression
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build the verified standalone client
+        run: python3 tools/build.py
+      - name: Publish only generated HTML without overwriting newer work
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          git add -- dist/index.html dev.html
+          if [ -f index.html ]; then git add -- index.html; fi
+          if git diff --cached --quiet; then exit 0; fi
+          git fetch origin leefy-foundation
+          if [ "$(git rev-parse FETCH_HEAD)" != "$EXPECTED_SHA" ]; then
+            echo 'Branch advanced; leaving newer work untouched.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Rebuild verified standalone client'
+          git push origin HEAD:refs/heads/leefy-foundation
