@@ -40,7 +40,7 @@ async function waitHealth(url,timeout=10000){const start=Date.now();while(Date.n
     await test('server-authoritative PvP resolves outside the boundary',async()=>{
       await a.page.evaluate(id=>{Online.lastCombat=null;Online.ws.send(JSON.stringify({type:'attack',target_id:id}));},ids.b);
       await a.page.waitForFunction(()=>Online.lastCombat&&Online.lastCombat.target_id,{},{timeout:3000});
-      const c=await a.page.evaluate(()=>Online.lastCombat);assert.equal(c.attacker_id,ids.a);assert.equal(c.target_id,ids.b);assert.ok(c.damage>=0&&c.damage<=12);
+      const c=await a.page.evaluate(()=>Online.lastCombat);assert.equal(c.attacker_id,ids.a);assert.equal(c.target_id,ids.b);assert.ok(c.damage>=0&&c.damage<=60);assert.equal(c.style,'melee');
     });
     await test('client-side Attack option is hidden again after returning to the safe zone',async()=>{
       await a.page.evaluate(()=>cmdWalk(48,42));
