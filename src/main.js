@@ -168,7 +168,19 @@ async function boot() {
   ];
   for (let i = 0; i < steps.length; i++) { App.status = steps[i][0] + '.'; App.progress = i / steps.length; await tick(); await tick(); steps[i][1](); }
   App.progress = 1; App.status = 'Loaded'; await tick();
-  ui.addEventListener('mousedown', onDown); addEventListener('mouseup', onUp); addEventListener('mousemove', onMove);
+  // Pointer Events unify mouse, pen and touch without generating duplicate synthetic mouse events.
+  // Keep the legacy mouse path only for older browsers that do not expose PointerEvent.
+  if ('PointerEvent' in window) {
+    ui.style.touchAction = 'none';
+    ui.addEventListener('pointerdown', onDown);
+    addEventListener('pointerup', onUp);
+    addEventListener('pointermove', onMove);
+    addEventListener('pointercancel', onUp);
+  } else {
+    ui.addEventListener('mousedown', onDown);
+    addEventListener('mouseup', onUp);
+    addEventListener('mousemove', onMove);
+  }
   ui.addEventListener('wheel', onWheel, { passive: false }); ui.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keydown', onKeyDown); addEventListener('keyup', onKeyUp);
   ui.style.cursor = 'none';
