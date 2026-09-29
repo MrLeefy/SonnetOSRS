@@ -10,7 +10,7 @@ async function waitHealth(url,timeout=10000){const start=Date.now();while(Date.n
   const stateDir=fs.mkdtempSync(path.join(os.tmpdir(),'oldskool-online-')),stateFile=path.join(stateDir,'profiles.json');
   const bin=process.env.OLDSKOOL_SERVER_BIN||path.join(root,'server','target','release','oldskool-server');
   assert.ok(fs.existsSync(bin),'Rust backend binary missing; build it first');
-  const backend=cp.spawn(bin,[],{cwd:root,env:{...process.env,SONNET_BIND:'127.0.0.1:'+backendPort,SONNET_STATE:stateFile,OLDSKOOL_COLLISION:path.join(root,'server','data','world_collision.json'),OLDSKOOL_ALLOWED_ORIGINS:origin,RUST_LOG:'oldskool_server=warn'},stdio:['ignore','pipe','pipe']});
+  const backend=cp.spawn(bin,[],{cwd:root,env:{...process.env,SONNET_BIND:'127.0.0.1:'+backendPort,SONNET_STATE:stateFile,OLDSKOOL_COLLISION:path.join(root,'server','data','world_collision.json'),OLDSKOOL_ALLOWED_ORIGINS:origin,OLDSKOOL_RESIDENTS:'0',RUST_LOG:'oldskool_server=warn'},stdio:['ignore','pipe','pipe']});
   let backendErr='';backend.stderr.on('data',d=>backendErr+=d);
   const staticServer=http.createServer((req,res)=>{if(req.url==='/favicon.ico'){res.writeHead(204);res.end();return;}res.setHeader('content-type','text/html');res.end(fs.readFileSync(path.join(root,'dist','index.html')));});
   await new Promise(r=>staticServer.listen(staticPort,'127.0.0.1',r));
@@ -40,7 +40,7 @@ async function waitHealth(url,timeout=10000){const start=Date.now();while(Date.n
     await test('server-authoritative PvP resolves outside the boundary',async()=>{
       await a.page.evaluate(id=>{Online.lastCombat=null;Online.ws.send(JSON.stringify({type:'attack',target_id:id}));},ids.b);
       await a.page.waitForFunction(()=>Online.lastCombat&&Online.lastCombat.target_id,{},{timeout:3000});
-      const c=await a.page.evaluate(()=>Online.lastCombat);assert.equal(c.attacker_id,ids.a);assert.equal(c.target_id,ids.b);assert.ok(c.damage>=0&&c.damage<=12);
+      const c=await a.page.evaluate(()=>Online.lastCombat);assert.equal(c.attacker_id,ids.a);assert.equal(c.target_id,ids.b);assert.ok(c.damage>=0&&c.damage<=60);
     });
     await test('client-side Attack option is hidden again after returning to the safe zone',async()=>{
       await a.page.evaluate(()=>cmdWalk(48,42));

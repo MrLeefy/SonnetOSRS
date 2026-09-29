@@ -12,9 +12,7 @@ const INP = {
 };
 const NAMECOL = { npc: 'ffff00', item: 'ff9040', obj: '00ffff', player: 'ffffff' };
 function col(c, s) { return '<col=' + c + '>' + s + '</col>'; }
-function playerTag(a) {
-  const diff = a.level - G.player.level; return col('ffffff', a.name) + ' ' + col(levelColor(diff).toString(16).padStart(6, '0'), '(level-' + a.level + ')');
-}
+function playerTag(a){const diff=a.level-G.player.level,name=a.simulated?col('9fd8ff',a.name):col('ffffff',a.name);return name+' '+col(levelColor(diff).toString(16).padStart(6,'0'),'(level-'+a.level+')');}
 function ent(text, fn, extra) { return Object.assign({ text, fn }, extra || {}); }
 const CANCEL = () => ent('Cancel', () => { });
 
@@ -45,7 +43,7 @@ function cmdTake(g) {
   });
 }
 function castOn(a) { cmdAttack(a); }
-function examineActor(a) { gameMsg(a.npc ? 'Handles Grand Exchange transactions.' : 'Level-' + a.level + ' ' + a.name + '.'); }
+function examineActor(a){gameMsg(a.npc?'Handles Grand Exchange transactions.':('Level-'+a.level+' '+a.name+'.'+(a.simulated?' Simulated World 1 resident.':'')));}
 
 /* ---------------- dialogues ---------------- */
 function closeDialog() { G.dialog = null; }

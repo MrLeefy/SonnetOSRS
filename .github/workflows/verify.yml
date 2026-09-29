@@ -47,6 +47,9 @@ jobs:
       - name: Two-client Rust multiplayer integration
         if: steps.source.outputs.ready == 'true'
         run: npm run test:online
+      - name: Simulated World 1 resident population
+        if: steps.source.outputs.ready == 'true'
+        run: npm run test:crowd
       - name: Movement, reconnection and scene regression
         if: steps.source.outputs.ready == 'true'
         run: npm run test:repair

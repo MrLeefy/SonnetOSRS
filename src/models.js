@@ -206,6 +206,13 @@ function drawProjectiles() {
     const t = (now - e.t0) / e.dur; const gh = groundH(e.x, e.y);
     if (e.type === 'splash') {
       for (let i = 0; i < 7; i++) { const ang = i / 7 * TAU, r = 0.15 + t * 0.35; const h = Math.sin(t * Math.PI) * 0.4; BLD.box(null, e.x + Math.cos(ang) * r, gh + 0.3 + h, -(e.y + Math.sin(ang) * r), 0.05, 0.05, 0.05, 0x9ad0ff, 0, 200 * (1 - t)); }
+    } else if (e.type === 'spec') {
+      const palette=e.weapon==='ags'?[0xf6efbd,0xd9b84f]:e.weapon==='gmaul'?[0xd8d8d0,0x77776f]:e.weapon==='dds'?[0xc83728,0x59a86a]:[0xe6c85c,0xa84d31];
+      for(let i=0;i<12;i++){
+        const ang=i/12*TAU+t*.9,r=.18+t*(.35+(i%3)*.1),h=.3+Math.sin(t*Math.PI)*(.45+(i%2)*.15),sz=.035+(i%3)*.018;
+        BLD.box(null,e.x+Math.cos(ang)*r,gh+h,-(e.y+Math.sin(ang)*r),sz,sz,sz,palette[i%2],0,210*(1-t));
+      }
+      if(e.weapon==='ags')BLD.blob(null,e.x,gh+.62,-e.y,.22+t*.35,.35+t*.22,.22+t*.35,8,4,0xf7edb1,0,null,90*(1-t));
     } else {
       const ice = e.type === 'ice'; const c1 = ice ? 0xbfeaff : 0xd02020, c2 = ice ? 0xffffff : 0xff8080;
       for (let i = 0; i < 14; i++) {

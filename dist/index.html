@@ -1899,6 +1899,13 @@ function drawProjectiles() {
     const t = (now - e.t0) / e.dur; const gh = groundH(e.x, e.y);
     if (e.type === 'splash') {
       for (let i = 0; i < 7; i++) { const ang = i / 7 * TAU, r = 0.15 + t * 0.35; const h = Math.sin(t * Math.PI) * 0.4; BLD.box(null, e.x + Math.cos(ang) * r, gh + 0.3 + h, -(e.y + Math.sin(ang) * r), 0.05, 0.05, 0.05, 0x9ad0ff, 0, 200 * (1 - t)); }
+    } else if (e.type === 'spec') {
+      const palette=e.weapon==='ags'?[0xf6efbd,0xd9b84f]:e.weapon==='gmaul'?[0xd8d8d0,0x77776f]:e.weapon==='dds'?[0xc83728,0x59a86a]:[0xe6c85c,0xa84d31];
+      for(let i=0;i<12;i++){
+        const ang=i/12*TAU+t*.9,r=.18+t*(.35+(i%3)*.1),h=.3+Math.sin(t*Math.PI)*(.45+(i%2)*.15),sz=.035+(i%3)*.018;
+        BLD.box(null,e.x+Math.cos(ang)*r,gh+h,-(e.y+Math.sin(ang)*r),sz,sz,sz,palette[i%2],0,210*(1-t));
+      }
+      if(e.weapon==='ags')BLD.blob(null,e.x,gh+.62,-e.y,.22+t*.35,.35+t*.22,.22+t*.35,8,4,0xf7edb1,0,null,90*(1-t));
     } else {
       const ice = e.type === 'ice'; const c1 = ice ? 0xbfeaff : 0xd02020, c2 = ice ? 0xffffff : 0xff8080;
       for (let i = 0; i < 14; i++) {
@@ -2664,9 +2671,7 @@ const INP = {
 };
 const NAMECOL = { npc: 'ffff00', item: 'ff9040', obj: '00ffff', player: 'ffffff' };
 function col(c, s) { return '<col=' + c + '>' + s + '</col>'; }
-function playerTag(a) {
-  const diff = a.level - G.player.level; return col('ffffff', a.name) + ' ' + col(levelColor(diff).toString(16).padStart(6, '0'), '(level-' + a.level + ')');
-}
+function playerTag(a){const diff=a.level-G.player.level,name=a.simulated?col('9fd8ff',a.name):col('ffffff',a.name);return name+' '+col(levelColor(diff).toString(16).padStart(6,'0'),'(level-'+a.level+')');}
 function ent(text, fn, extra) { return Object.assign({ text, fn }, extra || {}); }
 const CANCEL = () => ent('Cancel', () => { });
 
@@ -2697,7 +2702,7 @@ function cmdTake(g) {
   });
 }
 function castOn(a) { cmdAttack(a); }
-function examineActor(a) { gameMsg(a.npc ? 'Handles Grand Exchange transactions.' : 'Level-' + a.level + ' ' + a.name + '.'); }
+function examineActor(a){gameMsg(a.npc?'Handles Grand Exchange transactions.':('Level-'+a.level+' '+a.name+'.'+(a.simulated?' Simulated World 1 resident.':'')));}
 
 /* ---------------- dialogues ---------------- */
 function closeDialog() { G.dialog = null; }
@@ -3855,7 +3860,7 @@ const Online = (() => {
   O.worldHash=()=>{let h=2166136261;for(const b of WORLD.block){h=Math.imul(h^b,16777619)>>>0;}return h;};
   O.checkHealth=async()=>{const c=new AbortController(),timer=setTimeout(()=>c.abort(),3500);try{
     const r=await fetch(O.healthEndpoint,{cache:'no-store',signal:c.signal});if(!r.ok)throw new Error('health');const j=await r.json();
-    if(!O.active)O.status='World online · '+j.players+' player'+(j.players===1?'':'s');return j;
+    if(!O.active)O.status='World online · '+j.players+' player'+(j.players===1?'':'s')+(j.residents?' · '+j.residents+' simulated adventurers':'');return j;
   }catch(_){if(!O.active)O.status='Online world unavailable';return null;}finally{clearTimeout(timer);}};
   O.clearRemotes=()=>{const actors=new Set(O.remotes.values());G.actors=G.actors.filter(a=>!actors.has(a));for(const a of G.actors){if(actors.has(a.target))a.target=null;if(actors.has(a.follow))a.follow=null;}O.remotes.clear();};
   O.stop=silent=>{
@@ -3893,7 +3898,7 @@ const Online = (() => {
     };
   };
   const stableKit=id=>{let h=2166136261;for(const c of id)h=Math.imul(h^c.charCodeAt(0),16777619);return{skin:SKIN[(h>>>0)%SKIN.length],hair:HAIR[(h>>>4)%HAIR.length],shirt:SHIRT[(h>>>8)%SHIRT.length],pants:0x444338,boots:0x3a2818,hairStyle:(h>>>12)%3};};
-  O.actorFor=p=>{let a=O.remotes.get(p.id);if(!a){a=newActor({name:p.name,x:p.x,y:p.y,stats:PROFILES.main,kit:stableKit(p.id)});a.onlineRemote=true;a.netId=p.id;a.autoRetal=false;applyLoadout(a,'main');a.inv=new Array(28).fill(null);a.prayers.clear();G.actors.push(a);O.remotes.set(p.id,a);}return a;};
+  O.actorFor=p=>{let a=O.remotes.get(p.id);if(!a){const kind=LOADOUTS[p.loadout]?p.loadout:'main';a=newActor({name:p.name,x:p.x,y:p.y,stats:PROFILES[kind]||PROFILES.main,kit:stableKit(p.id)});a.onlineRemote=true;a.netId=p.id;a.autoRetal=false;a.simulated=!!p.simulated;applyLoadout(a,kind);a.inv=new Array(28).fill(null);a.prayers.clear();G.actors.push(a);O.remotes.set(p.id,a);}return a;};
   const faceFor=(a,b)=>{
     const dx=Math.sign(b[0]-a[0]),dy=Math.sign(b[1]-a[1]);
     return dx||dy?Math.atan2(dx,dy):null;
@@ -3969,6 +3974,10 @@ const Online = (() => {
       a.netMotion.lastTick=Math.max(a.netMotion.lastTick??-1,p.motion_tick??-1);
     }
     a.netMotionTick=p.motion_tick;a.x=p.x;a.y=p.y;a.hp=clamp(p.hp,0,a.maxHp);a.dead=false;a.kills=p.kills;a.deaths=p.deaths;a.netZone=p.zone;a.netTargetId=p.attack_target||null;
+    a.simulated=!!p.simulated;a.level=p.level||a.level;a.spec=Number.isFinite(p.spec)?p.spec:a.spec;
+    const kind=LOADOUTS[p.loadout]?p.loadout:'main';if(a.netLoadout!==kind){applyLoadout(a,kind);a.inv=new Array(28).fill(null);a.netLoadout=kind;}
+    if(p.weapon&&ITEMS[p.weapon]&&a.eq.weapon?.id!==p.weapon){a.eq.weapon={id:p.weapon,n:1};recalcBonus(a);}
+    a.autocast=p.spell||null;a.overhead=p.overhead||null;
     if(a.anim?.type==='death'&&a.hp>0)a.anim=null;
     if(Number.isFinite(p.run))a.run=p.run;
     if(a===G.player){
@@ -4009,10 +4018,20 @@ const Online = (() => {
       if(msg.seq<O.seq)return;
       if(Array.isArray(msg.path)){G.player.path=msg.path;O.destination=msg.path.at(-1)||null;}O.completeJob();return;
     }
+    if(msg.type==='attack_visual'){
+      const a=msg.attacker_id===O.id?G.player:O.remotes.get(msg.attacker_id),t=msg.target_id===O.id?G.player:O.remotes.get(msg.target_id);if(!a||!t)return;
+      const ap=Online.renderPosition(a),tp=Online.renderPosition(t);a.face=Math.atan2(tp[0]-ap[0],tp[1]-ap[1]);
+      const style=msg.style,weapon=msg.weapon||'whip';a.anim={type:style==='magic'?'cast':style==='ranged'?'bow':weapon==='gmaul'?'crush':weapon==='dds'?'stab':'slash',t0:G.now,dur:style==='melee'?450:560};
+      if(msg.special){a.anim={type:weapon==='gmaul'?'crush':weapon==='dds'?'stab':'slash',t0:G.now,dur:540};G.effects.push({type:'spec',weapon,x:ap[0],y:ap[1],t0:G.now,dur:560});}
+      if(style==='ranged')G.projs.push({kind:weapon==='msb'?'arrow':'bolt',sx:ap[0],sy:ap[1],tgt:t,t0:G.now+80,t1:G.now+Math.max(360,(msg.delay_ticks||1)*TICK_MS*.8)});
+      if(style==='magic'){const ice=(msg.spell||'').startsWith('ice');G.projs.push({kind:ice?'ice':'blood',sx:ap[0],sy:ap[1],tgt:t,t0:G.now+80,t1:G.now+500});}
+      return;
+    }
+    if(msg.type==='resident_chat'){const a=O.remotes.get(msg.player_id);if(a){a.chat={text:msg.text,until:G.now+3400};publicMsg('[Sim] '+msg.name,msg.text,false);}return;}
     if(msg.type==='combat'){
       O.lastCombat=msg;const t=msg.target_id===O.id?G.player:O.remotes.get(msg.target_id),a=msg.attacker_id===O.id?G.player:O.remotes.get(msg.attacker_id);
-      if(t){t.hp=clamp(msg.target_hp,0,t.maxHp);addSplat(t,msg.damage);t.hpBarUntil=G.now+4200;}
-      if(a&&t){a.face=Math.atan2(t.x-a.x,t.y-a.y);a.anim={type:'slash',t0:G.now,dur:450};}
+      if(t){t.hp=clamp(msg.target_hp,0,t.maxHp);addSplat(t,msg.damage);t.hpBarUntil=G.now+4200;const tp=Online.renderPosition(t);if(msg.style==='magic')G.effects.push({type:'ice',x:tp[0],y:tp[1],t0:G.now,dur:650});}
+      if(a&&t&&!Online.isMoving(a))a.face=Math.atan2(t.x-a.x,t.y-a.y);
       if(msg.killed&&t===G.player){O.job=O.pending=null;G.player.target=null;G.player.path=[];G.player.netMotion=null;Polish.snapCamera=true;gameMsg('You were defeated and returned to the Grand Exchange.');}
       return;
     }
@@ -4043,13 +4062,16 @@ const Online = (() => {
     O.job={near,run};const last=p.at(-1);O.walk(last.x,last.y,true);
   };
   O.follow=a=>{if(!usable()||!a?.netId)return;O.job=null;G.player.target=null;send({type:'follow',target_id:a.netId,seq:++O.seq});};
-  O.attack=a=>{if(!O.canAttack(a)){O.notice('safe','Players are protected inside the Grand Exchange.');return;}O.job=null;G.player.target=a;send({type:'attack',target_id:a.netId});};
+  O.combatPayload=()=>{const p=G.player,w=p.eq?.weapon?.id||'unarmed',it=ITEMS[w]||{},spell=p.pendingSpell||(p.autocast&&it.magic?p.autocast:null),style=spell?'magic':it.ranged?'ranged':'melee';return{weapon:w,style,spell,special:!!p.specOn,overhead:p.overhead||null};};
+  O.attack=a=>{if(!O.canAttack(a)){O.notice('safe','Players are protected inside the Grand Exchange.');return;}O.job=null;G.player.target=a;const payload=O.combatPayload();send({type:'attack',target_id:a.netId,...payload});if(G.player.pendingSpell)G.player.pendingSpell=null;if(payload.special)G.player.specOn=false;O.lastCombatSignature=null;};
   O.sendChat=text=>{text=String(text||'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,120);if(text&&usable())send({type:'chat',text});};
   O.requestResync=()=>{if(usable()&&performance.now()-(O.lastResync||0)>1000){O.lastResync=performance.now();send({type:'resync'});}};
   O.frame=()=>{
     if(!O.active)return;const now=performance.now();
     if(usable()){
       if(G.player.runOn!==O.lastRunOn){O.lastRunOn=G.player.runOn;send({type:'run',enabled:O.lastRunOn});}
+      const combat=O.combatPayload(),sig=[combat.weapon,combat.style,combat.spell||'',combat.overhead||'',combat.special?1:0].join('|');
+      if(sig!==O.lastCombatSignature){O.lastCombatSignature=sig;send({type:'combat_state',...combat});}
       if(now-O.lastPing>15000){send({type:'ping',nonce:Math.floor(now)});O.lastPing=now;}
       if(now-O.lastSnapshot>25000){O.ws?.close();}
       for(const a of [G.player,...O.remotes.values()])if(!O.isMoving(a))a.seg=[];
@@ -4068,7 +4090,7 @@ const netBase={cmdWalk,cmdJob,cmdFollow,cmdAttack,stepActor,renderPos,chatComman
 cmdWalk=(x,y)=>Online.active?Online.walk(x,y):netBase.cmdWalk(x,y);
 cmdJob=(x,y,near,run,label)=>Online.active?Online.doJob(x,y,near,run):netBase.cmdJob(x,y,near,run,label);
 cmdFollow=a=>Online.active&&a?.onlineRemote?Online.follow(a):netBase.cmdFollow(a);
-cmdAttack=a=>Online.active&&a?.onlineRemote?Online.attack(a):netBase.cmdAttack(a);
+cmdAttack=a=>{if(Online.active&&a?.onlineRemote){if(G.spellSel){G.player.pendingSpell=G.spellSel;G.spellSel=null;}Online.attack(a);}else netBase.cmdAttack(a);};
 stepActor=a=>{if(Online.active&&(a===G.player||a.onlineRemote)){for(const k of ['eatCd','potCd','atkCd'])if(a[k]>0)a[k]--;return;}netBase.stepActor(a);};
 renderPos=(a,frac)=>Online.active&&(a===G.player||a.onlineRemote)?Online.renderPosition(a):netBase.renderPos(a,frac);
 chatCommand=t=>{if(Online.active&&!String(t).startsWith('::'))Online.sendChat(t);else netBase.chatCommand(t);};
@@ -4076,6 +4098,9 @@ chatCommand=t=>{if(Online.active&&!String(t).startsWith('::'))Online.sendChat(t)
 const netLocalDamage=applyHit,netLocalBots=setBotCount;
 applyHit=h=>{if(Online.active&&(h?.src?.onlineRemote||h?.dst===G.player||h?.dst?.onlineRemote))return;netLocalDamage(h);};
 setBotCount=n=>netLocalBots(Online.active?0:n);
+
+const netLocalEat=eatFood;
+eatFood=(a,i)=>{if(Online.active&&a===G.player){const item=a.inv[i];if(item&&ITEMS[item.id]?.food){const out=netLocalEat(a,i);send({type:'eat'});return out;}}return netLocalEat(a,i);};
 
 /* ---- classic.js ---- */
 'use strict';

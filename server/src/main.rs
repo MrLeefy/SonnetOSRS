@@ -37,7 +37,6 @@ const GE_CENTER: f32 = 48.0;
 const SAFE_APOTHEM: f32 = 9.0;
 const MAX_HP: i32 = 99;
 const MAX_CHAT: usize = 120;
-const ATTACK_SPEED_TICKS: u64 = 4;
 
 #[derive(Clone)]
 struct AppState {
@@ -54,6 +53,29 @@ struct World {
     tick: u64,
     players: HashMap<Uuid, Player>,
     profiles: HashMap<String, PersistedProfile>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum CombatStyle {
+    Melee,
+    Ranged,
+    Magic,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ResidentRole {
+    Social,
+    Pker,
+}
+
+#[derive(Clone, Debug)]
+struct ResidentAi {
+    role: ResidentRole,
+    home: Tile,
+    next_action: u64,
+    next_chat: u64,
+    personality: u8,
 }
 
 struct Player {
@@ -75,6 +97,18 @@ struct Player {
     follow_target: Option<Uuid>,
     protect_until: u64,
     last_attack_tick: Option<u64>,
+    simulated: bool,
+    loadout: String,
+    weapon: String,
+    combat_style: CombatStyle,
+    spell: Option<String>,
+    overhead: Option<String>,
+    spec_energy: f32,
+    special_pending: bool,
+    food: u8,
+    last_eat_tick: u64,
+    frozen_until: u64,
+    resident: Option<ResidentAi>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -128,7 +162,28 @@ enum ClientMessage {
     Move {},
     Attack {
         target_id: Uuid,
+        #[serde(default)]
+        weapon: Option<String>,
+        #[serde(default)]
+        style: Option<CombatStyle>,
+        #[serde(default)]
+        spell: Option<String>,
+        #[serde(default)]
+        special: bool,
+        #[serde(default)]
+        overhead: Option<String>,
     },
+    CombatState {
+        weapon: String,
+        style: CombatStyle,
+        #[serde(default)]
+        spell: Option<String>,
+        #[serde(default)]
+        special: bool,
+        #[serde(default)]
+        overhead: Option<String>,
+    },
+    Eat {},
     Chat {
         text: String,
     },
@@ -161,12 +216,29 @@ enum ServerMessage<'a> {
         path: Vec<Tile>,
         player: PlayerView,
     },
+    AttackVisual {
+        attacker_id: Uuid,
+        target_id: Uuid,
+        style: CombatStyle,
+        weapon: String,
+        spell: Option<String>,
+        special: bool,
+        hits: u8,
+        delay_ticks: u64,
+    },
     Combat {
         attacker_id: Uuid,
         target_id: Uuid,
         damage: i32,
         target_hp: i32,
         killed: bool,
+        style: CombatStyle,
+        special: bool,
+    },
+    ResidentChat {
+        player_id: Uuid,
+        name: String,
+        text: String,
     },
     Chat {
         player_id: Uuid,
@@ -216,6 +288,14 @@ struct PlayerView {
     moving: bool,
     run: f32,
     attack_target: Option<Uuid>,
+    simulated: bool,
+    loadout: String,
+    weapon: String,
+    combat_style: CombatStyle,
+    spell: Option<String>,
+    overhead: Option<String>,
+    spec: f32,
+    level: u8,
 }
 
 #[derive(Serialize)]
@@ -224,6 +304,7 @@ struct Health {
     version: &'static str,
     tick_ms: u64,
     players: usize,
+    residents: usize,
     tick: u64,
 }
 
@@ -296,6 +377,455 @@ fn valid_token(token: &str) -> bool {
     token.len() == 36 && Uuid::parse_str(token).is_ok()
 }
 
+fn combat_level_for(p: &Player) -> u8 {
+    match p.loadout.as_str() {
+        "pure" => 88,
+        "zerker" => 99,
+        "ranger" => 106,
+        "mage" => 101,
+        "hybrid" => 118,
+        _ => 126,
+    }
+}
+
+fn clean_overhead(value: Option<String>) -> Option<String> {
+    value.filter(|v| matches!(v.as_str(), "pmelee" | "pmissiles" | "pmagic"))
+}
+
+fn valid_spell(value: Option<String>) -> Option<String> {
+    value.filter(|v| {
+        matches!(
+            v.as_str(),
+            "iceRush"
+                | "bloodRush"
+                | "iceBurst"
+                | "bloodBurst"
+                | "iceBlitz"
+                | "bloodBlitz"
+                | "iceBarrage"
+                | "bloodBarrage"
+        )
+    })
+}
+
+fn valid_weapon(value: &str) -> bool {
+    matches!(
+        value,
+        "whip"
+            | "dds"
+            | "dscim"
+            | "rscim"
+            | "gmaul"
+            | "ags"
+            | "rcb"
+            | "msb"
+            | "ancstaff"
+            | "unarmed"
+    )
+}
+
+fn weapon_style(weapon: &str, requested: CombatStyle, spell: &Option<String>) -> CombatStyle {
+    if weapon == "ancstaff" && spell.is_some() {
+        CombatStyle::Magic
+    } else if matches!(weapon, "rcb" | "msb") {
+        CombatStyle::Ranged
+    } else if requested == CombatStyle::Magic && spell.is_some() {
+        CombatStyle::Magic
+    } else {
+        CombatStyle::Melee
+    }
+}
+
+fn attack_range_for(p: &Player) -> i32 {
+    match p.combat_style {
+        CombatStyle::Melee => 1,
+        CombatStyle::Ranged => {
+            if p.weapon == "rcb" {
+                8
+            } else {
+                7
+            }
+        }
+        CombatStyle::Magic => 10,
+    }
+}
+
+fn attack_speed_for(p: &Player) -> u64 {
+    match p.weapon.as_str() {
+        "gmaul" => 7,
+        "ags" | "rcb" => 6,
+        "ancstaff" => 5,
+        _ => 4,
+    }
+}
+
+fn spell_max(spell: Option<&str>) -> i32 {
+    match spell {
+        Some("iceRush") => 16,
+        Some("bloodRush") => 15,
+        Some("iceBurst") => 22,
+        Some("bloodBurst") => 21,
+        Some("iceBlitz") => 26,
+        Some("bloodBlitz") => 25,
+        Some("iceBarrage") => 30,
+        Some("bloodBarrage") => 29,
+        _ => 20,
+    }
+}
+
+fn base_max_hit(p: &Player) -> i32 {
+    match p.combat_style {
+        CombatStyle::Magic => spell_max(p.spell.as_deref()),
+        CombatStyle::Ranged => {
+            if p.weapon == "rcb" {
+                31
+            } else {
+                20
+            }
+        }
+        CombatStyle::Melee => match p.weapon.as_str() {
+            "ags" => 45,
+            "gmaul" => 32,
+            "dds" => 31,
+            "whip" => 30,
+            "dscim" => 30,
+            "rscim" => 24,
+            _ => 12,
+        },
+    }
+}
+
+fn spec_cost(weapon: &str) -> Option<f32> {
+    match weapon {
+        "dds" => Some(25.0),
+        "dscim" | "msb" => Some(55.0),
+        "gmaul" | "ags" => Some(50.0),
+        _ => None,
+    }
+}
+
+fn in_attack_range(c: &Collision, a: &Player, t: &Player) -> bool {
+    let from = Tile::new(a.x as i32, a.y as i32);
+    let to = Tile::new(t.x as i32, t.y as i32);
+    let range = attack_range_for(a);
+    if range <= 1 {
+        c.melee_clear(from, to) && from != to
+    } else {
+        let d = (from.x - to.x).abs().max((from.y - to.y).abs());
+        d >= 1 && d <= range && c.has_los(from, to)
+    }
+}
+
+fn deterministic_roll(seed: u64) -> u64 {
+    let mut x = seed.wrapping_add(0x9E3779B97F4A7C15);
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D049BB133111EB);
+    x ^ (x >> 31)
+}
+
+fn resident_chat(p: &Player, tick: u64, target_name: Option<&str>) -> String {
+    const SOCIAL: &[&str] = &[
+        "one sec banking",
+        "who took my spot lol",
+        "ge fashion is serious business",
+        "brb changing setup",
+        "that cape is doing a lot",
+        "nahhh the helm stays",
+        "buying confidence 10k",
+        "why is everyone skulled out there",
+        "clean setup tbh",
+        "im not going out there yet",
+        "bro brought the whole bank",
+        "let me cook",
+        "that spec was criminal",
+        "sit respectfully",
+        "you really ran back to ge lol",
+        "gf though",
+        "not the protect prayer",
+        "im changing gear chill",
+    ];
+    const PK: &[&str] = &[
+        "gf",
+        "sit lol",
+        "nice prayer switch",
+        "bro ate at 70",
+        "come back out",
+        "that freeze was clean",
+        "you had spec and did THAT",
+        "respect the risk",
+        "no way that hit zero",
+        "okay that combo was nasty",
+        "dont run now",
+        "one more",
+        "clean switch",
+        "my rng is cooked",
+        "you got saved by that eat",
+        "fair fight? probably not",
+    ];
+    let mut seed = tick ^ (p.id.as_u128() as u64).rotate_left(17);
+    seed ^= seed >> 13;
+    let pker = p
+        .resident
+        .as_ref()
+        .is_some_and(|r| r.role == ResidentRole::Pker);
+    if pker {
+        if let Some(name) = target_name {
+            let lines = [
+                format!("{name} come back out"),
+                format!("{name} that prayer switch lol"),
+                format!("gf {name}"),
+                format!("{name} you eating already?"),
+                format!("{name} clean switch tbh"),
+            ];
+            if tick % 3 == 0 {
+                return lines[(seed as usize) % lines.len()].clone();
+            }
+        }
+        return PK[(seed as usize) % PK.len()].into();
+    }
+    SOCIAL[(seed as usize) % SOCIAL.len()].into()
+}
+fn make_resident(name: &str, role: ResidentRole, home: Tile, personality: u8) -> Player {
+    let id = Uuid::new_v4();
+    let pker = role == ResidentRole::Pker;
+    let (loadout, weapon, style, spell) = match personality % 4 {
+        0 => ("main", "whip", CombatStyle::Melee, None),
+        1 => ("ranger", "rcb", CombatStyle::Ranged, None),
+        2 => (
+            "mage",
+            "ancstaff",
+            CombatStyle::Magic,
+            Some("iceBarrage".to_string()),
+        ),
+        _ => ("main", "ags", CombatStyle::Melee, None),
+    };
+    Player {
+        id,
+        token: format!("resident-{id}"),
+        name: name.into(),
+        x: home.x as f32,
+        y: home.y as f32,
+        hp: MAX_HP,
+        kills: 0,
+        deaths: 0,
+        path: VecDeque::new(),
+        motion: vec![home],
+        motion_tick: 0,
+        command_seq: 0,
+        run_on: pker,
+        run_energy: 100.,
+        attack_target: None,
+        follow_target: None,
+        protect_until: 0,
+        last_attack_tick: None,
+        simulated: true,
+        loadout: loadout.into(),
+        weapon: weapon.into(),
+        combat_style: style,
+        spell,
+        overhead: None,
+        spec_energy: 100.,
+        special_pending: false,
+        food: 18,
+        last_eat_tick: 0,
+        frozen_until: 0,
+        resident: Some(ResidentAi {
+            role,
+            home,
+            next_action: 2 + (personality as u64 % 5),
+            next_chat: 10 + (personality as u64 % 17),
+            personality,
+        }),
+    }
+}
+fn seed_residents(world: &mut World, c: &Collision, count: usize) {
+    let social = [
+        ("bankstanding", 46, 42),
+        ("RuneRicky", 50, 42),
+        ("xLilMagex", 42, 46),
+        ("WhipEnjoyer", 53, 46),
+        ("NoXpWaste", 43, 48),
+        ("CapeCheck", 52, 48),
+        ("PrayerPot", 48, 41),
+        ("BankPls", 48, 53),
+        ("SirLagALot", 44, 51),
+        ("IronMaybe", 51, 51),
+    ];
+    let pk = [
+        ("SpecNRun", 48, 36),
+        ("IceYouOut", 60, 48),
+        ("RangeTank", 48, 60),
+        ("DdsEnjoyer", 36, 48),
+        ("AgsMaybe", 57, 40),
+        ("EatAt71", 39, 57),
+        ("VengSoon", 57, 57),
+        ("ZeroHit", 39, 39),
+        ("ClickBetter", 62, 52),
+        ("RiskIt", 34, 44),
+    ];
+    for (i, (name, x, y)) in social.into_iter().take(count.min(10)).enumerate() {
+        let t = Tile::new(x, y);
+        if !c.blocked(x, y) {
+            let p = make_resident(name, ResidentRole::Social, t, i as u8);
+            world.players.insert(p.id, p);
+        }
+    }
+    for (i, (name, x, y)) in pk
+        .into_iter()
+        .take(count.saturating_sub(10).min(10))
+        .enumerate()
+    {
+        let t = Tile::new(x, y);
+        if !c.blocked(x, y) {
+            let p = make_resident(name, ResidentRole::Pker, t, (i + 20) as u8);
+            world.players.insert(p.id, p);
+        }
+    }
+}
+fn resident_think(w: &mut World, c: &Collision, events: &mut Vec<String>) {
+    let tick = w.tick;
+    let ids = w
+        .players
+        .iter()
+        .filter_map(|(id, p)| p.simulated.then_some(*id))
+        .collect::<Vec<_>>();
+    for id in ids {
+        let (role, home, next_action, next_chat, personality, hp, food) = {
+            let p = &w.players[&id];
+            let r = p.resident.as_ref().unwrap();
+            (
+                r.role,
+                r.home,
+                r.next_action,
+                r.next_chat,
+                r.personality,
+                p.hp,
+                p.food,
+            )
+        };
+        if tick >= next_chat {
+            let target_name = w.players[&id]
+                .attack_target
+                .and_then(|tid| w.players.get(&tid))
+                .map(|p| p.name.as_str());
+            let text = resident_chat(&w.players[&id], tick, target_name);
+            let name = w.players[&id].name.clone();
+            events.push(serialize(&ServerMessage::ResidentChat {
+                player_id: id,
+                name,
+                text,
+            }));
+            if let Some(r) = w.players.get_mut(&id).and_then(|p| p.resident.as_mut()) {
+                r.next_chat = tick + 18 + ((personality as u64 * 7 + tick) % 35);
+            }
+        }
+        if tick < next_action {
+            continue;
+        }
+        let target = if role == ResidentRole::Pker {
+            w.players
+                .iter()
+                .filter(|(tid, p)| **tid != id && zone_at(p.x, p.y) == Zone::Pvp)
+                .min_by_key(|(_, q)| {
+                    let p = &w.players[&id];
+                    ((q.x - p.x).abs() + (q.y - p.y).abs()) as i32
+                })
+                .map(|(tid, _)| *tid)
+        } else {
+            None
+        };
+        let target_style = target.and_then(|tid| w.players.get(&tid).map(|p| p.combat_style));
+        let p = w.players.get_mut(&id).unwrap();
+        if let Some(r) = p.resident.as_mut() {
+            r.next_action = tick + 2 + ((tick + personality as u64) % 5);
+        }
+        if hp < 55 && food > 0 && tick.saturating_sub(p.last_eat_tick) >= 3 {
+            p.hp = (p.hp + 20).min(MAX_HP);
+            p.food -= 1;
+            p.last_eat_tick = tick;
+            p.attack_target = None;
+            p.path.clear();
+        }
+        match role {
+            ResidentRole::Social => {
+                p.attack_target = None;
+                p.overhead = None;
+                let dx = ((tick as i32 + personality as i32 * 3) % 5) - 2;
+                let dy = (((tick / 3) as i32 + personality as i32 * 5) % 5) - 2;
+                let to = Tile::new(home.x + dx, home.y + dy);
+                if zone_at(to.x as f32, to.y as f32) == Zone::Safe {
+                    if let Some(path) = c.path(Tile::new(p.x as i32, p.y as i32), to, true) {
+                        p.path = path;
+                    }
+                }
+            }
+            ResidentRole::Pker => {
+                let here = zone_at(p.x, p.y);
+                if p.hp < 35 {
+                    p.attack_target = None;
+                    p.overhead = None;
+                    if let Some(path) =
+                        c.path(Tile::new(p.x as i32, p.y as i32), Tile::new(48, 42), true)
+                    {
+                        p.path = path;
+                    }
+                } else if here == Zone::Safe {
+                    p.attack_target = None;
+                    p.overhead = None;
+                    if let Some(path) = c.path(Tile::new(p.x as i32, p.y as i32), home, true) {
+                        p.path = path;
+                    }
+                } else {
+                    p.attack_target = target;
+                    let phase = ((tick / 10) + personality as u64) % 3;
+                    match phase {
+                        0 => {
+                            p.weapon = "ancstaff".into();
+                            p.combat_style = CombatStyle::Magic;
+                            p.spell = Some(
+                                if personality % 2 == 0 {
+                                    "iceBarrage"
+                                } else {
+                                    "bloodBarrage"
+                                }
+                                .into(),
+                            );
+                        }
+                        1 => {
+                            p.weapon = "rcb".into();
+                            p.combat_style = CombatStyle::Ranged;
+                            p.spell = None;
+                        }
+                        _ => {
+                            p.weapon = if p.spec_energy >= 50. && personality % 3 == 0 {
+                                "ags"
+                            } else if p.spec_energy >= 25. && personality % 3 == 1 {
+                                "dds"
+                            } else {
+                                "whip"
+                            }
+                            .into();
+                            p.combat_style = CombatStyle::Melee;
+                            p.spell = None;
+                            p.special_pending = spec_cost(&p.weapon)
+                                .is_some_and(|cost| p.spec_energy >= cost)
+                                && tick % 7 == personality as u64 % 7;
+                        }
+                    }
+                    p.overhead = target_style.map(|s| {
+                        match s {
+                            CombatStyle::Melee => "pmelee",
+                            CombatStyle::Ranged => "pmissiles",
+                            CombatStyle::Magic => "pmagic",
+                        }
+                        .into()
+                    });
+                }
+            }
+        }
+    }
+}
+
 fn player_view(p: &Player) -> PlayerView {
     PlayerView {
         id: p.id,
@@ -313,6 +843,14 @@ fn player_view(p: &Player) -> PlayerView {
         moving: !p.path.is_empty(),
         run: p.run_energy,
         attack_target: p.attack_target,
+        simulated: p.simulated,
+        loadout: p.loadout.clone(),
+        weapon: p.weapon.clone(),
+        combat_style: p.combat_style,
+        spell: p.spell.clone(),
+        overhead: p.overhead.clone(),
+        spec: p.spec_energy,
+        level: combat_level_for(p),
     }
 }
 
@@ -328,7 +866,8 @@ async fn health(State(state): State<AppState>) -> impl IntoResponse {
         status: "ok",
         version: VERSION,
         tick_ms: TICK_MS,
-        players: world.players.len(),
+        players: world.players.values().filter(|p| !p.simulated).count(),
+        residents: world.players.values().filter(|p| p.simulated).count(),
         tick: world.tick,
     })
 }
@@ -449,7 +988,9 @@ async fn connection(socket: WebSocket, state: AppState) {
             .filter(|t| world.profiles.contains_key(t));
         let token = requested.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        if world.players.len() >= 128 || world.players.values().any(|p| p.token == token) {
+        if world.players.values().filter(|p| !p.simulated).count() >= 128
+            || world.players.values().any(|p| p.token == token)
+        {
             drop(world);
             let _ = sink
                 .send(Message::Text(
@@ -496,6 +1037,18 @@ async fn connection(socket: WebSocket, state: AppState) {
             follow_target: None,
             protect_until: 0,
             last_attack_tick: None,
+            simulated: false,
+            loadout: "main".into(),
+            weapon: "whip".into(),
+            combat_style: CombatStyle::Melee,
+            spell: None,
+            overhead: None,
+            spec_energy: 100.0,
+            special_pending: false,
+            food: 16,
+            last_eat_tick: 0,
+            frozen_until: 0,
+            resident: None,
         };
         let view = player_view(&player);
         world.profiles.insert(token.clone(), profile);
@@ -712,10 +1265,16 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             code: "move_rejected",
             message: "Absolute movement is not accepted; request a destination.",
         })),
-        ClientMessage::Attack { target_id } => {
+        ClientMessage::Attack {
+            target_id,
+            weapon,
+            style,
+            spell,
+            special,
+            overhead,
+        } => {
             let mut w = state.world.write().await;
-            let a = w.players.get(&id)?;
-            let Some(t) = w.players.get(&target_id) else {
+            let Some(target) = w.players.get(&target_id) else {
                 return Some(serialize(&ServerMessage::Error {
                     code: "target_missing",
                     message: "That player is no longer online.",
@@ -724,16 +1283,70 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             if target_id == id {
                 return None;
             }
-            if zone_at(a.x, a.y) == Zone::Safe || zone_at(t.x, t.y) == Zone::Safe {
+            let (tx, ty) = (target.x, target.y);
+            let Some(attacker) = w.players.get_mut(&id) else {
+                return None;
+            };
+            if attacker.simulated {
+                return None;
+            }
+            if zone_at(attacker.x, attacker.y) == Zone::Safe || zone_at(tx, ty) == Zone::Safe {
                 return Some(serialize(&ServerMessage::Error {
                     code: "safe_zone",
                     message: "PvP is disabled inside the Grand Exchange stone boundary.",
                 }));
             }
-            if let Some(a) = w.players.get_mut(&id) {
-                a.attack_target = Some(target_id);
-                a.follow_target = None;
-                a.protect_until = 0;
+            if let Some(value) = weapon.filter(|v| valid_weapon(v)) {
+                attacker.weapon = value;
+            }
+            attacker.spell = valid_spell(spell);
+            attacker.combat_style = weapon_style(
+                &attacker.weapon,
+                style.unwrap_or(attacker.combat_style),
+                &attacker.spell,
+            );
+            attacker.overhead = clean_overhead(overhead);
+            attacker.special_pending = special
+                && spec_cost(&attacker.weapon).is_some_and(|cost| attacker.spec_energy >= cost);
+            attacker.attack_target = Some(target_id);
+            attacker.follow_target = None;
+            attacker.protect_until = 0;
+            None
+        }
+        ClientMessage::CombatState {
+            weapon,
+            style,
+            spell,
+            special,
+            overhead,
+        } => {
+            let mut w = state.world.write().await;
+            let Some(p) = w.players.get_mut(&id) else {
+                return None;
+            };
+            if p.simulated {
+                return None;
+            }
+            if valid_weapon(&weapon) {
+                p.weapon = weapon;
+            }
+            p.spell = valid_spell(spell);
+            p.combat_style = weapon_style(&p.weapon, style, &p.spell);
+            p.overhead = clean_overhead(overhead);
+            p.special_pending =
+                special && spec_cost(&p.weapon).is_some_and(|cost| p.spec_energy >= cost);
+            None
+        }
+        ClientMessage::Eat {} => {
+            let mut w = state.world.write().await;
+            let tick = w.tick;
+            let Some(p) = w.players.get_mut(&id) else {
+                return None;
+            };
+            if p.food > 0 && p.hp < MAX_HP && tick.saturating_sub(p.last_eat_tick) >= 3 {
+                p.food -= 1;
+                p.hp = (p.hp + 20).min(MAX_HP);
+                p.last_eat_tick = tick;
             }
             None
         }
@@ -798,6 +1411,7 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
     w.tick = w.tick.saturating_add(1);
     let tick = w.tick;
     let mut events = Vec::new();
+    resident_think(w, c, &mut events);
     let mut ids = w.players.keys().copied().collect::<Vec<_>>();
     ids.sort();
     // Capture everybody before stepping, so UUID iteration order can't speed pursuit.
@@ -818,12 +1432,13 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
                 {
                     p.attack_target = None;
                     p.path.clear();
-                } else if c.melee_clear(from, *target) && from != *target {
-                    p.path.clear();
                 } else {
-                    p.path = c.path(from, *target, false).unwrap_or_default();
-                    if p.path.back() == Some(target) {
-                        p.path.pop_back();
+                    let range = attack_range_for(p);
+                    let d = (from.x - target.x).abs().max((from.y - target.y).abs());
+                    if d >= 1 && d <= range && c.has_los(from, *target) {
+                        p.path.clear();
+                    } else {
+                        p.path = c.path_to_range(from, *target, range).unwrap_or_default();
                     }
                 }
             } else {
@@ -832,7 +1447,13 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
                 p.path.clear();
             }
         }
-        let steps = if p.run_on && p.run_energy >= 1.0 {
+        let frozen = tick < p.frozen_until;
+        if frozen {
+            p.path.clear();
+        }
+        let steps = if frozen {
+            0
+        } else if p.run_on && p.run_energy >= 1.0 {
             2
         } else {
             1
@@ -857,6 +1478,9 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
         if tick % 100 == 0 {
             p.hp = (p.hp + 1).min(MAX_HP);
         }
+        if tick % 50 == 0 {
+            p.spec_energy = (p.spec_energy + 10.).min(100.);
+        }
     }
     for id in ids {
         let a = &w.players[&id];
@@ -869,37 +1493,116 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
         if zone_at(a.x, a.y) == Zone::Safe
             || zone_at(t.x, t.y) == Zone::Safe
             || tick < t.protect_until
-            || a.last_attack_tick
-                .is_some_and(|last| tick.saturating_sub(last) < ATTACK_SPEED_TICKS)
+            || !in_attack_range(c, a, t)
         {
             continue;
         }
-        if !c.melee_clear(
-            Tile::new(a.x as i32, a.y as i32),
-            Tile::new(t.x as i32, t.y as i32),
-        ) {
+        let speed = attack_speed_for(a);
+        if a.last_attack_tick
+            .is_some_and(|last| tick.saturating_sub(last) < speed)
+        {
             continue;
         }
-        let seed = tick ^ (id.as_u128() as u64) ^ ((tid.as_u128() >> 64) as u64);
-        let dmg = (seed % 13) as i32;
-        w.players.get_mut(&id).unwrap().last_attack_tick = Some(tick);
+        let style = a.combat_style;
+        let weapon = a.weapon.clone();
+        let spell = a.spell.clone();
+        let special =
+            a.special_pending && spec_cost(&weapon).is_some_and(|cost| a.spec_energy >= cost);
+        let hits = if special && weapon == "dds" { 2 } else { 1 };
+        let delay = if style == CombatStyle::Melee { 0 } else { 1 };
+        events.push(serialize(&ServerMessage::AttackVisual {
+            attacker_id: id,
+            target_id: tid,
+            style,
+            weapon: weapon.clone(),
+            spell: spell.clone(),
+            special,
+            hits,
+            delay_ticks: delay,
+        }));
+        let mut total = 0;
+        for hit in 0..hits {
+            let roll = deterministic_roll(
+                tick ^ (id.as_u128() as u64)
+                    ^ ((tid.as_u128() >> 64) as u64)
+                    ^ ((hit as u64) << 32),
+            );
+            let mut max = base_max_hit(a);
+            if special && weapon == "ags" {
+                max = ((max as f32) * 1.1) as i32 + 8;
+            }
+            if special && weapon == "dds" {
+                max = ((max as f32) * 1.15) as i32;
+            }
+            let base_acc = match style {
+                CombatStyle::Melee => 72,
+                CombatStyle::Ranged => 68,
+                CombatStyle::Magic => 70,
+            };
+            let acc = (base_acc + if special { 12 } else { 0 }).min(95) as u64;
+            let mut dmg = if (roll >> 32) % 100 < acc {
+                (roll % (max.max(1) as u64 + 1)) as i32
+            } else {
+                0
+            };
+            let protect = w.players[&tid].overhead.as_deref()
+                == Some(match style {
+                    CombatStyle::Melee => "pmelee",
+                    CombatStyle::Ranged => "pmissiles",
+                    CombatStyle::Magic => "pmagic",
+                });
+            if protect {
+                dmg = (dmg * 3) / 5;
+            }
+            total += dmg;
+        }
+        {
+            let a = w.players.get_mut(&id).unwrap();
+            a.last_attack_tick = Some(tick);
+            a.special_pending = false;
+            if special {
+                if let Some(cost) = spec_cost(&weapon) {
+                    a.spec_energy = (a.spec_energy - cost).max(0.);
+                }
+            }
+        }
         let t = w.players.get_mut(&tid).unwrap();
-        t.hp = (t.hp - dmg).max(0);
+        t.hp = (t.hp - total).max(0);
+        if style == CombatStyle::Magic
+            && spell.as_deref().is_some_and(|x| x.starts_with("ice"))
+            && total > 0
+        {
+            t.frozen_until = tick + 8;
+        }
+        if special && weapon == "dscim" {
+            t.overhead = None;
+        }
         let hp = t.hp;
         let killed = hp == 0;
         if killed {
             t.deaths = t.deaths.saturating_add(1);
             t.hp = MAX_HP;
-            t.x = 48.0;
-            t.y = 42.0;
             t.path.clear();
-            t.motion = vec![Tile::new(48, 42)];
             t.attack_target = None;
             t.follow_target = None;
+            t.frozen_until = 0;
             t.protect_until = tick + 10;
+            let respawn = if t.simulated
+                && t.resident
+                    .as_ref()
+                    .is_some_and(|r| r.role == ResidentRole::Pker)
+            {
+                t.resident.as_ref().unwrap().home
+            } else {
+                Tile::new(48, 42)
+            };
+            t.x = respawn.x as f32;
+            t.y = respawn.y as f32;
+            t.motion = vec![respawn];
         }
         if killed {
-            w.players.get_mut(&id).unwrap().kills = w.players[&id].kills.saturating_add(1);
+            let a = w.players.get_mut(&id).unwrap();
+            a.kills = a.kills.saturating_add(1);
             for p in w.players.values_mut() {
                 if p.attack_target == Some(tid) {
                     p.attack_target = None;
@@ -910,9 +1613,11 @@ fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
         events.push(serialize(&ServerMessage::Combat {
             attacker_id: id,
             target_id: tid,
-            damage: dmg,
+            damage: total,
             target_hp: hp,
             killed,
+            style,
+            special,
         }));
     }
     events
@@ -936,7 +1641,7 @@ async fn persist(state: &AppState) {
     let (path, data) = {
         let world = state.world.read().await;
         let mut profiles = world.profiles.clone();
-        for player in world.players.values() {
+        for player in world.players.values().filter(|p| !p.simulated) {
             profiles.insert(
                 player.token.clone(),
                 PersistedProfile {
@@ -1081,7 +1786,19 @@ async fn main() {
         persist_lock: Arc::new(Mutex::new(())),
         shutdown: watch::channel(false).0,
     };
-
+    let resident_count = env::var("OLDSKOOL_RESIDENTS")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0)
+        .min(20);
+    if resident_count > 0 {
+        let mut world = state.world.write().await;
+        seed_residents(&mut world, &state.collision, resident_count);
+        info!(
+            residents = world.players.values().filter(|p| p.simulated).count(),
+            "seeded simulated World 1 residents"
+        );
+    }
     tokio::spawn(tick_loop(state.clone()));
 
     let app = Router::new()
@@ -1178,6 +1895,18 @@ mod regression {
             follow_target: None,
             protect_until: 0,
             last_attack_tick: None,
+            simulated: false,
+            loadout: "main".into(),
+            weapon: "whip".into(),
+            combat_style: CombatStyle::Melee,
+            spell: None,
+            overhead: None,
+            spec_energy: 100.0,
+            special_pending: false,
+            food: 16,
+            last_eat_tick: 0,
+            frozen_until: 0,
+            resident: None,
         }
     }
     fn state() -> AppState {
@@ -1341,5 +2070,40 @@ mod regression {
         assert_eq!(zone_at(56., 48.), Zone::Safe);
         assert_eq!(zone_at(38., 48.), Zone::Pvp);
         assert_eq!(zone_at(39., 48.), Zone::Safe);
+    }
+    #[test]
+    fn resident_population_is_split_between_safe_ge_and_pvp() {
+        let c = Collision {
+            n: 96,
+            block: vec![0; 96 * 96],
+        };
+        let mut w = World {
+            tick: 0,
+            players: HashMap::new(),
+            profiles: HashMap::new(),
+        };
+        seed_residents(&mut w, &c, 20);
+        assert_eq!(w.players.values().filter(|p| p.simulated).count(), 20);
+        assert_eq!(
+            w.players
+                .values()
+                .filter(|p| p.simulated && zone_at(p.x, p.y) == Zone::Safe)
+                .count(),
+            10
+        );
+        assert_eq!(
+            w.players
+                .values()
+                .filter(|p| p.simulated && zone_at(p.x, p.y) == Zone::Pvp)
+                .count(),
+            10
+        );
+    }
+    #[test]
+    fn simulated_residents_are_identifiable_in_snapshots() {
+        let p = make_resident("Tester", ResidentRole::Social, Tile::new(48, 48), 1);
+        let v = player_view(&p);
+        assert!(v.simulated);
+        assert!(!v.loadout.is_empty());
     }
 }
