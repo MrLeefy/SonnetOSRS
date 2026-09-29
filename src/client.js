@@ -218,14 +218,14 @@ const Client = (() => {
     C.drawMap(p);L.tabs.forEach((r,i)=>{Classic.stone(p,r,UI.tab===i,C.hover===C.tabButtons[i][0].title);const sz=Math.round(Math.min(r.w*.75,r.h*.78,48));p.drawImage(Classic.icon(TAB_ID[i]),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);C.tabButtons[i][0].setAttribute('aria-pressed',String(UI.tab===i));});
     C.drawChat(p);
     if(typeof Online!=='undefined'&&Online.active){
-      const safe=Online.zone==='safe',bw=clamp(L.world.w*.12,84,132),badge={x:L.world.x+L.world.w-bw-10,y:L.world.y+9,w:bw,h:32};
-      Classic.stone(p,badge,!safe);p.drawImage(Classic.icon(safe?'bank':'combat'),badge.x+5,badge.y+4,24,24);
-      Classic.text(p,safe?'SAFE ZONE':'PVP ZONE',badge.x+34,badge.y+21,12,safe?0xb9e38f:0xff8b69,true);
-      Classic.text(p,Online.connected?'W1':'OFFLINE',badge.x+badge.w-7,badge.y+21,9,Online.connected?0x83dc68:0xd77b62,true,'right');
+      const safe=Online.zone==='safe',label=Online.ready?(safe?'SAFE ZONE':'PVP ZONE'):'CONNECTING',size=L.world.w<420?11:12,bw=Math.max(116,textWidth('p11',label)*size/11+40),badge={x:L.world.x+L.world.w-bw-8,y:L.world.y+7,w:bw,h:43};
+      C.zoneBadge=badge;Classic.stone(p,badge,Online.ready&&!safe);p.drawImage(Classic.icon(safe?'bank':'combat'),badge.x+5,badge.y+8,24,24);
+      Classic.text(p,label,badge.x+34,badge.y+19,size,safe?0xb9e38f:0xff8b69,true);
+      Classic.text(p,Online.ready?'World 1':'Please wait',badge.x+34,badge.y+34,9,0xc9b88f,true);
     }
     if(L.quick){Classic.text(p,Online.active?'World 1':Expedition.active?'Expedition':'Arena',L.quick.x+L.quick.w/2,L.quick.y+14,12,0xd3bf89,true,'center');for(const {key,r}of C.quickButtons){Classic.stone(p,r);const id=key==='Save'?'save':key==='Chat'?'chat':key==='Menu'?'menu':key==='Run'?'run':key==='Special'?'combat':'full',sz=Math.min(27,r.h-6);p.drawImage(key==='Eat'?itemIcon('cookedFish'):key==='Potion'?itemIcon('prayer'):Classic.icon(id),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);}}
     const action=C.hover||UI.hoverText;
-    if(action&&!UI.menu){p.save();p.beginPath();p.rect(L.world.x+4,L.world.y+3,L.world.w-8,50);p.clip();Classic.text(p,action+(!C.hover&&UI.hoverMore?' / '+UI.hoverMore:''),L.world.x+7,L.world.y+clamp(C.width/90,14,21),clamp(C.width/90,13,19),0xffffff,true,'left',true);p.restore();}
+    if(action&&!UI.menu){p.save();p.beginPath();p.rect(L.world.x+4,L.world.y+3,Math.max(45,L.world.w-(Online.active?150:8)),50);p.clip();Classic.text(p,action+(!C.hover&&UI.hoverMore?' / '+UI.hoverMore:''),L.world.x+7,L.world.y+clamp(C.width/90,14,21),clamp(C.width/90,13,19),0xffffff,true,'left',true);p.restore();}
     if(G.spellSel)Classic.text(p,'Cast '+SPELL_BY_ID[G.spellSel].name+' on...',L.world.x+7,L.world.y+40,14,0x8ebde8,true);
     C.syncMenu();C.syncDialog();C.syncTooltip();
     if(!C.lastStatus||G.now-C.lastStatus>1000){C.lastStatus=G.now;C.status.textContent=Profiles.status;}
@@ -289,13 +289,14 @@ const Client = (() => {
       button('Fullscreen',C.fullscreen,presentation);
       const tog=el('div',{class:'client-controls'},root);
       for(const [key,label]of [['sound','Sound'],['reduceMotion','Reduced motion'],['cameraSmooth','Smooth camera'],['showFps','FPS']])button(label+': '+(Profiles.settings[key]?'on':'off'),refresh(()=>{Profiles.settings[key]=!Profiles.settings[key];UI.sound=Profiles.settings.sound;Profiles.saveSettings();Polish.configure();}),tog);
-      if(G.player){
+      if(G.player&&!Online.active){
         el('h2',{text:'Backups'},root);const row=el('div',{class:'client-controls'},root);
         button('Save now',refresh(()=>Profiles.save(true)),row);button('Export save',refresh(()=>Profiles.exportFile()),row);
         const file=el('input',{type:'file',accept:'.json,application/json'},root);file.setAttribute('aria-label','Import a local save');
         file.onchange=async()=>{try{await Profiles.importFile(file.files[0]);}catch(err){Profiles.status=err.message;}C.renderPanel();};
         button('Reset this profile',()=>{if(Profiles.reset())startGame(Profiles.name,Profiles.mode,{skipSave:true});},row);
       }
+      if(Online.active)el('p',{class:'client-help',text:'World 1 position and combat progress are saved by the server. Switch to Arena or Expedition to manage offline save files; online play cannot import or reset those profiles.'},root);
       el('div',{class:'client-message',text:Profiles.status},root);
       el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause local simulation; the online world continues on the server.'},root);
     }else if(C.panel==='journal'){
@@ -325,14 +326,14 @@ const Client = (() => {
       el('p',{text:'Ingredients are consumed only when there is space for the complete result.'},root);const grid=el('div',{class:'client-grid'},root);
       for(const r of Expedition.recipes.filter(r=>r.station===(C.panel==='cooking'?'fire':'forge'))){const card=el('div',{class:'client-card'},grid);el('h2',{text:r.name},card);el('small',{text:Object.entries(r.input).map(([id,n])=>n+' '+ITEMS[id].name).join(' + ')+' → '+ITEMS[r.output[0]].name},card);button('Craft · +'+r.xp+' '+r.skill+' XP',refresh(()=>Expedition.craft(r.id)),card);}
     }else if(C.panel==='map'){
-      el('p',{text:'This map is drawn from the current world. Markers show real banks, resource nodes and your player. This is still an offline client, not a connected multiplayer world.'},root);
+      el('p',{text:'This map is drawn from the current world. Markers show the banks, resource nodes and your position.'},root);
       const cv=el('canvas',{width:576,height:576},root);cv.style.cssText='position:static;width:min(100%,576px);height:auto;display:block;margin:auto;image-rendering:pixelated;border:4px ridge #81704d';
       const p=cv.getContext('2d');for(let y=0;y<MAPN;y++)for(let x=0;x<MAPN;x++){p.fillStyle=css(WORLD.mm[y*MAPN+x]);p.fillRect(x*6,(MAPN-y-1)*6,6,6);}
       for(const o of WORLD.objs){p.fillStyle=o.kind==='bank'?'#ede3b3':'#eb9d55';p.fillRect(o.x*6-2,(MAPN-o.y-1)*6-2,8,8);}
       p.fillStyle='#ffffff';p.fillRect(G.player.x*6-3,(MAPN-G.player.y-1)*6-3,10,10);
       const row=el('div',{class:'client-controls'},root);button('Open journal',()=>C.open('journal'),row);button('Return to game',C.close,row);
     }else if(C.panel==='report'){
-      el('p',{text:'This is an offline world. No online abuse-report service is connected, and nothing will be sent to another player or to Jagex. You can export a local bug report for this project.'},root);
+      el('p',{text:'No online abuse-report service is connected, and nothing will be sent to another player or to Jagex. You can export a local bug report for this project.'},root);
       const area=el('textarea',{placeholder:'Describe what happened...'},root);area.setAttribute('aria-label','Problem description');
       button('Export local report',()=>{
         const text=['SonnetOSRS classic client '+Classic.version,'Mode: '+Profiles.mode,'Description:',area.value].join('\n');

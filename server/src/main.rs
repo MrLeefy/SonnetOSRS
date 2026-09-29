@@ -1,5 +1,7 @@
+mod movement;
+use movement::{Collision, Tile};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     env,
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -22,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     fs,
     net::TcpListener,
-    sync::{RwLock, broadcast},
+    sync::{Mutex, RwLock, broadcast, watch},
     time,
 };
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -31,13 +33,10 @@ use uuid::Uuid;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const TICK_MS: u64 = 600;
-const MAP_MIN: f32 = 0.5;
-const MAP_MAX: f32 = 95.5;
 const GE_CENTER: f32 = 48.0;
 const SAFE_APOTHEM: f32 = 9.0;
 const MAX_HP: i32 = 99;
 const MAX_CHAT: usize = 120;
-const ATTACK_RANGE: f32 = 1.85;
 const ATTACK_SPEED_TICKS: u64 = 4;
 
 #[derive(Clone)]
@@ -47,6 +46,8 @@ struct AppState {
     state_file: Arc<PathBuf>,
     collision: Arc<Collision>,
     allowed_origins: Arc<Vec<String>>,
+    persist_lock: Arc<Mutex<()>>,
+    shutdown: watch::Sender<bool>,
 }
 
 struct World {
@@ -64,7 +65,15 @@ struct Player {
     hp: i32,
     kills: u32,
     deaths: u32,
-    last_move: Instant,
+    path: VecDeque<Tile>,
+    motion: Vec<Tile>,
+    motion_tick: u64,
+    command_seq: u64,
+    run_on: bool,
+    run_energy: f32,
+    attack_target: Option<Uuid>,
+    follow_target: Option<Uuid>,
+    protect_until: u64,
     last_attack_tick: Option<u64>,
 }
 
@@ -75,72 +84,17 @@ struct PersistedProfile {
     y: f32,
     kills: u32,
     deaths: u32,
+    #[serde(default = "default_hp")]
+    hp: i32,
+}
+fn default_hp() -> i32 {
+    MAX_HP
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
 struct CollisionFile {
     n: usize,
     block: Vec<u8>,
-}
-
-#[derive(Clone, Debug, Default)]
-struct Collision {
-    n: usize,
-    block: Vec<u8>,
-}
-
-impl Collision {
-    fn blocked(&self, x: i32, y: i32) -> bool {
-        if x < 0 || y < 0 || x as usize >= self.n || y as usize >= self.n {
-            return true;
-        }
-        self.block
-            .get(y as usize * self.n + x as usize)
-            .copied()
-            .unwrap_or(1)
-            != 0
-    }
-    fn can_step(&self, x: i32, y: i32, dx: i32, dy: i32) -> bool {
-        if dx.abs() > 1 || dy.abs() > 1 || (dx == 0 && dy == 0) {
-            return false;
-        }
-        if self.blocked(x + dx, y + dy) {
-            return false;
-        }
-        if dx != 0 && dy != 0 && (self.blocked(x + dx, y) || self.blocked(x, y + dy)) {
-            return false;
-        }
-        true
-    }
-    fn valid_move(&self, from_x: f32, from_y: f32, to_x: f32, to_y: f32) -> bool {
-        let sx = from_x.round() as i32;
-        let sy = from_y.round() as i32;
-        let tx = to_x.round() as i32;
-        let ty = to_y.round() as i32;
-        if (to_x - tx as f32).abs() > 0.01 || (to_y - ty as f32).abs() > 0.01 {
-            return false;
-        }
-        let dx = tx - sx;
-        let dy = ty - sy;
-        let steps = dx.abs().max(dy.abs());
-        if steps == 0 || steps > 2 {
-            return false;
-        }
-        let mut x = sx;
-        let mut y = sy;
-        for i in 1..=steps {
-            let nx = sx + ((dx as f32) * (i as f32 / steps as f32)).round() as i32;
-            let ny = sy + ((dy as f32) * (i as f32 / steps as f32)).round() as i32;
-            let stepx = nx - x;
-            let stepy = ny - y;
-            if !self.can_step(x, y, stepx, stepy) {
-                return false;
-            }
-            x = nx;
-            y = ny;
-        }
-        x == tx && y == ty
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -150,13 +104,28 @@ enum ClientMessage {
         name: String,
         #[serde(default)]
         resume_token: Option<String>,
+        #[serde(default)]
+        protocol: u32,
     },
-    Move {
+    Walk {
         x: f32,
         y: f32,
+        seq: u64,
         #[serde(default)]
+        run_on: bool,
+    },
+    Stop {
         seq: u64,
     },
+    Run {
+        enabled: bool,
+    },
+    Follow {
+        target_id: Uuid,
+        seq: u64,
+    },
+    Resync {},
+    Move {},
     Attack {
         target_id: Uuid,
     },
@@ -177,6 +146,8 @@ enum ServerMessage<'a> {
         resume_token: &'a str,
         tick_ms: u64,
         version: &'a str,
+        protocol: u32,
+        world_hash: u32,
         safe_zone: SafeZone,
         server_time_ms: u64,
     },
@@ -184,8 +155,11 @@ enum ServerMessage<'a> {
         tick: u64,
         players: Vec<PlayerView>,
     },
-    ZoneTransition {
-        zone: Zone,
+    Route {
+        seq: u64,
+        tick: u64,
+        path: Vec<Tile>,
+        player: PlayerView,
     },
     Combat {
         attacker_id: Uuid,
@@ -235,6 +209,13 @@ struct PlayerView {
     kills: u32,
     deaths: u32,
     zone: Zone,
+    motion: Vec<Tile>,
+    motion_tick: u64,
+    command_seq: u64,
+    destination: Option<Tile>,
+    moving: bool,
+    run: f32,
+    attack_target: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -276,7 +257,7 @@ fn poly8(dx: f32, dy: f32) -> f32 {
 }
 
 fn zone_at(x: f32, y: f32) -> Zone {
-    if poly8(x - GE_CENTER, y - GE_CENTER) <= SAFE_APOTHEM {
+    if poly8(x + 0.5 - GE_CENTER, y + 0.5 - GE_CENTER) <= SAFE_APOTHEM {
         Zone::Safe
     } else {
         Zone::Pvp
@@ -325,6 +306,13 @@ fn player_view(p: &Player) -> PlayerView {
         kills: p.kills,
         deaths: p.deaths,
         zone: zone_at(p.x, p.y),
+        motion: p.motion.clone(),
+        motion_tick: p.motion_tick,
+        command_seq: p.command_seq,
+        destination: p.path.back().copied(),
+        moving: !p.path.is_empty(),
+        run: p.run_energy,
+        attack_target: p.attack_target,
     }
 }
 
@@ -390,9 +378,15 @@ async fn connection(socket: WebSocket, state: AppState) {
     };
 
     let hello: ClientMessage = match serde_json::from_str(first.as_str()) {
-        Ok(ClientMessage::Hello { name, resume_token }) => {
-            ClientMessage::Hello { name, resume_token }
-        }
+        Ok(ClientMessage::Hello {
+            name,
+            resume_token,
+            protocol,
+        }) => ClientMessage::Hello {
+            name,
+            resume_token,
+            protocol,
+        },
         _ => {
             let _ = sink
                 .send(Message::Text(
@@ -407,9 +401,32 @@ async fn connection(socket: WebSocket, state: AppState) {
         }
     };
 
-    let ClientMessage::Hello { name, resume_token } = hello else {
+    let ClientMessage::Hello {
+        name,
+        resume_token,
+        protocol,
+    } = hello
+    else {
         unreachable!()
     };
+    if protocol != 2 {
+        let _ = sink
+            .send(Message::Text(
+                serialize(&ServerMessage::Error {
+                    code: "client_update_required",
+                    message: "Movement update available. Refresh OLDSKOOL to join.",
+                })
+                .into(),
+            ))
+            .await;
+        let _ = sink
+            .send(Message::Close(Some(CloseFrame {
+                code: close_code::POLICY,
+                reason: "client update required".into(),
+            })))
+            .await;
+        return;
+    }
     let name = clean_name(&name);
     if name.is_empty() {
         let _ = sink
@@ -432,7 +449,8 @@ async fn connection(socket: WebSocket, state: AppState) {
             .filter(|t| world.profiles.contains_key(t));
         let token = requested.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        if world.players.values().any(|p| p.token == token) {
+        if world.players.len() >= 128 || world.players.values().any(|p| p.token == token) {
+            drop(world);
             let _ = sink
                 .send(Message::Text(
                     serialize(&ServerMessage::Error {
@@ -455,30 +473,33 @@ async fn connection(socket: WebSocket, state: AppState) {
                 y: 42.0,
                 kills: 0,
                 deaths: 0,
+                hp: MAX_HP,
             });
 
+        let pos = state.collision.legal_position(profile.x, profile.y);
         let player = Player {
             id,
             token: token.clone(),
             name,
-            x: if profile.x.is_finite() {
-                profile.x.clamp(MAP_MIN, MAP_MAX)
-            } else {
-                GE_CENTER
-            },
-            y: if profile.y.is_finite() {
-                profile.y.clamp(MAP_MIN, MAP_MAX)
-            } else {
-                34.0
-            },
-            hp: MAX_HP,
+            x: pos.x as f32,
+            y: pos.y as f32,
+            hp: profile.hp.clamp(1, MAX_HP),
             kills: profile.kills,
             deaths: profile.deaths,
-            last_move: Instant::now(),
+            path: VecDeque::new(),
+            motion: vec![pos],
+            motion_tick: world.tick,
+            command_seq: 0,
+            run_on: true,
+            run_energy: 100.0,
+            attack_target: None,
+            follow_target: None,
+            protect_until: 0,
             last_attack_tick: None,
         };
         let view = player_view(&player);
         let tick = world.tick;
+        world.profiles.insert(token.clone(), profile);
         world.players.insert(id, player);
         (token, view, tick)
     };
@@ -490,6 +511,8 @@ async fn connection(socket: WebSocket, state: AppState) {
         resume_token: &token,
         tick_ms: TICK_MS,
         version: VERSION,
+        protocol: 2,
+        world_hash: state.collision.hash(),
         safe_zone: safe_zone(),
         server_time_ms: now_ms(),
     };
@@ -512,13 +535,19 @@ async fn connection(socket: WebSocket, state: AppState) {
     let _ = sink.send(Message::Text(serialize(&initial).into())).await;
 
     let mut rx = state.tx.subscribe();
+    let mut stopping = state.shutdown.subscribe();
+    let mut idle = time::interval(Duration::from_secs(20));
+    let mut last_seen = Instant::now();
     let mut window_start = Instant::now();
     let mut command_count = 0u32;
 
     loop {
         tokio::select! {
+            _=stopping.changed()=>{let _=sink.send(Message::Close(Some(CloseFrame{code:1012,reason:"server restart".into()}))).await;break;},
+            _=idle.tick()=>{if last_seen.elapsed()>Duration::from_secs(90){break;}if sink.send(Message::Ping(Vec::new().into())).await.is_err(){break;}},
             incoming = stream.next() => {
                 let Some(result) = incoming else { break };
+                last_seen=Instant::now();
                 let message = match result {
                     Ok(m) => m,
                     Err(err) => {
@@ -535,6 +564,8 @@ async fn connection(socket: WebSocket, state: AppState) {
                         }
                         command_count += 1;
                         if command_count > 100 {
+                            if command_count>120 {break;}
+                            if command_count!=101 {continue;}
                             let msg = serialize(&ServerMessage::Error {
                                 code: "rate_limited",
                                 message: "Too many commands.",
@@ -591,127 +622,116 @@ async fn handle_command(id: Uuid, command: ClientMessage, state: &AppState) -> O
             code: "already_hello",
             message: "Connection is already initialized.",
         })),
-        ClientMessage::Move { x, y, seq: _seq } => {
-            if !x.is_finite()
-                || !y.is_finite()
-                || !(MAP_MIN..=MAP_MAX).contains(&x)
-                || !(MAP_MIN..=MAP_MAX).contains(&y)
-            {
+        ClientMessage::Walk { x, y, seq, run_on } => {
+            let Some(to) = state.collision.tile(x, y) else {
                 return Some(serialize(&ServerMessage::Error {
                     code: "bad_move",
-                    message: "Movement target is outside the world.",
+                    message: "Choose a tile inside the world.",
+                }));
+            };
+            let mut w = state.world.write().await;
+            let tick = w.tick;
+            let p = w.players.get_mut(&id)?;
+            if seq <= p.command_seq {
+                return Some(serialize(&ServerMessage::Route {
+                    seq: p.command_seq,
+                    tick,
+                    path: p.path.iter().copied().collect(),
+                    player: player_view(p),
                 }));
             }
-
-            let transition = {
-                let mut world = state.world.write().await;
-                let Some(player) = world.players.get_mut(&id) else {
-                    return None;
-                };
-                let elapsed = player.last_move.elapsed();
-                if elapsed < Duration::from_millis(180)
-                    || !state.collision.valid_move(player.x, player.y, x, y)
-                {
-                    return Some(serialize(&ServerMessage::Error {
-                        code: "move_rejected",
-                        message: "Movement was not a legal world step.",
-                    }));
+            p.command_seq = seq;
+            p.attack_target = None;
+            p.follow_target = None;
+            p.run_on = run_on;
+            let from = Tile::new(p.x as i32, p.y as i32);
+            match state.collision.path(from, to, true) {
+                Some(path) => {
+                    p.path = path;
+                    Some(serialize(&ServerMessage::Route {
+                        seq,
+                        tick,
+                        path: p.path.iter().copied().collect(),
+                        player: player_view(p),
+                    }))
                 }
-
-                let before = zone_at(player.x, player.y);
-                player.x = x;
-                player.y = y;
-                player.last_move = Instant::now();
-                let after = zone_at(x, y);
-                (before != after).then_some(after)
-            };
-
-            transition.map(|zone| serialize(&ServerMessage::ZoneTransition { zone }))
+                None => {
+                    p.path.clear();
+                    Some(serialize(&ServerMessage::Error {
+                        code: "unreachable",
+                        message: "You cannot reach that tile.",
+                    }))
+                }
+            }
         }
+        ClientMessage::Stop { seq } => {
+            let mut w = state.world.write().await;
+            let tick = w.tick;
+            let p = w.players.get_mut(&id)?;
+            if seq > p.command_seq {
+                p.command_seq = seq;
+                p.path.clear();
+                p.attack_target = None;
+                p.follow_target = None;
+            }
+            Some(serialize(&ServerMessage::Route {
+                seq: p.command_seq,
+                tick,
+                path: p.path.iter().copied().collect(),
+                player: player_view(p),
+            }))
+        }
+        ClientMessage::Run { enabled } => {
+            let mut w = state.world.write().await;
+            if let Some(p) = w.players.get_mut(&id) {
+                p.run_on = enabled;
+            }
+            None
+        }
+        ClientMessage::Follow { target_id, seq } => {
+            let mut w = state.world.write().await;
+            if target_id == id || !w.players.contains_key(&target_id) {
+                return None;
+            }
+            if let Some(p) = w.players.get_mut(&id) {
+                if seq > p.command_seq {
+                    p.command_seq = seq;
+                    p.follow_target = Some(target_id);
+                    p.attack_target = None;
+                    p.path.clear();
+                }
+            }
+            None
+        }
+        ClientMessage::Resync {} => Some(snapshot_message(state).await),
+        // Absolute position writes were the source of desync loops. Never accept them.
+        ClientMessage::Move {} => Some(serialize(&ServerMessage::Error {
+            code: "move_rejected",
+            message: "Absolute movement is not accepted; request a destination.",
+        })),
         ClientMessage::Attack { target_id } => {
-            let event = {
-                let mut world = state.world.write().await;
-                let tick = world.tick;
-
-                let Some(attacker) = world.players.get(&id) else {
-                    return None;
-                };
-                let Some(target) = world.players.get(&target_id) else {
-                    return Some(serialize(&ServerMessage::Error {
-                        code: "target_missing",
-                        message: "That player is no longer online.",
-                    }));
-                };
-
-                if id == target_id {
-                    return Some(serialize(&ServerMessage::Error {
-                        code: "bad_target",
-                        message: "You cannot attack yourself.",
-                    }));
-                }
-                if zone_at(attacker.x, attacker.y) == Zone::Safe
-                    || zone_at(target.x, target.y) == Zone::Safe
-                {
-                    return Some(serialize(&ServerMessage::Error {
-                        code: "safe_zone",
-                        message: "PvP is disabled inside the Grand Exchange stone boundary.",
-                    }));
-                }
-                if ((attacker.x - target.x).powi(2) + (attacker.y - target.y).powi(2)).sqrt()
-                    > ATTACK_RANGE
-                {
-                    return Some(serialize(&ServerMessage::Error {
-                        code: "out_of_range",
-                        message: "Move closer to attack.",
-                    }));
-                }
-                if attacker
-                    .last_attack_tick
-                    .is_some_and(|last| tick.saturating_sub(last) < ATTACK_SPEED_TICKS)
-                {
-                    return Some(serialize(&ServerMessage::Error {
-                        code: "attack_cooldown",
-                        message: "Your attack is still on cooldown.",
-                    }));
-                }
-
-                let seed = tick ^ (id.as_u128() as u64) ^ ((target_id.as_u128() >> 64) as u64);
-                let damage = (seed % 13) as i32;
-
-                if let Some(attacker) = world.players.get_mut(&id) {
-                    attacker.last_attack_tick = Some(tick);
-                }
-
-                let mut killed = false;
-                let mut target_hp = MAX_HP;
-                if let Some(target) = world.players.get_mut(&target_id) {
-                    target.hp = (target.hp - damage).max(0);
-                    target_hp = target.hp;
-                    if target.hp == 0 {
-                        target.deaths = target.deaths.saturating_add(1);
-                        target.hp = MAX_HP;
-                        target.x = GE_CENTER;
-                        target.y = 42.0;
-                        target.last_move = Instant::now();
-                        killed = true;
-                    }
-                }
-                if killed {
-                    if let Some(attacker) = world.players.get_mut(&id) {
-                        attacker.kills = attacker.kills.saturating_add(1);
-                    }
-                }
-
-                ServerMessage::Combat {
-                    attacker_id: id,
-                    target_id,
-                    damage,
-                    target_hp,
-                    killed,
-                }
+            let mut w = state.world.write().await;
+            let a = w.players.get(&id)?;
+            let Some(t) = w.players.get(&target_id) else {
+                return Some(serialize(&ServerMessage::Error {
+                    code: "target_missing",
+                    message: "That player is no longer online.",
+                }));
             };
-            let text = serialize(&event);
-            let _ = state.tx.send(text.clone());
+            if target_id == id {
+                return None;
+            }
+            if zone_at(a.x, a.y) == Zone::Safe || zone_at(t.x, t.y) == Zone::Safe {
+                return Some(serialize(&ServerMessage::Error {
+                    code: "safe_zone",
+                    message: "PvP is disabled inside the Grand Exchange stone boundary.",
+                }));
+            }
+            if let Some(a) = w.players.get_mut(&id) {
+                a.attack_target = Some(target_id);
+                a.follow_target = None;
+                a.protect_until = 0;
+            }
             None
         }
         ClientMessage::Chat { text } => {
@@ -757,6 +777,7 @@ async fn disconnect(id: Uuid, state: &AppState) {
                 y: player.y,
                 kills: player.kills,
                 deaths: player.deaths,
+                hp: player.hp,
             };
             world.profiles.insert(player.token.clone(), profile.clone());
             (player.token, profile, player.name)
@@ -769,26 +790,145 @@ async fn disconnect(id: Uuid, state: &AppState) {
     }
 }
 
+fn advance_world(w: &mut World, c: &Collision) -> Vec<String> {
+    w.tick = w.tick.saturating_add(1);
+    let tick = w.tick;
+    let mut events = Vec::new();
+    let mut ids = w.players.keys().copied().collect::<Vec<_>>();
+    ids.sort();
+    // Capture everybody before stepping, so UUID iteration order can't speed pursuit.
+    let positions = w
+        .players
+        .iter()
+        .map(|(id, p)| (*id, (Tile::new(p.x as i32, p.y as i32), zone_at(p.x, p.y))))
+        .collect::<HashMap<_, _>>();
+    for id in &ids {
+        let p = w.players.get_mut(id).unwrap();
+        let from = Tile::new(p.x as i32, p.y as i32);
+        p.motion = vec![from];
+        p.motion_tick = tick;
+        if let Some(target_id) = p.attack_target.or(p.follow_target) {
+            if let Some((target, z)) = positions.get(&target_id) {
+                if p.attack_target.is_some()
+                    && (zone_at(p.x, p.y) == Zone::Safe || *z == Zone::Safe)
+                {
+                    p.attack_target = None;
+                    p.path.clear();
+                } else if c.melee_clear(from, *target) && from != *target {
+                    p.path.clear();
+                } else {
+                    p.path = c.path(from, *target, false).unwrap_or_default();
+                    if p.path.back() == Some(target) {
+                        p.path.pop_back();
+                    }
+                }
+            } else {
+                p.attack_target = None;
+                p.follow_target = None;
+                p.path.clear();
+            }
+        }
+        let steps = if p.run_on && p.run_energy >= 1.0 {
+            2
+        } else {
+            1
+        };
+        for _ in 0..steps {
+            let Some(to) = p.path.pop_front() else {
+                break;
+            };
+            if !c.can_step(p.x as i32, p.y as i32, to.x - p.x as i32, to.y - p.y as i32) {
+                p.path.clear();
+                break;
+            }
+            p.x = to.x as f32;
+            p.y = to.y as f32;
+            p.motion.push(to);
+        }
+        if p.motion.len() > 2 {
+            p.run_energy = (p.run_energy - 0.67).max(0.0);
+        } else {
+            p.run_energy = (p.run_energy + 0.3).min(100.0);
+        }
+        if tick % 100 == 0 {
+            p.hp = (p.hp + 1).min(MAX_HP);
+        }
+    }
+    for id in ids {
+        let a = &w.players[&id];
+        let Some(tid) = a.attack_target else {
+            continue;
+        };
+        let Some(t) = w.players.get(&tid) else {
+            continue;
+        };
+        if zone_at(a.x, a.y) == Zone::Safe
+            || zone_at(t.x, t.y) == Zone::Safe
+            || tick < t.protect_until
+            || a.last_attack_tick
+                .is_some_and(|last| tick.saturating_sub(last) < ATTACK_SPEED_TICKS)
+        {
+            continue;
+        }
+        if !c.melee_clear(
+            Tile::new(a.x as i32, a.y as i32),
+            Tile::new(t.x as i32, t.y as i32),
+        ) {
+            continue;
+        }
+        let seed = tick ^ (id.as_u128() as u64) ^ ((tid.as_u128() >> 64) as u64);
+        let dmg = (seed % 13) as i32;
+        w.players.get_mut(&id).unwrap().last_attack_tick = Some(tick);
+        let t = w.players.get_mut(&tid).unwrap();
+        t.hp = (t.hp - dmg).max(0);
+        let hp = t.hp;
+        let killed = hp == 0;
+        if killed {
+            t.deaths = t.deaths.saturating_add(1);
+            t.hp = MAX_HP;
+            t.x = 48.0;
+            t.y = 42.0;
+            t.path.clear();
+            t.motion = vec![Tile::new(48, 42)];
+            t.attack_target = None;
+            t.follow_target = None;
+            t.protect_until = tick + 10;
+        }
+        if killed {
+            w.players.get_mut(&id).unwrap().kills = w.players[&id].kills.saturating_add(1);
+            for p in w.players.values_mut() {
+                if p.attack_target == Some(tid) {
+                    p.attack_target = None;
+                    p.path.clear();
+                }
+            }
+        }
+        events.push(serialize(&ServerMessage::Combat {
+            attacker_id: id,
+            target_id: tid,
+            damage: dmg,
+            target_hp: hp,
+            killed,
+        }));
+    }
+    events
+}
 async fn tick_loop(state: AppState) {
     let mut interval = time::interval(Duration::from_millis(TICK_MS));
     interval.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+    let mut stop = state.shutdown.subscribe();
     loop {
-        interval.tick().await;
-        {
-            let mut world = state.world.write().await;
-            world.tick = world.tick.saturating_add(1);
-        }
-        let snapshot = snapshot_message(&state).await;
-        let _ = state.tx.send(snapshot);
-
-        let tick = state.world.read().await.tick;
-        if tick % 50 == 0 {
-            persist(&state).await;
-        }
+        tokio::select! {_=stop.changed()=>break,_=interval.tick()=>{
+            let events={let mut w=state.world.write().await;advance_world(&mut w,&state.collision)};
+            for msg in events{let _=state.tx.send(msg);}let _=state.tx.send(snapshot_message(&state).await);
+            if state.world.read().await.tick%50==0{let clone=state.clone();tokio::spawn(async move{persist(&clone).await;});}
+        }}
     }
 }
 
 async fn persist(state: &AppState) {
+    // Serialize the entire capture/write transaction: concurrent disconnects must not overwrite newer state.
+    let _save = state.persist_lock.lock().await;
     let (path, data) = {
         let world = state.world.read().await;
         let mut profiles = world.profiles.clone();
@@ -801,6 +941,7 @@ async fn persist(state: &AppState) {
                     y: player.y,
                     kills: player.kills,
                     deaths: player.deaths,
+                    hp: player.hp,
                 },
             );
         }
@@ -825,6 +966,14 @@ async fn persist(state: &AppState) {
         error!(?err, "failed to write profile temp file");
         return;
     }
+    if let Ok(bytes) = fs::read(&path).await {
+        if serde_json::from_slice::<HashMap<String, PersistedProfile>>(&bytes).is_ok() {
+            if let Err(err) = fs::write(path.with_extension("json.backup"), bytes).await {
+                error!(?err, "profile backup failed");
+                return;
+            }
+        }
+    }
     if let Err(err) = fs::rename(&tmp, &path).await {
         error!(?err, "failed to atomically replace profile file");
     }
@@ -832,22 +981,23 @@ async fn persist(state: &AppState) {
 
 async fn load_profiles(path: &Path) -> HashMap<String, PersistedProfile> {
     match fs::read(path).await {
-        Ok(bytes) => match serde_json::from_slice::<HashMap<String, PersistedProfile>>(&bytes) {
+        Ok(bytes) => match serde_json::from_slice(&bytes) {
             Ok(data) => data,
             Err(err) => {
-                warn!(
-                    ?err,
-                    ?path,
-                    "profile file is invalid; starting with no loaded profiles"
+                if let Ok(backup) = fs::read(path.with_extension("json.backup")).await {
+                    if let Ok(data) = serde_json::from_slice(&backup) {
+                        warn!(?err, "using previous valid profile backup");
+                        return data;
+                    }
+                }
+                panic!(
+                    "Profile data is unreadable; refusing to overwrite {}: {err}",
+                    path.display()
                 );
-                HashMap::new()
             }
         },
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
-        Err(err) => {
-            warn!(?err, ?path, "profile file could not be read");
-            HashMap::new()
-        }
+        Err(err) => panic!("Cannot read profile data at {}: {err}", path.display()),
     }
 }
 
@@ -904,7 +1054,7 @@ async fn main() {
     let collision = load_collision(&collision_file).await;
     let allowed_origins = env::var("OLDSKOOL_ALLOWED_ORIGINS")
         .unwrap_or_else(|_| {
-            "https://oldskool.vercel.app,http://127.0.0.1:8000,http://localhost:8000".into()
+            "https://oldskool-phi.vercel.app,http://127.0.0.1:8000,http://localhost:8000".into()
         })
         .split(',')
         .map(str::trim)
@@ -924,6 +1074,8 @@ async fn main() {
         state_file: Arc::new(state_file),
         collision: Arc::new(collision),
         allowed_origins: Arc::new(allowed_origins),
+        persist_lock: Arc::new(Mutex::new(())),
+        shutdown: watch::channel(false).0,
     };
 
     tokio::spawn(tick_loop(state.clone()));
@@ -947,6 +1099,7 @@ async fn main() {
     let shutdown = async move {
         shutdown_signal().await;
         info!("shutdown signal received");
+        let _ = shutdown_state.shutdown.send(true);
         persist(&shutdown_state).await;
     };
 
@@ -992,8 +1145,197 @@ mod tests {
         let mut block = vec![0; 96 * 96];
         block[10 * 96 + 11] = 1;
         let c = Collision { n: 96, block };
-        assert!(!c.valid_move(10.0, 10.0, 11.0, 10.0));
-        assert!(!c.valid_move(10.0, 10.0, 11.0, 11.0));
-        assert!(c.valid_move(10.0, 10.0, 10.0, 11.0));
+        assert!(!c.can_step(10, 10, 1, 0));
+        assert!(!c.can_step(10, 10, 1, 1));
+        assert!(c.can_step(10, 10, 0, 1));
+    }
+}
+
+#[cfg(test)]
+mod regression {
+    use super::*;
+    fn player(id: Uuid) -> Player {
+        Player {
+            id,
+            token: Uuid::new_v4().to_string(),
+            name: "Tester".into(),
+            x: 10.,
+            y: 10.,
+            hp: 99,
+            kills: 0,
+            deaths: 0,
+            path: VecDeque::new(),
+            motion: vec![Tile::new(10, 10)],
+            motion_tick: 0,
+            command_seq: 0,
+            run_on: true,
+            run_energy: 100.,
+            attack_target: None,
+            follow_target: None,
+            protect_until: 0,
+            last_attack_tick: None,
+        }
+    }
+    fn state() -> AppState {
+        let (tx, _) = broadcast::channel(32);
+        AppState {
+            world: Arc::new(RwLock::new(World {
+                tick: 0,
+                players: HashMap::new(),
+                profiles: HashMap::new(),
+            })),
+            tx,
+            state_file: Arc::new(
+                std::env::temp_dir().join(format!("oldskool-unit-{}.json", Uuid::new_v4())),
+            ),
+            collision: Arc::new(Collision {
+                n: 96,
+                block: vec![0; 9216],
+            }),
+            allowed_origins: Arc::new(vec![]),
+            persist_lock: Arc::new(Mutex::new(())),
+            shutdown: watch::channel(false).0,
+        }
+    }
+    #[tokio::test]
+    async fn walk_accepts_intent_without_changing_position() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        handle_command(
+            id,
+            ClientMessage::Walk {
+                x: 20.,
+                y: 10.,
+                seq: 1,
+                run_on: true,
+            },
+            &s,
+        )
+        .await;
+        let w = s.world.read().await;
+        assert_eq!(w.players[&id].x, 10.);
+        assert_eq!(w.players[&id].path.len(), 10);
+    }
+    #[tokio::test]
+    async fn repeated_packets_cannot_add_steps_between_ticks() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        for seq in 1..20 {
+            handle_command(
+                id,
+                ClientMessage::Walk {
+                    x: 30.,
+                    y: 10.,
+                    seq,
+                    run_on: true,
+                },
+                &s,
+            )
+            .await;
+        }
+        let mut w = s.world.write().await;
+        assert_eq!(w.players[&id].x, 10.);
+        advance_world(&mut w, &s.collision);
+        assert_eq!(w.players[&id].x, 12.);
+    }
+    #[tokio::test]
+    async fn older_sequence_cannot_replace_new_target() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        for (x, seq) in [(20., 4), (30., 2), (40., 4)] {
+            handle_command(
+                id,
+                ClientMessage::Walk {
+                    x,
+                    y: 10.,
+                    seq,
+                    run_on: true,
+                },
+                &s,
+            )
+            .await;
+        }
+        assert_eq!(
+            s.world.read().await.players[&id].path.back(),
+            Some(&Tile::new(20, 10))
+        );
+    }
+    #[tokio::test]
+    async fn stop_cancels_route_and_combat() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        handle_command(
+            id,
+            ClientMessage::Walk {
+                x: 20.,
+                y: 10.,
+                seq: 1,
+                run_on: true,
+            },
+            &s,
+        )
+        .await;
+        handle_command(id, ClientMessage::Stop { seq: 2 }, &s).await;
+        let mut w = s.world.write().await;
+        advance_world(&mut w, &s.collision);
+        assert_eq!(w.players[&id].x, 10.);
+        assert!(w.players[&id].path.is_empty());
+    }
+    #[tokio::test]
+    async fn walking_advances_one_and_running_two_tiles() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        handle_command(
+            id,
+            ClientMessage::Walk {
+                x: 20.,
+                y: 10.,
+                seq: 1,
+                run_on: false,
+            },
+            &s,
+        )
+        .await;
+        {
+            let mut w = s.world.write().await;
+            advance_world(&mut w, &s.collision);
+            assert_eq!(w.players[&id].x, 11.);
+        }
+        handle_command(id, ClientMessage::Run { enabled: true }, &s).await;
+        let mut w = s.world.write().await;
+        advance_world(&mut w, &s.collision);
+        assert_eq!(w.players[&id].x, 13.);
+    }
+    #[tokio::test]
+    async fn concurrent_persistence_is_serialized_and_valid() {
+        let s = state();
+        let id = Uuid::new_v4();
+        s.world.write().await.players.insert(id, player(id));
+        let (a, b, c) = (s.clone(), s.clone(), s.clone());
+        tokio::join!(persist(&a), persist(&b), persist(&c));
+        let profiles = load_profiles(&s.state_file).await;
+        assert_eq!(profiles.len(), 1);
+        let _ = fs::remove_file(&*s.state_file).await;
+        let _ = fs::remove_file(s.state_file.with_extension("json.backup")).await;
+    }
+    #[test]
+    fn legacy_profiles_keep_scores_and_default_hp() {
+        let p: PersistedProfile =
+            serde_json::from_str(r#"{"name":"Legacy","x":48.0,"y":42.0,"kills":4,"deaths":2}"#)
+                .unwrap();
+        assert_eq!(p.kills, 4);
+        assert_eq!(p.hp, 99);
+    }
+    #[test]
+    fn safe_zone_matches_rendered_tile_centres() {
+        assert_eq!(zone_at(57., 48.), Zone::Pvp);
+        assert_eq!(zone_at(56., 48.), Zone::Safe);
+        assert_eq!(zone_at(38., 48.), Zone::Pvp);
+        assert_eq!(zone_at(39., 48.), Zone::Safe);
     }
 }

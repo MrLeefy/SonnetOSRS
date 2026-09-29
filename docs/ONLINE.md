@@ -27,7 +27,7 @@ The Rust server currently owns:
 - connected-player snapshots and public online chat;
 - persisted online position/kill/death profile data.
 
-The browser predicts movement for responsiveness but server snapshots correct rejected/divergent movement. A modified client cannot enable PvP inside the GE because the Rust server independently rejects it.
+Protocol 2 accepts sequenced destination requests, not reported positions. The server pathfinder advances one walking or two running tiles per 600 ms tick. Snapshots include the legal intermediate tiles; the renderer interpolates them without resetting routes to old snapshots. A modified client cannot enable PvP inside the GE because the Rust server independently rejects it.
 
 Inventory, equipment, prayers, spells and most item economy actions are still the mature local SonnetOSRS systems. They have **not yet been migrated into the Rust authority**. Online World currently uses those local systems for presentation/loadout while the server owns the core PvP state above. Do not describe v0.4 as a fully authoritative MMO economy.
 
@@ -50,7 +50,7 @@ The same octagon is drawn in the 3D world and minimap from the safe-zone definit
 
 ## Persistence
 
-The systemd service writes online profiles to `/var/lib/oldskool/profiles.json` via atomic temp-file replacement. The file contains resume token → name, last accepted position, kills and deaths. Local browser profile/save data continues to use the existing versioned local save system.
+The systemd service writes online profiles to `/var/lib/oldskool/profiles.json` via serialized atomic temp-file replacement with a previous-valid-file backup. The file contains resume token → name, last accepted position, HP, kills and deaths. Local browser profile/save data continues to use the existing versioned local save system.
 
 ## Service deployment
 

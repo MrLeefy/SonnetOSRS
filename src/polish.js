@@ -50,6 +50,7 @@ const Polish = (() => {
     this.pitch=clamp(this.pitch,.25,1.35);this.yaw=((this.yaw%TAU)+TAU)%TAU;
     const dh=Math.cos(this.pitch)*this._visibleDist,dv=Math.sin(this.pitch)*this._visibleDist;
     this.eye=[this.tx-Math.sin(this.yaw)*dh,this.ty+dv,this.tz+Math.cos(this.yaw)*dh];
+    this.eye[1]=Math.max(this.eye[1],groundH(this.eye[0],-this.eye[2])+.55);
     this.view=M4.lookAt(this.eye,[this.tx,this.ty,this.tz],[0,1,0]);
     const aspect=this.aspect||VW/VH;this.vp=M4.mul(M4.persp(this.fovy,aspect,.25,90),this.view);
     let fx=this.tx-this.eye[0],fy=this.ty-this.eye[1],fz=this.tz-this.eye[2];const l=Math.hypot(fx,fy,fz)||1;fx/=l;fy/=l;fz/=l;
@@ -126,13 +127,14 @@ const Polish = (() => {
     if(model==='scim'&&it.color){
       DYN.box(m,0,0,.05,.022,.028,.07,0x684c33);DYN.box(m,0,0,.13,.09,.022,.022,0xc9a86b);
       DYN.box(m,0,.014,.32,.018,.040,.19,it.color);
-      DYN.tri(M4.pt(m,-.019,-.02,.48),M4.pt(m,.019,.04,.48),M4.pt(m,0,.12,.64),shadeCol(it.color,1.2),false);
+      for(const side of [-1,1])DYN.tri(M4.pt(m,side*.02,-.02,.48),M4.pt(m,side*.02,.05,.48),M4.pt(m,side*.005,.12,.64),shadeCol(it.color,side>0?1.2:.85),true);
+      DYN.quad(M4.pt(m,-.02,.05,.48),M4.pt(m,.02,.05,.48),M4.pt(m,.005,.12,.64),M4.pt(m,-.005,.12,.64),it.color,true);
     }else if(model==='whip'){
       DYN.box(m,0,0,.08,.026,.026,.10,0x6d4d2b);
       const wave=settings().reduceMotion?0:Math.sin(G.now/140)*.10;
       for(let i=0;i<8;i++){
         const z=.19+i*.07,yy=-i*i*.006,xx=Math.sin(i*.6+G.now/230)*wave*i/8;
-        const b=M4.mul(m,basisMat(xx,yy,z,0,-.012*i,.07));DYN.box(b,0,0,.035,.016,.016,.044,i%2?0xd2b95b:0xefd880);
+        const b=M4.mul(m,basisMat(xx,yy,z,0,-.012*i,.07));DYN.box(b,0,0,.035,.016,.016,.044,i%2?0x682d22:0x3c231e);
       }
     }else oldWeapon(m,model,it);
   };

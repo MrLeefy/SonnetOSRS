@@ -38,7 +38,7 @@ function makeWorldTextures(R) {
   mk('flag', p => {
     const r = mulberry32(7); noiseFill(p, 0, 0, 64, 64, COL.flag, 5, 11);
     for (let i = 0; i < 26; i++) { // craters
-      const x = 3 + rint(58), y = 3 + rint(58), rx = 1 + rint(3), ry = 1 + rint(2);
+      const x=3+Math.floor(r()*58),y=3+Math.floor(r()*58),rx=1+Math.floor(r()*3),ry=1+Math.floor(r()*2);
       p.ellipse(x, y, rx, ry, 0x6c6c64); p.ellipse(x - 1, y - 1, Math.max(0, rx - 1), Math.max(0, ry - 1), 0x76766d);
     }
     for (let i = 0; i < 64; i++) { p.set(i, 0, 0x5b5b53); p.set(0, i, 0x5b5b53); p.set(i, 1, 0x8c8c83); p.set(1, i, 0x8c8c83); }
@@ -207,6 +207,11 @@ function buildWorld(R) {
   /* central tower + clerks' counter */
   DK.prism(null, C, -C, 0, 4.4, 1.7, 1.7, 14, 0xffffff, 0.5);
   S.prism(null, C, -C, 4.4, 4.55, 1.85, 1.85, 14, 0x2d2b24, 0);
+  S.prism(null,C,-C,4.25,4.37,1.82,1.82,14,0xaaa18b,0);
+  for(let k=0;k<14;k++){
+    const a=k/14*TAU,x=C+Math.cos(a)*1.62,z=-C+Math.sin(a)*1.62;
+    S.box(null,x,4.72,z,.18,.18,.18,0x746f5d);
+  }
   // counter: outer wall + top ring + inner wall
   const cr = 3.9, ci = 3.35, chh = 0.95, cn = 12;
   BG.prism(null, C, -C, 0, chh, cr, cr, cn, 0xffffff, 0.5, Math.PI / 12);
@@ -266,6 +271,15 @@ function buildWorld(R) {
     // door + windows on the south face
     WD.box(null, x0 + w / 2, g + 0.9, -(y0 - 0.03), 0.45, 0.9, 0.04, 0xffffff, 1);
     for (const wx of [0.22, 0.78]) S.box(null, x0 + w * wx, g + h * 0.62, -(y0 - 0.03), 0.3, 0.3, 0.03, 0x7a98b0);
+    for(const f of [0.22,0.78]){
+      const wx=x0+w*f,wz=-(y0-.08),wy=g+h*.62;
+      for(const sx of [-.35,.35])WD.box(null,wx+sx,wy,wz,.035,.35,.035,0xbdac8a,1);
+      for(const sy of [-.35,.35])S.box(null,wx,wy+sy,wz,.39,.035,.06,0xb3aa8f);
+      WD.box(null,wx,wy,wz+.02,.016,.30,.018,0xb7a386,1);
+      WD.box(null,wx,wy,wz+.02,.30,.016,.018,0xb7a386,1);
+    }
+    S.box(null,x0+w/2,g+.04,-(y0-.1),.55,.04,.20,0x979080);
+    S.box(null,x0+w/2+.28,g+.9,-(y0-.085),.035,.035,.018,0xae9252);
     for (let ax = 0; ax < w; ax++) for (let ay = 0; ay < d; ay++) { const bx = x0 + ax, by = y0 + ay; if (inMap(bx, by)) WORLD.block[by * N + bx] = 1; }
   }
   building(68, 62, 9, 8, 4.2, 0x8a3a24);
@@ -326,16 +340,54 @@ function buildWorld(R) {
   const bpos = [[C - 6, C - 5], [C + 5, C - 5], [C - 6, C + 5], [C + 5, C + 5]];
   for (const [bx, by] of bpos) {
     const g = tileH(bx, by);
-    WD.box(null, bx + 0.5, g + 0.5, -(by + 0.5), 0.5, 0.5, 0.42, 0xffffff, 1);
-    S.box(null, bx + 0.5, g + 1.02, -(by + 0.5), 0.55, 0.05, 0.47, 0x3c5a34);
-    S.box(null, bx + 0.5, g + 1.55, -(by + 0.86), 0.5, 0.45, 0.04, 0x9db4c2);   // glass
-    S.box(null, bx + 0.5, g + 1.55, -(by + 0.14), 0.5, 0.45, 0.04, 0x9db4c2);
-    setB(bx, by);
-    WORLD.objs.push({ kind: 'bank', name: 'Bank booth', x: bx, y: by, h: 1.3 });
+    // One-tile wooden booth: open transaction aperture, iron grille and framed sign.
+    // Opaque blue slabs were not transparent glass and hid the teller/players.
+    const x=bx+.5,z=-(by+.5),frame=0x59402a,brass=0xa89055;
+    WD.box(null,x,g+.44,z,.46,.44,.40,0xffffff,1);
+    S.box(null,x,g+.08,z,.485,.08,.42,0x494033);
+    S.box(null,x,g+.93,z,.49,.055,.44,0x506345);
+    for(const sx of [-.44,.44])for(const sz of [-.36,.36]){
+      WD.box(null,x+sx,g+1.29,z+sz,.045,.41,.045,0xc0a786,1);
+      S.box(null,x+sx,g+.99,z+sz,.052,.06,.052,brass);
+    }
+    WD.box(null,x,g+1.74,z,.50,.07,.44,0xbbaa87,1);
+    for(const side of [-1,1]){
+      WD.box(null,x,g+1.45,z+side*.37,.43,.025,.028,0xa7977e,1);
+      for(let i=-3;i<=3;i++)S.box(null,x+i*.115,g+1.565,z+side*.369,.010,.11,.013,0x555d53);
+      WD.box(null,x,g+1.78,z+side*.46,.32,.13,.025,0x766246,0);
+      S.box(null,x,g+1.78,z+side*.488,.18,.072,.008,brass);
+      S.box(null,x,g+1.78,z+side*.498,.021,.049,.007,0x43301c);
+    }
+    // Recessed panels with handles make the lower case readable from every side.
+    for(const side of [-1,1])for(const sx of [-.22,.22]){
+      S.box(null,x+sx,g+.47,z+side*.409,.18,.28,.012,frame);
+      WD.box(null,x+sx,g+.47,z+side*.425,.155,.255,.007,0xd0b497,1);
+      S.box(null,x+sx+.06,g+.48,z+side*.438,.025,.015,.008,brass);
+    }
+    // Coin tray and closed ledger remain entirely inside the counter footprint.
+    S.box(null,x-.22,g+1.00,z,.10,.016,.085,0x9a804e);
+    S.box(null,x+.22,g+1.008,z-.12,.10,.024,.13,0x6b3228);
+    S.box(null,x+.22,g+1.012,z-.121,.09,.009,.12,0xc7b783);
+    setB(bx,by);WORLD.objs.push({kind:'bank',name:'Bank booth',x:bx,y:by,h:1.94});
   }
   // a treasure chest and the Grand Exchange booths near the north arch
-  { const cx = C + 0, cy = C + 6; const g = tileH(cx, cy); WD.box(null, cx + 0.5, g + 0.3, -(cy + 0.5), 0.5, 0.3, 0.32, 0xffffff, 1); S.box(null, cx + 0.5, g + 0.62, -(cy + 0.5), 0.53, 0.05, 0.35, 0x8c8c80);
-    setB(cx, cy); WORLD.objs.push({ kind: 'chest', name: 'Chest', x: cx, y: cy, h: 0.7 }); }
+  { const cx=C,cy=C+6,g=tileH(cx,cy),x=cx+.5,z=-(cy+.5);
+    WD.box(null,x,g+.26,z,.43,.26,.30,0xffffff,1);
+    S.box(null,x,g+.04,z,.45,.04,.32,0x44382a);
+    // Faceted barrel lid with closed end caps, metal straps, front latch and rear hinges.
+    const seg=8,base=g+.50,r=.30;
+    for(let i=0;i<seg;i++){
+      const a=i/seg*Math.PI,b=(i+1)/seg*Math.PI;
+      const az=z+Math.cos(a)*r,bz=z+Math.cos(b)*r,ay=base+Math.sin(a)*r*.60,by=base+Math.sin(b)*r*.60;
+      WD.quad([x-.43,ay,az],[x+.43,ay,az],[x+.43,by,bz],[x-.43,by,bz],0xc7b095,true);
+      for(const sx of [-.29,.29])S.quad([x+sx-.025,ay+.008,az],[x+sx+.025,ay+.008,az],[x+sx+.025,by+.008,bz],[x+sx-.025,by+.008,bz],0x827a61,true);
+      for(const sx of [-.432,.432])S.tri([x+sx,base,z],[x+sx,ay,az],[x+sx,by,bz],0x775b34,true);
+    }
+    for(const sx of [-.29,.29])for(const side of [-1,1])S.box(null,x+sx,g+.27,z+side*.307,.027,.25,.01,0x827a61);
+    S.box(null,x,g+.45,z+.32,.075,.09,.018,0xae9150);S.box(null,x,g+.45,z+.343,.022,.027,.008,0x382b14);
+    for(const sx of [-.25,.25])S.box(null,x+sx,g+.51,z-.31,.058,.025,.028,0x625c4c);
+    setB(cx,cy);WORLD.objs.push({kind:'chest',name:'Chest',x:cx,y:cy,h:.74});
+  }
 
   /* ---------- minimap colours ---------- */
   for (let ty = 0; ty < N; ty++) for (let tx = 0; tx < N; tx++) {

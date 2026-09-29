@@ -21,6 +21,23 @@ function itemColor(id) {
   return ICON_AVG[id] = n ? rgb((r / n) | 0, (g / n) | 0, (b / n) | 0) : 0x888888;
 }
 
+/* Closed tapered solids avoid the unfinished block-stack silhouette. */
+function taperedPart(mesh,m,cx,cy,cz,bx,tx,hy,bz,tz,color){
+  const v=(x,y,z)=>m?M4.pt(m,x+cx,y+cy,z+cz):[x+cx,y+cy,z+cz];
+  const a=[v(-bx,-hy,-bz),v(bx,-hy,-bz),v(bx,-hy,bz),v(-bx,-hy,bz),v(-tx,hy,-tz),v(tx,hy,-tz),v(tx,hy,tz),v(-tx,hy,tz)];
+  for(const f of [[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7],[4,5,6,7],[3,2,1,0]])mesh.quad(...f.map(i=>a[i]),color,true);
+}
+function kiteShield(mesh,m,color){
+  const outline=[[-.17,.22],[.17,.22],[.195,.04],[0,-.31],[-.195,.04]];
+  const point=(q,z)=>M4.pt(m,q[0],q[1],z);
+  for(const depth of [-.035,.035])for(let i=1;i<outline.length-1;i++)mesh.tri(point(outline[0],depth),point(outline[i],depth),point(outline[i+1],depth),depth>0?color:shadeCol(color,.6),true);
+  for(let i=0;i<outline.length;i++){
+    const a=outline[i],b=outline[(i+1)%outline.length];mesh.quad(point(a,-.035),point(b,-.035),point(b,.035),point(a,.035),shadeCol(color,.8),true);
+    const inner=q=>[q[0]*.86,q[1]*.86];mesh.quad(point(a,.038),point(b,.038),point(inner(b),.038),point(inner(a),.038),shadeCol(color,1.3),true);
+  }
+  mesh.box(m,0,.025,.045,.018,.145,.01,shadeCol(color,.55));mesh.box(m,0,.07,.045,.11,.018,.01,shadeCol(color,.55));
+}
+
 /* --- weapon models, built in the right-hand frame (origin at the hand, +Z forward) --- */
 function drawWeapon(m, model, item) {
   const B = (cx, cy, cz, hx, hy, hz, col) => DYN.box(m, cx, cy, cz, hx, hy, hz, col);
@@ -76,7 +93,7 @@ function drawActor(a, frac, dt, cam) {
   const now = G.now; const rp = renderPos(a, frac); const gx = rp[0], gy = rp[1];
   const gh = groundH(gx, gy);
   let d = angDiff(a.faceR, a.face); const mt = dt * 8; a.faceR += clamp(d, -mt, mt);
-  const targetMB = (a.seg.length > 0 && !a.dead) ? 1 : 0; a.mb = a.mb === undefined ? 0 : a.mb; a.mb += clamp(targetMB - a.mb, -dt * 9, dt * 9);
+  const targetMB = ((typeof Online!=='undefined'&&Online.active&&(a.isPlayer||a.onlineRemote)?Online.isMoving(a):a.seg.length>0)&&!a.dead)?1:0; a.mb = a.mb === undefined ? 0 : a.mb; a.mb += clamp(targetMB - a.mb, -dt * 9, dt * 9);
   a.walkPh += dt * (a.seg.length > 1 ? 15 : 9.5) * (a.mb > 0.05 ? 1 : 0);
   const p = poseFor(a, now, a.mb, a.walkPh);
   let body = M4.mul(M4.trans(gx, gh + p.bob - p.down, -gy), M4.rotY(Math.PI - a.faceR));
@@ -86,8 +103,8 @@ function drawActor(a, frac, dt, cam) {
   const k = a.kit || {}; const eq = a.eq; const I = s => eq[s] ? ITEMS[eq[s].id] : null;
   const head = I('head'), bodyI = I('body'), legsI = I('legs'), hands = I('hands'), feet = I('feet'), cape = I('cape'), shield = I('shield'), neck = I('neck'), wpn = I('weapon');
   const skin = k.skin || 0xe8b088;
-  const bodyCol = bodyI ? bodyI.color : (k.shirt || 0x2c4a9a);
-  const legCol = legsI ? legsI.color : (k.pants || 0x3a3a2a);
+  const bodyCol = bodyI ? mixCol(bodyI.color,0x657476,.18) : (k.shirt || 0x2c4a9a);
+  const legCol = legsI ? mixCol(legsI.color,0x657476,.18) : (k.pants || 0x3a3a2a);
   const bootCol = feet ? feet.color : (k.boots || 0x3a2a1a);
   const handCol = hands ? hands.color : skin;
   const B = (m, cx, cy, cz, hx, hy, hz, col) => DYN.box(m, cx, cy, cz, hx, hy, hz, col);
@@ -97,37 +114,44 @@ function drawActor(a, frac, dt, cam) {
   const legs = [[0.105, p.lLeg], [-0.105, p.rLeg]];
   for (const [x, sw] of legs) {
     const m = M4.mul(body, M4.mul(M4.trans(x, 0.72, 0), M4.rotX(sw)));
-    B(m, 0, -0.33, 0, 0.085, 0.34, 0.09, legCol);
+    taperedPart(DYN,m,0,-.33,0,.066,.086,.32,.072,.094,legCol);
+    B(m,0,-.29,.092,.078,.052,.016,shadeCol(legCol,.84));
     if (legsI && (legsI.model === 'legs')) B(m, 0, -0.15, 0, 0.095, 0.16, 0.10, legCol);
     B(m, 0, -0.68, 0.025, 0.095, 0.06, 0.125, bootCol);
   }
-  if (legsI && legsI.model === 'skirt') B(body, 0, 0.5, 0, 0.27, 0.24, 0.135, legCol);
+  if(legsI&&legsI.model==='skirt')taperedPart(DYN,body,0,.5,0,.27,.20,.24,.15,.12,legCol);
   // torso
   const plate = bodyI && bodyI.model === 'plate', robe = bodyI && bodyI.model === 'robe';
-  B(torsoM, 0, 0.965, 0, plate ? 0.255 : 0.24, 0.245, plate ? 0.14 : 0.12, bodyCol);
+  taperedPart(DYN,torsoM,0,.965,0,plate?.19:.18,plate?.255:.235,.235,plate?.12:.105,plate?.14:.12,bodyCol);
+  B(torsoM,0,.755,.002,.193,.027,.126,0x55402d);B(torsoM,0,.757,.132,.034,.025,.009,0xb19b65);
   if (plate) { B(torsoM, 0.31, 1.16, 0, 0.1, 0.055, 0.1, bodyCol); B(torsoM, -0.31, 1.16, 0, 0.1, 0.055, 0.1, bodyCol); B(torsoM, 0, 0.98, 0.145, 0.1, 0.16, 0.012, shadeCol(bodyCol, 1.15)); }
   if (robe) { B(torsoM, 0, 0.78, 0, 0.255, 0.1, 0.135, bodyCol); B(torsoM, 0, 1.1, 0.125, 0.03, 0.1, 0.01, 0xe8e8f0); }
   if (!bodyI && k.clerk) { B(torsoM, 0, 1.03, 0.125, 0.025, 0.14, 0.008, 0xd8d8c8); }
   if (neck) B(torsoM, 0, 1.17, 0.125, 0.032, 0.035, 0.012, 0xe0b830);
-  if (cape) B(torsoM, 0, 0.93, -0.155 - Math.sin(now / 400) * 0.01 * (1 - a.mb), 0.205, 0.31, 0.014, cape.color);
+  if(cape){
+    const sway=(typeof Profiles!=='undefined'&&Profiles.settings.reduceMotion)?0:Math.sin(now/300)*.022*a.mb;
+    const q=[[-.18,1.19,-.15],[.18,1.19,-.15],[.24,.61,-.19-sway],[-.24,.61,-.19-sway]];
+    for(const dz of [0,-.015])DYN.quad(...q.map(v=>M4.pt(torsoM,v[0],v[1],v[2]+dz)),cape.color,true);
+    for(const sx of [-1,1])DYN.box(torsoM,sx*.12,1.19,-.137,.026,.018,.012,0xc3a45e);
+  }
   // arms
   const armM = (sx, rx, rz) => M4.mul(torsoM, M4.mul(M4.trans(sx, 1.16, 0), M4.mul(M4.rotX(rx), M4.rotZ(rz))));
   const rM = armM(-0.32, p.rArm, p.rArmZ), lM = armM(0.32, p.lArm, p.lArmZ);
   const sleeve = plate ? bodyCol : (robe ? bodyCol : (k.shirt || 0x2c4a9a));
-  for (const m of [rM, lM]) { B(m, 0, -0.21, 0, 0.075, 0.22, 0.075, sleeve); B(m, 0, -0.5, 0, 0.065, 0.075, 0.065, handCol); }
+  for(const m of [rM,lM]){taperedPart(DYN,m,0,-.17,0,.06,.077,.16,.063,.077,sleeve);taperedPart(DYN,m,0,-.365,0,.050,.065,.11,.050,.063,plate?shadeCol(sleeve,.88):skin);B(m,0,-.5,0,.062,.063,.061,handCol);}
   if (plate) { B(rM, 0, -0.06, 0, 0.09, 0.09, 0.09, bodyCol); B(lM, 0, -0.06, 0, 0.09, 0.09, 0.09, bodyCol); }
   // weapon in right hand (origin at the hand)
   if (wpn && wpn.model) drawWeapon(M4.mul(rM, M4.trans(0, -0.5, 0.02)), wpn.model, wpn);
-  if (shield) { const sm = M4.mul(lM, M4.trans(0.1, -0.3, 0.04)); B(sm, 0, 0, 0, 0.03, 0.24, 0.17, shield.color); B(sm, 0.03, 0.04, 0, 0.012, 0.16, 0.02, shadeCol(shield.color, 0.7)); B(sm, 0.03, 0.04, 0, 0.012, 0.02, 0.12, shadeCol(shield.color, 0.7)); }
+  if(shield){const sm=M4.mul(lM,M4.mul(M4.trans(.04,-.30,.08),M4.rotY(.60)));kiteShield(DYN,sm,mixCol(shield.color,0x6a7a7b,.14));}
   // head
   const hm = tw ? M4.mul(torsoM, M4.trans(0, 0, 0)) : body;
   B(hm, 0, 1.365, 0, 0.13, 0.14, 0.13, skin);
   const showFace = !(head && head.model === 'fullhelm');
   if (showFace) { B(hm, 0.05, 1.39, 0.132, 0.02, 0.02, 0.006, 0x101010); B(hm, -0.05, 1.39, 0.132, 0.02, 0.02, 0.006, 0x101010); B(hm, 0, 1.32, 0.132, 0.03, 0.008, 0.006, shadeCol(skin, 0.7)); }
   if (head) {
-    if (head.model === 'fullhelm') { B(hm, 0, 1.375, 0, 0.155, 0.17, 0.155, head.color); B(hm, 0, 1.36, 0.156, 0.11, 0.014, 0.006, 0x0a1a20); B(hm, 0, 1.37, 0.157, 0.012, 0.13, 0.006, shadeCol(head.color, 0.7)); }
+    if (head.model === 'fullhelm') { DYN.blob(hm,0,1.395,0,.17,.19,.17,8,5,mixCol(head.color,0x657476,.14)); B(hm, 0, 1.36, 0.156, 0.11, 0.014, 0.006, 0x0a1a20); B(hm, 0, 1.37, 0.157, 0.012, 0.13, 0.006, shadeCol(head.color, 0.7)); }
     else if (head.model === 'coif') { B(hm, 0, 1.415, -0.005, 0.145, 0.11, 0.145, head.color); B(hm, 0, 1.3, -0.06, 0.145, 0.1, 0.09, head.color); }
-    else if (head.model === 'wizhat') { DYN.prism(hm, 0, 0, 1.47, 1.5, 0.3, 0.3, 10, head.color); DYN.prism(hm, 0, 0, 1.5, 1.76, 0.17, 0.17, 10, head.color); DYN.prism(hm, 0, 0, 1.76, 1.95, 0.09, 0.09, 8, shadeCol(head.color, 1.1)); }
+    else if (head.model === 'wizhat') { DYN.prism(hm, 0, 0, 1.47, 1.5, 0.3, 0.3, 10, head.color); for(let i=0;i<10;i++){const a=i/10*TAU,b=(i+1)/10*TAU;DYN.tri(M4.pt(hm,Math.cos(a)*.17,1.5,Math.sin(a)*.17),M4.pt(hm,Math.cos(b)*.17,1.5,Math.sin(b)*.17),M4.pt(hm,-.04,1.94,-.015),shadeCol(head.color,.9+i%2*.12),true);} }
   } else {
     const hair = k.hair || 0x3a2410, hs = k.hairStyle || 0;
     B(hm, 0, 1.47, -0.005, 0.14, 0.045, 0.14, hair);
@@ -182,12 +206,28 @@ function drawProjectiles() {
     }
   }
 }
-function drawGround() {
-  const now = G.now;
-  for (const g of G.ground) {
-    const gh = groundH(g.x + 0.5, g.y + 0.5); const col = itemColor(g.id); const bob = Math.sin(now / 500 + g.x) * 0.0;
-    const m = M4.mul(M4.trans(g.x + 0.5, gh + 0.07, -(g.y + 0.5)), M4.rotY((g.x * 7 + g.y * 3) % 6));
-    DYN.box(m, 0, 0, 0, 0.21, 0.06, 0.13, shadeCol(col, 0.8)); DYN.box(m, 0.03, 0.06, 0.01, 0.15, 0.05, 0.09, col); DYN.box(m, 0.06, 0.12, 0.02, 0.06, 0.04, 0.05, shadeCol(col, 1.25));
+function drawGround(){
+  for(const g of G.ground){
+    if(!ITEMS[g.id])continue;
+    const it=ITEMS[g.id],color=itemColor(g.id),m=M4.mul(M4.trans(g.x+.5,groundH(g.x+.5,g.y+.5)+.025,-(g.y+.5)),M4.rotY((g.x*7+g.y*3)%6));
+    if(g.id==='coins'){
+      for(let i=0;i<3;i++){const x=(i-1)*.11,z=(i%2)*.10;DYN.prism(m,x,z,0,.02+(i%3)*.016,.074,.074,8,0xcba44d,0);DYN.prism(m,x-.007,z,.025+(i%3)*.016,.032+(i%3)*.016,.055,.055,8,0xe0c26c,0);}
+    }else if(g.id==='bones'){
+      for(const z of [-.06,.08]){DYN.box(m,0,.055,z,.17,.027,.025,0xcec7ab);for(const x of [-.17,.17])DYN.blob(m,x,.055,z,.038,.04,.04,6,3,0xded7bc);}
+    }else if(it.food||g.id==='rawFish'){
+      DYN.blob(m,0,.065,0,.20,.065,.085,8,4,g.id==='cookedFish'?0x9d895f:0x879ca0);
+      DYN.tri(M4.pt(m,-.17,.065,0),M4.pt(m,-.32,.065,-.10),M4.pt(m,-.32,.065,.10),0x91a4a7,true);
+      DYN.tri(M4.pt(m,0,.10,-.01),M4.pt(m,-.055,.20,0),M4.pt(m,.045,.10,.01),0x71898f,true);
+      DYN.box(m,.16,.078,.055,.012,.011,.009,0x202923);
+    }else if(it.doses){
+      DYN.blob(m,0,.11,0,.086,.11,.086,7,4,mixCol(color,0xb9d2c5,.25));DYN.prism(m,0,0,.17,.25,.035,.035,7,0xc7d7cf,0);DYN.prism(m,0,0,.245,.27,.038,.038,7,0x937048,0);
+    }else if(it.slot==='weapon'){
+      const flat=M4.mul(m,M4.mul(M4.trans(0,.11,-.23),M4.rotZ(Math.PI/2)));drawWeapon(flat,it.model,it);
+    }else if(it.model==='kite'){
+      kiteShield(DYN,M4.mul(m,M4.mul(M4.trans(0,.055,0),M4.rotX(Math.PI/2))),it.color);
+    }else if(it.model==='fullhelm'){
+      DYN.blob(m,0,.12,0,.145,.125,.14,8,4,it.color);DYN.box(m,0,.14,.133,.085,.013,.009,0x283537);
+    }else{taperedPart(DYN,m,0,.07,0,.15,.12,.06,.12,.10,color);}
   }
 }
 function drawDynamic(frac, dt, cam) {
@@ -209,20 +249,23 @@ function updateScreenInfo(cam, frac) {
 function pickActor(mx, my) { // mx,my in viewport coords
   let best = null, bd = 1e9;
   for (const a of G.actors) {
-    if (!a.scr || a.dead) continue; const s = a.scr; const h = Math.max(20, s.fy - s.hy); const w = h * 0.42;
+    if (!a.scr || a.dead || a===G.player) continue; const s = a.scr; const h = Math.max(20, s.fy - s.hy); const w = h * 0.42;
     if (mx >= s.fx - w && mx <= s.fx + w && my >= s.hy - 3 && my <= s.fy + 3) { if (s.d < bd) { bd = s.d; best = a; } }
   }
   return best;
 }
 /* ray to ground tile */
-function pickTile(cam, mx, my) {
-  const r = cam.ray(mx, my); if (r.d[1] >= -0.001) return null;
-  let h = 0, x = 0, z = 0;
-  for (let i = 0; i < 4; i++) {
-    const t = (h - r.o[1]) / r.d[1]; x = r.o[0] + r.d[0] * t; z = r.o[2] + r.d[2] * t; const y = -z;
-    h = groundH(x, y);
-  }
-  const tx = Math.floor(x), ty = Math.floor(-z); if (!inMap(tx, ty)) return null; return { x: tx, y: ty };
+function pickTile(cam,mx,my){
+  const r=cam.ray(mx,my);if(!r||!r.d.every(Number.isFinite))return null;
+  let prev=.25;
+  for(let t=.25;t<=90;t+=.65){
+    const x=r.o[0]+r.d[0]*t,y=-(r.o[2]+r.d[2]*t),h=r.o[1]+r.d[1]*t;
+    if(x<0||y<0||x>=MAPN||y>=MAPN){prev=t;continue;}
+    if(h<=groundH(x,y)){
+      let lo=prev,hi=t;for(let i=0;i<10;i++){const mid=(lo+hi)*.5,mx=r.o[0]+r.d[0]*mid,my=-(r.o[2]+r.d[2]*mid);if(r.o[1]+r.d[1]*mid>groundH(mx,my))lo=mid;else hi=mid;}
+      const tx=Math.floor(r.o[0]+r.d[0]*hi),ty=Math.floor(-(r.o[2]+r.d[2]*hi));return inMap(tx,ty)?{x:tx,y:ty}:null;
+    }prev=t;
+  }return null;
 }
 function pickObject(mx, my, cam) {
   let best = null, bd = 1e9;
