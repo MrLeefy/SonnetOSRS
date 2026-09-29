@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2 — Tile-locked online locomotion
+
+- Replaced the online renderer's catch-up interpolation with a queued sequence of exact server tile segments. Walk segments remain 600 ms; two-tile run ticks render as two 300 ms segments.
+- Character facing is now derived from the exact segment currently being traversed and snapped to one of the eight tile directions at the segment boundary. The body can no longer lag behind its feet and visually moonwalk through a turn.
+- A buffered packet never accelerates multiple old steps to catch up. If the visual buffer and authoritative route disagree, the client snaps to a legal tile boundary instead of inventing a diagonal correction.
+- Walking/running gait is synchronized to tile progress. Each tile reaches the neutral footfall at its endpoint; a direction change happens at that footfall rather than in the middle of a stride.
+- Running uses the same step sequence at double tile frequency with a slightly stronger stride while retaining the same server-owned 600 ms tick.
+- Stationary combat facing remains independent: once movement ends, the actor turns toward its current target rather than retaining a stale travel direction.
+- Added local and remote two-client regressions that verify instantaneous travel vectors and eight-direction facing through real multi-turn server routes.
+
 ## 0.5.1 — Mobile right-panel readability
 
 - Give phone-landscape layouts a wider right-side panel while retaining the classic frame.

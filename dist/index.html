@@ -1760,8 +1760,9 @@ function drawWeapon(m, model, item) {
 /* --- pose / animation --- */
 function poseFor(a, now, mb, ph) {
   const p = { rArm: -0.28, rArmZ: -0.05, lArm: 0.05, lArmZ: 0.05, lLeg: 0, rLeg: 0, bob: 0, lean: 0, fwd: 0, twist: 0, down: 0, fall: 0 };
-  const sw = Math.sin(ph) * 0.75 * mb;
-  p.lLeg = sw; p.rLeg = -sw; p.rArm += sw * 0.7; p.lArm += -sw * 0.8; p.bob = Math.abs(Math.cos(ph)) * 0.035 * mb;
+  const netRun=typeof Online!=='undefined'&&Online.active&&(a.isPlayer||a.onlineRemote)&&a.netRunSegment;
+  const sw=Math.sin(ph)*(netRun?.92:.75)*mb;
+  p.lLeg=sw;p.rLeg=-sw;p.rArm+=sw*(netRun?.82:.7);p.lArm+=-sw*(netRun?.9:.8);p.bob=Math.abs(Math.cos(ph))*(netRun?.045:.035)*mb;
   const w = a.eq.weapon ? ITEMS[a.eq.weapon.id] : null;
   if (mb < 0.1) p.bob = Math.sin(now / 520 + a.id) * 0.006;
   const an = a.anim;
@@ -1785,9 +1786,19 @@ function poseFor(a, now, mb, ph) {
 function drawActor(a, frac, dt, cam) {
   const now = G.now; const rp = renderPos(a, frac); const gx = rp[0], gy = rp[1];
   const gh = groundH(gx, gy);
-  let d = angDiff(a.faceR, a.face); const mt = dt * 8; a.faceR += clamp(d, -mt, mt);
-  const targetMB = ((typeof Online!=='undefined'&&Online.active&&(a.isPlayer||a.onlineRemote)?Online.isMoving(a):a.seg.length>0)&&!a.dead)?1:0; a.mb = a.mb === undefined ? 0 : a.mb; a.mb += clamp(targetMB - a.mb, -dt * 9, dt * 9);
-  a.walkPh += dt * (a.seg.length > 1 ? 15 : 9.5) * (a.mb > 0.05 ? 1 : 0);
+  const netActor=typeof Online!=='undefined'&&Online.active&&(a.isPlayer||a.onlineRemote),netMoving=netActor&&Online.isMoving(a);
+  if(netMoving&&Number.isFinite(a.netMoveFace)){
+    // Classic tile locomotion: orientation changes at the tile-segment boundary,
+    // before translation along that segment. Never ease facing behind the feet.
+    a.face=a.netMoveFace;a.faceR=a.netMoveFace;
+  }else{
+    let d=angDiff(a.faceR,a.face),mt=dt*(netActor?12:8);a.faceR+=clamp(d,-mt,mt);
+  }
+  const targetMB=((netActor?netMoving:a.seg.length>0)&&!a.dead)?1:0;a.mb=a.mb===undefined?0:a.mb;
+  if(netActor)a.mb=targetMB;else a.mb+=clamp(targetMB-a.mb,-dt*9,dt*9);
+  const runStride=netActor?a.netRunSegment:a.seg.length>1;
+  if(netActor&&Number.isFinite(a.netStepPhase))a.walkPh=a.netStepPhase*Math.PI;
+  else a.walkPh+=dt*(runStride?15:9.5)*(a.mb>0.05?1:0);
   const p = poseFor(a, now, a.mb, a.walkPh);
   let body = M4.mul(M4.trans(gx, gh + p.bob - p.down, -gy), M4.rotY(Math.PI - a.faceR));
   if (p.fwd) body = M4.mul(body, M4.trans(0, 0, p.fwd));
@@ -3883,31 +3894,84 @@ const Online = (() => {
   };
   const stableKit=id=>{let h=2166136261;for(const c of id)h=Math.imul(h^c.charCodeAt(0),16777619);return{skin:SKIN[(h>>>0)%SKIN.length],hair:HAIR[(h>>>4)%HAIR.length],shirt:SHIRT[(h>>>8)%SHIRT.length],pants:0x444338,boots:0x3a2818,hairStyle:(h>>>12)%3};};
   O.actorFor=p=>{let a=O.remotes.get(p.id);if(!a){a=newActor({name:p.name,x:p.x,y:p.y,stats:PROFILES.main,kit:stableKit(p.id)});a.onlineRemote=true;a.netId=p.id;a.autoRetal=false;applyLoadout(a,'main');a.inv=new Array(28).fill(null);a.prayers.clear();G.actors.push(a);O.remotes.set(p.id,a);}return a;};
-  const motionSample=(a,now=performance.now())=>{
-    const m=a.netMotion;if(!m||m.points.length<2)return{p:[a.x+.5,a.y+.5],i:0,done:true};
-    const f=clamp((now-m.t0)/m.duration,0,1),t=f*(m.points.length-1),i=Math.min(m.points.length-2,Math.floor(t));
-    return{p:[lerp(m.points[i][0],m.points[i+1][0],t-i),lerp(m.points[i][1],m.points[i+1][1],t-i)],i,done:f>=1};
+  const faceFor=(a,b)=>{
+    const dx=Math.sign(b[0]-a[0]),dy=Math.sign(b[1]-a[1]);
+    return dx||dy?Math.atan2(dx,dy):null;
   };
-  O.renderPosition=a=>motionSample(a).p;
-  O.isMoving=a=>!!a.netMotion&&!motionSample(a).done;
+  const emptyMotion=(a,tick=-1)=>{a.netMotion={segments:[],lastTick:tick};a.netMoveFace=null;a.netRunSegment=false;a.netStepSerial=0;a.netStepPhase=0;};
+  const motionSample=(a,now=performance.now())=>{
+    const m=a.netMotion,segs=m?.segments;
+    if(!segs?.length)return{p:[a.x+.5,a.y+.5],i:0,done:true,moving:false,face:null,stepMs:0};
+    if(now<segs[0].t0){const s=segs[0];return{p:s.from,i:0,done:false,moving:false,face:s.face,stepMs:s.t1-s.t0};}
+    for(let i=0;i<segs.length;i++){
+      const q=segs[i];
+      if(now<=q.t1){
+        const f=clamp((now-q.t0)/(q.t1-q.t0),0,1);
+        return{p:[lerp(q.from[0],q.to[0],f),lerp(q.from[1],q.to[1],f)],i,done:false,moving:f<1,face:q.face,stepMs:q.t1-q.t0,phase:(q.serial??0)+f};
+      }
+    }
+    const q=segs.at(-1);return{p:q.to,i:segs.length-1,done:true,moving:false,face:q.face,stepMs:q.t1-q.t0,phase:(q.serial??0)+1};
+  };
+  const pruneMotion=(a,now=performance.now())=>{
+    const m=a.netMotion;if(!m?.segments?.length)return;
+    // Retain the last completed segment briefly so rendering at the boundary is stable.
+    while(m.segments.length>1&&m.segments[1].t0<=now-40)m.segments.shift();
+    if(m.segments.length===1&&m.segments[0].t1<now-900)m.segments.length=0;
+  };
+  const appendMotion=(a,nodes,tick,now)=>{
+    if(!a.netMotion)emptyMotion(a,tick-1);
+    const m=a.netMotion;
+    if(tick<=m.lastTick)return;
+    pruneMotion(a,now);
+    const steps=nodes.length-1;
+    if(steps<=0){m.lastTick=tick;return;}
+    const sample=motionSample(a,now),last=m.segments.at(-1);
+    let start=last&&last.t1>now-30?last.t1:now;
+    let expected=last&&last.t1>now-30?last.to:sample.p;
+    const serverStart=nodes[0];
+    // Never invent a diagonal catch-up line across a server turn. If the buffered
+    // endpoint and the new tick disagree, snap to the new legal tile boundary.
+    if(Math.hypot(expected[0]-serverStart[0],expected[1]-serverStart[1])>.08){
+      m.segments.length=0;expected=serverStart;start=now;
+    }
+    const stepMs=TICK_MS/steps;
+    for(let i=1;i<nodes.length;i++){
+      const from=i===1?expected:nodes[i-1],to=nodes[i],face=faceFor(from,to);
+      if(face===null)continue;
+      const serial=a.netStepSerial??0;a.netStepSerial=serial+1;const seg={from:[from[0],from[1]],to:[to[0],to[1]],t0:start,t1:start+stepMs,face,tick,run:steps===2,serial};
+      m.segments.push(seg);start=seg.t1;expected=seg.to;
+    }
+    m.lastTick=tick;
+    // A badly delayed client may be multiple ticks behind. Prefer one clean snap
+    // over accelerating the avatar and producing foot-slide/moonwalk.
+    if(m.segments.length>6){const keep=m.segments.slice(-Math.max(1,steps));m.segments=keep;let t=now;for(const q of keep){const d=q.t1-q.t0;q.t0=t;q.t1=t+d;t=q.t1;}}
+  };
+  O.sampleMotion=(a,now)=>motionSample(a,now);
+  O.renderPosition=a=>{
+    pruneMotion(a);
+    const q=motionSample(a);
+    if(Number.isFinite(q.phase))a.netStepPhase=q.phase;
+    if(q.moving&&Number.isFinite(q.face)){a.netMoveFace=q.face;a.netRunSegment=q.stepMs<=TICK_MS/2+5;}
+    else{a.netMoveFace=null;a.netRunSegment=false;}
+    return q.p;
+  };
+  O.isMoving=a=>motionSample(a).moving;
   function position(a,p,initial){
-    const now=performance.now(),prior=motionSample(a,now),previous=a.netMotion;
-    const nodes=(p.motion||[]).map(t=>[t.x+.5,t.y+.5]);const end=[p.x+.5,p.y+.5];
-    if(initial||Math.hypot(prior.p[0]-end[0],prior.p[1]-end[1])>6||now-O.lastSnapshot>2500){a.netMotion=null;a.seg=[];}
-    else if(nodes.length>1&&p.motion_tick>(a.netMotionTick??-1)){
-      let points=[prior.p];
-      if(previous&&!prior.done&&Math.hypot(previous.points.at(-1)[0]-nodes[0][0],previous.points.at(-1)[1]-nodes[0][1])<.05)points.push(...previous.points.slice(prior.i+1));
-      else if(Math.hypot(prior.p[0]-nodes[0][0],prior.p[1]-nodes[0][1])>.05)points=[nodes[0]];
-      for(const q of nodes.slice(1))if(Math.hypot(q[0]-points.at(-1)[0],q[1]-points.at(-1)[1])>.001)points.push(q);
-      a.netMotion={points,t0:now,duration:Math.min(660,Math.max(100,600*(points.length-1)/(nodes.length-1)))};
-      a.seg=nodes.slice(1).map((q,i)=>({fx:nodes[i][0]-.5,fy:nodes[i][1]-.5,tx:q[0]-.5,ty:q[1]-.5}));
-      const before=nodes.at(-2);a.face=Math.atan2(end[0]-before[0],end[1]-before[1]);
-    }else if(prior.done){a.netMotion=null;a.seg=[];}
-    a.netMotionTick=p.motion_tick;a.x=p.x;a.y=p.y;a.hp=clamp(p.hp,0,a.maxHp);a.dead=false;a.kills=p.kills;a.deaths=p.deaths;a.netZone=p.zone;
+    const now=performance.now(),nodes=(p.motion||[]).map(t=>[t.x+.5,t.y+.5]),end=[p.x+.5,p.y+.5],before=motionSample(a,now);
+    if(initial||Math.hypot(before.p[0]-end[0],before.p[1]-end[1])>6||now-O.lastSnapshot>2500){
+      emptyMotion(a,p.motion_tick);a.netRenderAnchor=end;
+    }else if(nodes.length>1){
+      appendMotion(a,nodes,p.motion_tick,now);
+    }else if(before.done&&Math.hypot(before.p[0]-end[0],before.p[1]-end[1])>.75){
+      // Respawn/teleport/correction. A tile path is never synthesized client-side.
+      emptyMotion(a,p.motion_tick);a.netRenderAnchor=end;
+    }else if(a.netMotion){
+      a.netMotion.lastTick=Math.max(a.netMotion.lastTick??-1,p.motion_tick??-1);
+    }
+    a.netMotionTick=p.motion_tick;a.x=p.x;a.y=p.y;a.hp=clamp(p.hp,0,a.maxHp);a.dead=false;a.kills=p.kills;a.deaths=p.deaths;a.netZone=p.zone;a.netTargetId=p.attack_target||null;
     if(a.anim?.type==='death'&&a.hp>0)a.anim=null;
     if(Number.isFinite(p.run))a.run=p.run;
     if(a===G.player){
-      a.target=p.attack_target?O.remotes.get(p.attack_target)||null:null;
       if(p.command_seq>=O.seq){a.path=p.destination?[p.destination]:[];}
       const old=O.zone;O.zone=p.zone||O.zoneAt(p.x,p.y);
       if(!initial&&old!==O.zone)O.notice('zone-'+O.zone,O.zone==='pvp'?'PvP zone: players can attack beyond the stone boundary.':'Grand Exchange: you are protected inside the stone boundary.',1500);
@@ -3920,6 +3984,14 @@ const Online = (() => {
       if(p.id===O.id){position(G.player,p,initial);O.ready=true;}
       else{seen.add(p.id);const fresh=!O.remotes.has(p.id);position(O.actorFor(p),p,fresh);}}
     for(const[id,a]of O.remotes)if(!seen.has(id)){G.actors=G.actors.filter(x=>x!==a);if(G.player.target===a)G.player.target=null;O.remotes.delete(id);}
+    const actors=[G.player,...O.remotes.values()];
+    for(const actor of actors){
+      const target=actor.netTargetId?(actor.netTargetId===O.id?G.player:O.remotes.get(actor.netTargetId)):null;
+      actor.target=target||null;
+      if(target&&!O.isMoving(actor)){
+        actor.face=Math.atan2(target.x-actor.x,target.y-actor.y);
+      }
+    }
     O.lastSnapshot=performance.now();if(initial&&O.ready){clearTimeout(O.handshakeTimer);Polish.snapCamera=true;if(O.pending){const pending=O.pending;O.pending=null;O.walk(pending.x,pending.y);}}
     O.completeJob();
   };
@@ -4010,7 +4082,7 @@ setBotCount=n=>netLocalBots(Online.active?0:n);
 /* Original procedural interface art. No screenshot crops, branded sprites, or
  * fabricated minimap data. CSS-pixel layout is independent of game coordinates. */
 const Classic = (() => {
-  const S={textures:{},icons:{},version:'0.5.1'};
+  const S={textures:{},icons:{},version:'0.5.2'};
   function canvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
   S.texture=kind=>{
     if(S.textures[kind])return S.textures[kind];

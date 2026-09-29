@@ -33,3 +33,12 @@ This does not certify all possible bugs or all OSRS mechanics. Mobile checks emu
 Actual renderer screenshots revealed a solid prism cap overlapping the hollow central counter and foreground arch/pillar batches hiding the player. The counter now has only the intended outer/inner walls and ring top. Tall GE arches, pillars and the tower are grouped for sightline-based fading; only an obstructing group fades, with opacity and depth-write state restored after drawing. Collision remains unchanged. Added explicit uneven-terrain picking and foreground-visibility regression checks.
 
 Hosted CI exposed an observer-presence timing assumption: a reconnecting client can receive its own welcome before a second client processes that presence update. The server now broadcasts joins/leaves immediately and subscribes before initial sync. The regression waits for the observer to receive the exact new player ID (bounded to three seconds), then still asserts that there is exactly one remote, rather than assuming two independent sockets update atomically.
+
+
+## v0.5.2 locomotion lock
+
+Online rendering now consumes immutable server motion segments instead of compressing outstanding points into a new 600 ms interpolation window. Every segment stores its exact start/end tile, duration and eight-direction facing. Walking is one 600 ms segment; a run tick is two 300 ms segments. The renderer changes orientation exactly at the shared tile endpoint before beginning the next segment.
+
+The gait phase is tied to segment progress rather than arbitrary render-frame time. One tile advances half a gait cycle, so turns occur at the neutral foot crossover. This prevents the visual combination that looked like sliding or moonwalking when networking and turning overlapped.
+
+The repair suite now checks a synthetic east-to-north turn and then watches both the moving client and a second connected client's rendering during a real multi-turn route. Within every sampled segment, the movement derivative and facing vector must agree. This validates the browser interpolation layer; it is not a claim of pixel-identical proprietary OSRS animation frames.

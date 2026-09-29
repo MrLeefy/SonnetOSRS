@@ -2,7 +2,7 @@
 /* Original procedural interface art. No screenshot crops, branded sprites, or
  * fabricated minimap data. CSS-pixel layout is independent of game coordinates. */
 const Classic = (() => {
-  const S={textures:{},icons:{},version:'0.5.1'};
+  const S={textures:{},icons:{},version:'0.5.2'};
   function canvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
   S.texture=kind=>{
     if(S.textures[kind])return S.textures[kind];
