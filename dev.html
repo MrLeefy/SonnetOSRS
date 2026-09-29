@@ -1,0 +1,10 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>RuneScape - Grand Exchange PvP</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#wrap{position:absolute;left:0;top:0;transform-origin:0 0;width:765px;height:503px;background:#000}
+canvas{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges}</style></head><body>
+<div id="wrap"><canvas id="gl" width="512" height="334" style="left:4px;top:4px"></canvas><canvas id="ui" width="765" height="503" style="left:0;top:0"></canvas></div>
+
+<script>
+const files=['font_data','core','gfx','gl','items','world','game','ai','models','uiicons','ui','input','sound','main'];
+(async()=>{ for(const f of files){ await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='src/'+f+'.js?'+Date.now(); s.onload=res; s.onerror=()=>rej(new Error('load '+f)); document.body.appendChild(s); }); } })().catch(e=>document.body.insertAdjacentHTML('beforeend','<pre style="color:#f88">'+e+'</pre>'));
+</script></body></html>
