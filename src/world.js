@@ -10,7 +10,7 @@ const WORLD = {
   layer: new Int8Array(MAPN * MAPN).fill(-1),
   th: new Float32Array(MAPN * MAPN),    // tile-centre height
   mm: new Int32Array(MAPN * MAPN),      // minimap colour
-  objs: [], trees: [], statics: [], ready: false
+  objs: [], trees: [], statics: [], occluders: [], ready: false
 };
 const PLAT_R = 15.5;                    // platform apothem
 const STEP_H = [0, -0.11, -0.22, -0.33];
@@ -95,9 +95,17 @@ function buildWorld(R) {
     WORLD.th[ty * N + tx] = L >= 0 ? STEP_H[L] : baseGround(tx + 0.5, ty + 0.5);
   }
 
-  const S = new Mesh('white'), FL = new Mesh('flag'), DK = new Mesh('dark'), ST = new Mesh('stone'), WD = new Mesh('wood'), BG = new Mesh('beige');
+  let S = new Mesh('white'), DK = new Mesh('dark');
+  const FL = new Mesh('flag'), ST = new Mesh('stone'), WD = new Mesh('wood'), BG = new Mesh('beige');
   const meshes = [S, FL, DK, ST, WD, BG];
 
+  // Keep tall foreground structures in small separate batches so only the
+  // structures hiding the player fade. Do not remove or change collision.
+  WORLD.occluders=[];
+  function occluder(meta,draw){
+    const oldS=S,oldDK=DK;S=new Mesh('white');DK=new Mesh('dark');draw();
+    meta.gpus=[DK,S].filter(m=>m.count).map(m=>R.upload(m));WORLD.occluders.push(meta);S=oldS;DK=oldDK;
+  }
   /* terrain mesh (skips platform tiles) */
   const cornerH = (i, j) => baseGround(i, j);
   const cornerCol = (i, j) => {
@@ -186,12 +194,13 @@ function buildWorld(R) {
   for (let k = 0; k < 8; k++) {
     const phi = k * Math.PI / 4; const cx = C + Math.cos(phi) * RING_A, cy = C + Math.sin(phi) * RING_A;
     const m = M4.mul(edgeXf(cx, cy, phi), M4.trans(0, STEP_H[0], 0));
-    archPanel(m);
+    occluder({kind:"arch",x:cx,y:cy,phi,half:hl,thick:th/2+.06,height:WALL_H,aperture:aw,spring:ys},()=>archPanel(m));
   }
   // vertex pillars, white caps and red banners
   for (let k = 0; k < 8; k++) {
     const phi = (k + 0.5) * Math.PI / 4; const rv = RING_A / Math.cos(Math.PI / 8);
     const vx = C + Math.cos(phi) * rv, vy = C + Math.sin(phi) * rv;
+    occluder({kind:'pillar',x:vx,y:vy,radius:.92,height:top+.72},()=>{
     DK.prism(null, vx, -vy, 0, top + 0.5, 0.78, 0.78, 10, 0xffffff, 0.5, k);
     S.prism(null, vx, -vy, top + 0.5, top + 0.72, 0.9, 0.9, 10, COL.white, 0, k);
     S.prism(null, vx, -vy, 0, 0.28, 0.9, 0.9, 10, COL.white, 0, k);
@@ -203,8 +212,10 @@ function buildWorld(R) {
       S.quad(M4.pt(m, 0.33, 1.2, 0), M4.pt(m, -0.33, 1.2, 0), M4.pt(m, -0.33, 3.5, 0), M4.pt(m, 0.33, 3.5, 0), COL.red, true);
       S.quad(M4.pt(m, -0.14, 2.2, 0.01), M4.pt(m, 0.14, 2.2, 0.01), M4.pt(m, 0.14, 2.6, 0.01), M4.pt(m, -0.14, 2.6, 0.01), 0xd8c8a0, false);
     }
+    });
   }
   /* central tower + clerks' counter */
+  occluder({kind:'pillar',x:C,y:C,radius:1.95,height:5.0},()=>{
   DK.prism(null, C, -C, 0, 4.4, 1.7, 1.7, 14, 0xffffff, 0.5);
   S.prism(null, C, -C, 4.4, 4.55, 1.85, 1.85, 14, 0x2d2b24, 0);
   S.prism(null,C,-C,4.25,4.37,1.82,1.82,14,0xaaa18b,0);
@@ -212,13 +223,15 @@ function buildWorld(R) {
     const a=k/14*TAU,x=C+Math.cos(a)*1.62,z=-C+Math.sin(a)*1.62;
     S.box(null,x,4.72,z,.18,.18,.18,0x746f5d);
   }
+  });
   // counter: outer wall + top ring + inner wall
   const cr = 3.9, ci = 3.35, chh = 0.95, cn = 12;
-  BG.prism(null, C, -C, 0, chh, cr, cr, cn, 0xffffff, 0.5, Math.PI / 12);
+
   for (let i = 0; i < cn; i++) {
     const a0 = i / cn * TAU + Math.PI / 12, a1 = (i + 1) / cn * TAU + Math.PI / 12;
     const q = [[C + Math.cos(a0) * cr, chh, -(C + Math.sin(a0) * cr)], [C + Math.cos(a1) * cr, chh, -(C + Math.sin(a1) * cr)],
       [C + Math.cos(a1) * ci, chh, -(C + Math.sin(a1) * ci)], [C + Math.cos(a0) * ci, chh, -(C + Math.sin(a0) * ci)]];
+    BG.quad([q[0][0],0,q[0][2]],[q[1][0],0,q[1][2]],q[1],q[0],0xffffff,true,[[0,.5],[1,.5],[1,0],[0,0]]);
     S.quad(q[0], q[1], q[2], q[3], 0xc4b58c, true);
     S.quad([q[3][0], 0, q[3][2]], [q[2][0], 0, q[2][2]], q[2], q[3], 0x6f6448, true);
   }

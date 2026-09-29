@@ -27,3 +27,7 @@ The added Rust tests cover legal kinked routes, corner blocking, repeated destin
 The new browser suite runs actual WebGL clients against an isolated Rust process. It walks around all four bank booths and the counter, enters/exits the ring, approaches a blocked booth, banks after a multi-turn route, retargets rapidly, repeats a destination, submits one bad absolute-move packet and verifies there is no echo flood, injects a stale snapshot, buffers real incoming messages with variable delays, moves while menus are open, reconnects, checks remote idle animations, rejects a duplicate tab token, checks offline inventory isolation, checks finite geometry/badge bounds and rotates a phone viewport.
 
 This does not certify all possible bugs or all OSRS mechanics. Mobile checks emulate Chromium, not physical Android/iPhone hardware. The complete online inventory/economy, authentic magic/ranged formulas, trading and authenticated accounts remain separate work. No measured FPS multiplier or large-concurrency capacity claim is made.
+
+## Final visual review
+
+Actual renderer screenshots revealed a solid prism cap overlapping the hollow central counter and foreground arch/pillar batches hiding the player. The counter now has only the intended outer/inner walls and ring top. Tall GE arches, pillars and the tower are grouped for sightline-based fading; only an obstructing group fades, with opacity and depth-write state restored after drawing. Collision remains unchanged. Added explicit uneven-terrain picking and foreground-visibility regression checks.

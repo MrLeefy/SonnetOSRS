@@ -10,9 +10,10 @@
 - Protected offline saves when entering/leaving World 1; disabled importing/resetting offline profiles during online play.
 - Rebuilt bank booths with open grilles, framed signs, counters, panels and hardware. Replaced the opaque blue slabs. Detailed the chest, building windows/doors and tower crown.
 - Improved character silhouettes with tapered torso/limbs, shaped shields, faceted helmets, pointed wizard hats, cloak trim and closed weapon tips. Dropped coins/food/bones/potions/gear now have recognizable models.
+- Removed the overlapping solid counter cap; foreground GE structures fade when they hide the player, without changing collision.
 - Corrected ground picking over uneven terrain and kept the camera above terrain. Minimap clicks use the same interpolated centre as the map.
 - Fixed the overlapping SAFE/PVP badge and stale clerk/world-map wording.
-- Added 16 Rust movement/persistence regressions and 17 end-to-end route/reconnection/scene checks, including real server paths around every GE booth and buffered packet jitter.
+- Added 16 Rust movement/persistence regressions and 19 end-to-end route/reconnection/scene checks, including real server paths around every GE booth and buffered packet jitter.
 
 ## 0.4.0 — OLDSKOOL World 1
 

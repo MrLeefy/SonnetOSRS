@@ -82,8 +82,8 @@ function frame(t){
     if(!paused&&!Client.panel)updateCameraKeys(dt);
     const rp=renderPos(G.player,frac);Polish.camera(cam,rp,groundH(...rp),dt);
     drawDynamic(frac,dt,cam);updateScreenInfo(cam,frac);
-    const R=App.R;R.begin(cam);for(const g of WORLD.statics)R.drawGPU(g);Polish.drawExtra();Polish.drawShadows();
-    R.drawDynamic(DYN);R.setDepthWrite(false);R.drawDynamic(BLD);R.setDepthWrite(true);
+    const R=App.R;R.begin(cam);R.gl.uniform1f(R.uOpacity,1);WorldVisibility.update(cam,dt);for(const g of WORLD.statics)R.drawGPU(g);Polish.drawExtra();WorldVisibility.drawOpaque(R);Polish.drawShadows();
+    R.drawDynamic(DYN);R.setDepthWrite(false);R.drawDynamic(BLD);R.setDepthWrite(true);WorldVisibility.drawFaded(R);
     if(!paused)updateHover();drawUI(App.ctx,cam);Client.draw();
   }catch(err){fatal(err);}
 }

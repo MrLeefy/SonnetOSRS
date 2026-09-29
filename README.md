@@ -76,7 +76,7 @@ The project retains:
 - 19 dedicated classic-interface checks;
 - 21 Rust movement/server/persistence unit tests;
 - 9 two-client online integration checks;
-- 17 route, jitter, reconnection, save-isolation and scene checks.
+- 19 route, jitter, reconnection, save-isolation and scene checks.
 
 Production is additionally smoke-tested from the deployed Vercel origin to the public Oracle `wss://` endpoint on desktop and an emulated landscape phone. Emulated phone tests are not a substitute for physical Android/iPhone testing.
 

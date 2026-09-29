@@ -9,10 +9,10 @@ The verification commands use the real procedural renderer and Rust server, not 
 | General browser regression | 30 |
 | Classic interface | 19 |
 | Two-client online integration | 9 |
-| Route/reconnection/scene repair | 17 |
-| **Total** | **161** |
+| Route/reconnection/scene repair | 19 |
+| **Total** | **163** |
 
-The local repair suite passed all 17 scenarios, including multi-turn routes around the Grand Exchange, legal intermediate steps, idempotent destinations, no reject-resend flood, stale snapshots, variable buffering of real incoming packets, menu-open movement, reconnect, duplicate token rejection and online/offline save isolation. The 21 Rust tests passed as well. Hosted CI status is checked separately before deployment; a table of expected counts is not a claim that an unobserved CI run passed.
+The local repair suite passed all 19 scenarios, including multi-turn routes around the Grand Exchange, legal intermediate steps, idempotent destinations, no reject-resend flood, stale snapshots, variable buffering of real incoming packets, menu-open movement, reconnect, duplicate token rejection and online/offline save isolation. The 21 Rust tests passed as well. Hosted CI status is checked separately before deployment; a table of expected counts is not a claim that an unobserved CI run passed.
 
 Screenshots produced by `tests/repair.cjs` are in the `game-and-qa` CI artifact: `repair-desktop.png`, `repair-portrait.png`, `repair-landscape.png` and `repair-bank.png`. They contain test characters, not production account data. `repair-results.json` records the new scenario results.
 

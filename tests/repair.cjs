@@ -82,7 +82,14 @@ async function test(name,fn){await fn();results.push(name);console.log('PASS '+n
    await test('online scene geometry stays finite and the safe-zone label fits inside the viewport',async()=>{
      const result=await a.evaluate(()=>({finite:DYN.p.every(Number.isFinite)&&BLD.p.every(Number.isFinite),vertices:DYN.count,booths:WORLD.objs.filter(o=>o.kind==='bank').every(o=>o.h>1.8),badge:Client.zoneBadge,world:Client.L.world}));assert.equal(result.finite,true);assert.ok(result.vertices<220000);assert.equal(result.booths,true);assert.ok(result.badge.x+result.badge.w<=result.world.x+result.world.w);
    });
-   await go(a,43,42);await a.evaluate(()=>{App.cam.yaw=.45;App.cam.pitch=.86;App.cam.dist=10;});await delay(600);await a.screenshot({path:path.join(root,'qa','repair-portrait.png')});
+   await test('ground picking stays aligned on platform edges and uneven terrain',async()=>{
+     const bad=await a.evaluate(()=>{const bad=[];for(const [x,y]of [[48,42],[43,42],[48,58],[32,40],[20,20],[78,78]]){const c=new Camera();c.aspect=1.4;c.tx=x+.5;c.tz=-(y+.5);c.ty=groundH(x+.5,y+.5)+.05;c.pitch=.9;c.dist=9;c.update();const s=c.project(x+.5,groundH(x+.5,y+.5),-(y+.5));const hit=s&&pickTile(c,s[0],s[1]);if(!hit||hit.x!==x||hit.y!==y)bad.push({x,y,hit});}return bad;});assert.deepEqual(bad,[]);
+   });
+   await go(a,43,42);await a.evaluate(()=>{App.cam.yaw=.45;App.cam.pitch=.86;App.cam.dist=10;});await delay(600);
+   await test('foreground structures fade only for sightline occlusion and restore render opacity',async()=>{
+     const v=await a.evaluate(()=>({groups:WORLD.occluders.length,faded:WorldVisibility.fadedCount,opacity:App.R.gl.getUniform(App.R.prog,App.R.uOpacity),pureHit:WorldVisibility.intersects({kind:'pillar',x:0,y:0,radius:1,height:4},[-3,1,0],[3,1,0]),pureMiss:WorldVisibility.intersects({kind:'pillar',x:0,y:0,radius:1,height:4},[-3,8,0],[3,8,0])}));assert.equal(v.groups,17);assert.ok(v.faded>0);assert.equal(v.opacity,1);assert.equal(v.pureHit,true);assert.equal(v.pureMiss,false);
+   });
+   await a.screenshot({path:path.join(root,'qa','repair-portrait.png')});
    await a.setViewportSize({width:839,height:412});await delay(600);await a.screenshot({path:path.join(root,'qa','repair-landscape.png')});
    await go(b,48,42);await b.evaluate(()=>{App.cam.yaw=.38;App.cam.dist=13;});await delay(600);await b.screenshot({path:path.join(root,'qa','repair-desktop.png')});
    await test('phone rotation and two-client rendering produce no unhandled browser errors',async()=>{assert.deepEqual(errors,[]);});
