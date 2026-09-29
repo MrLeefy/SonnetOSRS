@@ -12,6 +12,7 @@ ExecStart=/opt/oldskool/oldskool-server
 Environment=SONNET_BIND=127.0.0.1:8788
 Environment=SONNET_STATE=/var/lib/oldskool/profiles.json
 Environment=OLDSKOOL_COLLISION=/opt/oldskool/world_collision.json
+Environment=OLDSKOOL_RESIDENTS=20
 Environment=OLDSKOOL_ALLOWED_ORIGINS=https://oldskool-phi.vercel.app,http://127.0.0.1:8000,http://localhost:8000
 Environment=RUST_LOG=oldskool_server=info,tower_http=warn
 Restart=on-failure
