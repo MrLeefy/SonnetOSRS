@@ -13,7 +13,7 @@ async function test(name,fn){await fn();results.push(name);console.log('PASS '+n
  backend=cp.spawn(binary,[],{env:{...process.env,SONNET_BIND:'127.0.0.1:'+rustPort,SONNET_STATE:path.join(state,'profiles.json'),OLDSKOOL_COLLISION:path.join(root,'server/data/world_collision.json'),OLDSKOOL_ALLOWED_ORIGINS:origin,OLDSKOOL_RESIDENTS:'0',RUST_LOG:'error'},stdio:['ignore','ignore','pipe']});
  backend.on('error',e=>{console.error(e);process.exitCode=1;});let stderr='';backend.stderr.on('data',b=>stderr+=b);
  server=http.createServer((req,res)=>{res.setHeader('content-type','text/html');res.end(fs.readFileSync(path.join(root,'dist/index.html')));});await new Promise(r=>server.listen(webPort,'127.0.0.1',r));
- browser=await chromium.launch({headless:true});ctx1=await browser.newContext({...devices['Pixel 7'],viewport:{width:412,height:839},deviceScaleFactor:1});ctx2=await browser.newContext({viewport:{width:1440,height:800}});
+ browser=await chromium.launch(require('./browser-options.cjs'));ctx1=await browser.newContext({...devices['Pixel 7'],viewport:{width:412,height:839},deviceScaleFactor:1});ctx2=await browser.newContext({viewport:{width:1440,height:800}});
  const a=await ctx1.newPage(),b=await ctx2.newPage(),errors=[];for(const p of [a,b])p.on('pageerror',e=>errors.push(e.message));
  async function join(p,name){await p.goto(origin);await p.waitForFunction(()=>typeof App!=='undefined'&&App.mode==='login');await p.evaluate(({ws,name})=>{Online.endpoint=ws;startGame(name,'online');},{ws,name});await p.waitForFunction(()=>Online.ready,{},{timeout:10000});}
  async function go(p,x,y){await p.evaluate(([x,y])=>cmdWalk(x,y),[x,y]);await p.waitForFunction(([x,y])=>G.player.x===x&&G.player.y===y&&!G.player.path.length,[x,y],{timeout:22000});}

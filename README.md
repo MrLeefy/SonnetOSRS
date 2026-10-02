@@ -98,6 +98,12 @@ This remains an unofficial project built from the attributable `OminousIndustrie
 
 The project does not claim pixel-identical proprietary artwork or full OSRS feature parity. Online inventory/economy authority, authenticated accounts, trading and broader MMO persistence remain future work.
 
+## Mobile playability pass
+
+The touch layout now includes a thumb-height combat dock and a large Bag / Gear / Prayers / Spells / Combat sheet. Food and potions use the same server-authoritative actions as the classic inventory. Connection failures show their status and provide a route back to mode selection.
+
+See `docs/MOBILE_PLAYABILITY.md` for the exact fixes, current checks, and remaining browser/device validation. This source branch is not a claim that production has been deployed.
+
 ## Latest repair
 
 See `docs/REPAIR.md` for the movement-protocol change, scene improvements, migration and test scope. Refresh an already-open pre-0.5 tab after deployment to use protocol 2. Saved online names, positions, kills and deaths are retained; invalid stored positions recover at the safe spawn.

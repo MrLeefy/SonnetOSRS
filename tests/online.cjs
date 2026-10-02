@@ -14,7 +14,7 @@ async function waitHealth(url,timeout=10000){const start=Date.now();while(Date.n
   let backendErr='';backend.stderr.on('data',d=>backendErr+=d);
   const staticServer=http.createServer((req,res)=>{if(req.url==='/favicon.ico'){res.writeHead(204);res.end();return;}res.setHeader('content-type','text/html');res.end(fs.readFileSync(path.join(root,'dist','index.html')));});
   await new Promise(r=>staticServer.listen(staticPort,'127.0.0.1',r));
-  const browser=await chromium.launch({headless:true});
+  const browser=await chromium.launch(require('./browser-options.cjs'));
   const results=[];const test=async(name,fn)=>{await fn();results.push(name);console.log('PASS '+name);};
   async function make(name){
     const context=await browser.newContext({viewport:{width:1280,height:720}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
