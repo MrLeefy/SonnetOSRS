@@ -16,14 +16,14 @@ const Mobile = (() => {
   Client.layout=()=>{
     baseLayout();if(!Client.surface)return;
     if(!document.getElementById('mobile-style')){const style=create('style');style.id='mobile-style';style.textContent=`
-      #touch-dock{position:absolute;display:flex;gap:3px;pointer-events:auto;padding:2px}
-      #touch-dock button{flex:1;min-width:0;min-height:44px;padding:3px 1px;font:12px Georgia,serif;line-height:1.15;white-space:pre-line}
+      #touch-dock{position:absolute;display:flex;gap:3px;pointer-events:auto;padding:2px;background:linear-gradient(#514834,#2d271c);border-radius:4px;box-shadow:inset 0 1px #9d845344}
+      #touch-dock button{flex:1;min-width:0;min-height:44px;padding:3px 1px;font:12px Georgia,serif;line-height:1.15;white-space:pre-line;border-radius:4px;background:linear-gradient(#5e523a55,#322b20);border-color:#19140e;box-shadow:inset 0 1px #a78c4e33;text-shadow:0 1px #000}
       #touch-dock button[aria-pressed=true]{background:linear-gradient(#71672e,#46451e);box-shadow:inset 0 0 0 1px #d6bf64}
-      .touch-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}.touch-tabs button{flex:1;min-width:70px;padding:7px}
-      .touch-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.touch-grid button{min-height:66px;padding:5px;font-size:12px;overflow-wrap:anywhere;line-height:1.15}
-      .touch-grid canvas{position:static!important;display:block;margin:0 auto 3px;width:32px;height:32px;image-rendering:pixelated}
+      .touch-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px;padding:4px;background:#201b1380;border:1px solid #806c4633;border-radius:6px}.touch-tabs button{flex:1;min-width:70px;padding:7px}
+      .touch-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:6px;border-radius:5px;background:#201b1477;border:1px solid #75613d44}.touch-grid button{min-height:66px;padding:5px;font-size:12px;overflow-wrap:anywhere;line-height:1.15;background:radial-gradient(ellipse at 50% 15%,#87704922,transparent 80%);border:1px solid #8d76432b;border-radius:4px;box-shadow:none;color:#d4c7a5}
+      .touch-grid canvas{position:static!important;display:block;margin:0 auto 3px;width:32px;height:32px;image-rendering:auto;filter:drop-shadow(0 2px 2px #0008)}
       .touch-grid button[aria-pressed=true]{outline:2px solid #d9c268;outline-offset:-2px}.touch-actions{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
-      #world-connection{position:absolute;pointer-events:auto;background:#30281df2;border:2px ridge #a39163;padding:8px;color:#eee0b9;font:13px Georgia,serif;max-width:330px}
+      #world-connection{position:absolute;pointer-events:auto;background:linear-gradient(#453a2bef,#2c241bef);border:1px solid #9c8258;border-radius:6px;box-shadow:0 4px 12px #0008;padding:8px;color:#eee0b9;font:13px Georgia,serif;max-width:330px}
       #world-connection p{margin:0 0 6px}#world-connection button{min-height:44px;padding:7px;margin-right:5px;font-size:13px}
       @media(max-width:350px){#touch-dock{gap:0}}
       @media(orientation:landscape){.touch-grid{grid-template-columns:repeat(7,minmax(0,1fr))}}

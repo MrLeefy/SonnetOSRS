@@ -24,3 +24,11 @@ The existing Chromium suite now also covers the touch dock size, one-dose potion
 Browser execution in the current workspace was blocked: the connected cloud browser reported WebGL unavailable, and isolated Chromium could not create its required local process socket. Browser suites, rendered visual QA, full playthrough, real phone testing, and real client-to-server integration are therefore **not certified by this pass**. A WebGL-capable, sandbox-supported test environment must run `npm run verify:full` before release. No security restrictions were disabled to run these checks.
 
 Production and backend were not deployed or changed. The latest source baseline was `oldskool-online` at `62d2cc8`; the verified production deployment at the start was the earlier `c455d2b`.
+
+## Classic interface redesign
+
+A second visual pass unifies the actual procedural frame and DOM panels: subtle stone grain, slender bronze/chamfered borders, carved side rails, smoother minimap rings, inset inventory slots and warm parchment chat. Bank, GE, menus, dialogue, context menus, tooltips and the touch sheet share quieter borders, consistent spacing and restrained hover/selection states. Reduced-motion preferences disable transition effects. No proprietary sprites or external UI assets were copied.
+
+`tools/render-ui-components.cjs` can generate honest UI-only component sheets using a temporary Canvas raster dependency. These show the actual canvas art, icons and bitmap fonts; placeholder world/minimap areas explicitly do not simulate gameplay. They do not verify browser CSS, WebGL, touch input or online connectivity. The bank/menu CSS still requires real browser review.
+
+Inventory recesses are baked into the layout background, so they do not allocate 28 gradients on every frame. Gameplay modules, network authority and control coordinates remain unchanged by this visual pass.

@@ -28,6 +28,40 @@ const Client = (() => {
     #classic-tooltip{position:fixed;pointer-events:none;z-index:36;display:none;max-width:min(300px,calc(100vw - 16px));overflow-wrap:anywhere;padding:8px;color:#211809;background:#c8b88a;border:1px solid #130e07;font-size:14px}
     @media(pointer:coarse){#client-context button{min-height:44px}#client-dialog button{min-height:42px}}
     @media(max-width:580px){#client-panel{padding:12px 10px}#client-panel h1{font-size:23px;margin-left:20px;margin-right:35px}.client-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}button{font-size:14px}}
+    /* Unified original 2009-era stone, bronze and parchment skin. */
+    :root{--ink:#e8ddbd;--muted:#b6a887;--gold:#d2b66e;--edge:#756448;--bg:#302a20}
+    html,body{background:#211e17}
+    button{background:linear-gradient(180deg,#625942 0%,#49412f 49%,#393222 100%);border:1px solid #19150f;border-radius:5px;box-shadow:inset 0 1px #8f805b,inset 0 -1px #292217,0 1px 2px #0006;color:#e9ddb7;transition:background-color .12s,box-shadow .12s,filter .12s}
+    button:hover{filter:brightness(1.1);box-shadow:inset 0 1px #bda576,inset 0 -1px #292217,0 1px 3px #0007}
+    button:active{filter:brightness(.92);box-shadow:inset 0 2px 5px #0006}
+    button[aria-pressed=true]{background:linear-gradient(#725037,#493123);border-color:#ad8650;color:#ffe3a0}
+    input,select,textarea{border:1px solid #726246;border-radius:4px;background:#211d16;box-shadow:inset 0 2px 6px #0005;color:#eadfbe;padding:10px}
+    #client-shade{background:radial-gradient(ellipse at center,#12100b75,#090806b5);padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+    #client-panel{width:min(760px,100%);padding:22px;border:1px solid #9b8660;border-radius:9px;background:radial-gradient(ellipse at 50% 0,#6d5a393b,transparent 65%),linear-gradient(#393226e6,#27231ce6),var(--brown-texture);box-shadow:inset 0 0 0 2px #211b13,inset 0 0 0 3px #76634866,0 0 0 3px #17130e,0 22px 65px #000a;scrollbar-width:thin}
+    #client-panel::before{content:'';position:absolute;left:24px;right:24px;top:4px;height:1px;background:linear-gradient(90deg,transparent,#d1ad66,transparent);pointer-events:none}
+    #client-panel h1{font-size:27px;margin:4px 44px 20px;padding:0 0 13px;border-bottom:1px solid #84704b55;letter-spacing:.3px;color:#e1c47d;text-shadow:0 2px 1px #120e08;font-variant:small-caps}
+    #client-panel h2{color:#ddc489;font-size:17px;margin:16px 0 10px}
+    #client-panel p{color:#c7b998;font-size:14px;line-height:1.5}
+    .client-lead{font:10px Georgia,serif;color:#a3926c;letter-spacing:2.4px;margin:0 42px 8px;text-align:center}
+    .client-close{right:9px;top:9px;border-radius:50%;min-width:44px;width:44px;height:44px;background:radial-gradient(circle at 40% 25%,#884937,#542b22 70%);border:1px solid #24130e;box-shadow:inset 0 1px #c68b65,0 0 0 1px #856a43;font-size:24px;line-height:1;color:#f1d59a}
+    .client-grid{gap:12px;margin:14px 0}.client-card{background:linear-gradient(150deg,#4f45312b,#211c1455);border:1px solid #89704655;border-radius:5px;padding:15px;box-shadow:inset 0 1px #b39c5e15;color:#e1d5b4}
+    .client-card h2{color:#e1c47d!important;text-shadow:0 1px #000!important;font-size:18px}.client-card small,.client-card label{color:#b9ac8d}.client-card small{font-size:13px;line-height:1.55}.client-card progress{height:8px;accent-color:#ac9150}
+    .client-controls{gap:7px;margin:13px 0}.client-controls button{padding:8px 12px}.client-message{background:#211c13;border:1px solid #7c68433f;border-left:3px solid #aa8c4a;border-radius:3px;padding:10px 12px;color:#c8b88f;font-size:13px}
+    .client-help{font-size:12px!important;color:#9e9173!important;line-height:1.5}.oldskool-logo{font-size:clamp(36px,8vw,66px);letter-spacing:-1px;color:#d8bd79;text-shadow:0 2px #120d07,0 -1px #f3dfad}.oldskool-sub{color:#ae9c74;font-size:10px;letter-spacing:4px;margin-bottom:22px}
+    .world-online{border-color:#a18449!important;background:radial-gradient(ellipse at top,#86704422,transparent 80%),linear-gradient(#3e3426,#2b241b);box-shadow:inset 0 1px #c5a76733}.world-status{font-size:12px;color:#b8a783}.world-dot{width:7px;height:7px}.world-dot.online{background:#83a65a;box-shadow:0 0 5px #7ca24577}
+    .client-items{grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:4px;padding:8px;background:#211c1480;border:1px solid #79644244;border-radius:5px}
+    .client-items button{border:1px solid transparent;border-radius:4px;box-shadow:inset 0 1px #c6b27f0c;background:radial-gradient(ellipse at 50% 25%,#77644026,transparent 80%);min-height:74px;padding:6px 3px;color:#cbbf9e;font-size:11px;line-height:1.2}
+    .client-items button:hover{border-color:#aa8d5266;background:radial-gradient(ellipse at center,#94734544,#43352233);box-shadow:inset 0 0 12px #b5944222;filter:none}.client-items canvas{width:36px;height:36px;margin:0 auto 5px;filter:drop-shadow(0 2px 2px #0008);image-rendering:auto}
+    #client-panel[data-page=bank]>.client-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px}
+    #client-panel[data-page=chat]{width:min(540px,100%)}#client-panel[data-page=chat] form{display:flex;gap:8px}#client-panel[data-page=chat] input{min-width:0}
+    #client-context{border:1px solid #a18b63;border-radius:4px;background:linear-gradient(#4d4434,#30291e);box-shadow:0 0 0 1px #141009,0 7px 18px #0008;padding:3px;font-size:14px}
+    #client-context strong{background:transparent;border-bottom:1px solid #b39b6433;color:#c9b788;padding:6px 9px;margin-bottom:2px;font-size:13px}
+    #client-context button{border-radius:2px;color:#e9dfbe;padding:6px 9px;transition:background-color .1s;min-height:32px}#client-context button:hover{color:#ffdf77;background:#88724333}
+    #client-dialog{border:1px solid #97805a;border-radius:6px;background:linear-gradient(#dfcba329,#3f301116),var(--paper-texture);box-shadow:inset 0 0 0 2px #8b734422,0 5px 20px #0007;padding:15px}#client-dialog strong{color:#5b3b1e}#client-dialog button{color:#3b3f76;border-radius:3px}#client-dialog button:hover{background:#b39b6544;box-shadow:none}
+    #classic-tooltip{border:1px solid #655031;border-radius:3px;background:#d7c496;color:#2d2213;box-shadow:0 3px 9px #0005;font-size:13px;padding:7px 9px}
+    @media(pointer:coarse){#client-context button{min-height:44px}#client-dialog button{min-height:44px}}
+    @media(max-width:580px){#client-panel{padding:16px 12px;border-radius:7px}#client-panel h1{font-size:23px;margin:4px 36px 15px}.client-grid{gap:9px}.client-card{padding:12px}#client-panel[data-page=bank]>.client-grid{grid-template-columns:1fr}.client-items{grid-template-columns:repeat(4,minmax(0,1fr))}.client-close{top:7px;right:7px}.client-lead{font-size:9px;letter-spacing:1.7px}.client-items button{font-size:11px}}
+    @media(prefers-reduced-motion:reduce){button{transition:none}}
   `;
   C.init=()=>{
     el('style',{text:style},document.head);
@@ -170,6 +204,8 @@ const Client = (() => {
   };
   C.drawInventory=p=>{
     const roomy=C.L?.phoneLandscape;
+    if(!UI.touchMode&&C.pointer)for(const r of C.L.slots)if(inRect(C.pointer.x,C.pointer.y,r))Classic.slot(p,r,false,true);
+    p.save();p.imageSmoothingEnabled=true;p.imageSmoothingQuality='high';
     G.player.inv.forEach((s,i)=>{
       if(!s||(UI.drag?.active&&UI.drag.from===i))return;
       const r=C.L.slots[i],size=Math.round(Math.min(r.w*(roomy?.82:.72),r.h*(roomy?.94:.86),roomy?68:56)),x=Math.round(r.x+(r.w-size)/2),y=Math.round(r.y+(r.h-size)/2);
@@ -177,6 +213,7 @@ const Client = (() => {
       if(ITEMS[s.id].stack){const st=stackText(s.n);Classic.text(p,st.t,x-1,y+Math.min(roomy?14:12,r.h*(roomy?.37:.32)),Math.min(roomy?16:15,Math.max(roomy?11:10,r.h*(roomy?.34:.31))),st.c,true);}
     });
     if(UI.drag?.active){const s=G.player.inv[UI.drag.from];if(s){const pt=C.pointer||C.fromGame(UI.mouse.x,UI.mouse.y),r=C.L.slots[UI.drag.from],size=Math.round(Math.min(r.w*(roomy?.82:.72),r.h*(roomy?.94:.86),roomy?68:56));p.globalAlpha=.85;p.drawImage(itemIcon(s.id),pt.x-size/2,pt.y-size/2,size,size);p.globalAlpha=1;}}
+    p.restore();
   };
   C.chatLines=(maxWidth,size)=>{
     const latest=G.msgs.at(-1),key=[latest,G.msgs.length,UI.chatTab,maxWidth,size];
@@ -263,13 +300,13 @@ const Client = (() => {
     if(!G.player&&!['welcome','menu'].includes(page))page='welcome';
     if(page==='bank'&&!Online.active&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
     if(page==='appearance'&&C.panel!=='appearance')C.appearanceDraft={...G.player.kit};
-    C.panel=page;C.shade.style.display='flex';C.bar.inert=true;UI.menu=null;C.tooltip.style.display='none';if(typeof Controls!=='undefined')Controls.cancelAll();C.renderPanel();
+    C.panel=page;C.root.dataset.page=page;C.shade.style.display='flex';C.bar.inert=true;UI.menu=null;C.tooltip.style.display='none';if(typeof Controls!=='undefined')Controls.cancelAll();C.renderPanel();
     C.root.querySelector('input,button')?.focus({preventScroll:true});
   };
   C.renderPanel=()=>{
     if(!C.panel)return;const root=C.root;root.replaceChildren();
     if(App.mode==='game'){const close=button('×',C.close,root);close.className='client-close';close.setAttribute('aria-label','Close menu');}
-    el('div',{class:'client-lead',text:'OLDSKOOL · CLASSIC WEBGL CLIENT'},root);
+    el('div',{class:'client-lead',text:'OLDSKOOL · '+(Online.active?'WORLD 1':Expedition.active?'EXPEDITION':'ADVENTURE')},root);
     const titles={touch:'Adventurer controls',welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:Online.active?'Bank of OLDSKOOL':Expedition.active?'Camp bank':'Arena bank & free kits',ge:'Grand Exchange',appearance:'Character design',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
     el('h1',{text:titles[C.panel]||'SonnetOSRS'},root);
     if(C.panel==='welcome'||C.panel==='menu'){
@@ -332,7 +369,7 @@ const Client = (() => {
     }else if(C.panel==='bank'){
       const itemButton=(s,text,fn,parent)=>{
         const b=button('',fn,parent),cv=el('canvas',{width:32,height:32},b);
-        cv.getContext('2d').drawImage(itemIcon(s.id),0,0);el('span',{text},b);return b;
+        cv.getContext('2d').drawImage(itemIcon(s.id),0,0);el('span',{text},b);b.title=text;return b;
       };
       const row=el('div',{class:'client-controls'},root);
       const quantity=el('select',{},row);quantity.style.width='auto';quantity.setAttribute('aria-label','Bank quantity');

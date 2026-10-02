@@ -1,0 +1,51 @@
+{
+  "scope": "UI-only component QA | no gameplay render",
+  "limitations": [
+    "No gameplay rendering",
+    "No browser or CSS validation",
+    "No interaction or touch validation",
+    "No networking or deployment"
+  ],
+  "sourceHashes": {
+    "font_data.js": "d8ad3bfd798906807f442fb9359e5d0cd03ac32a0ee16002f00bef84e9a2c76e",
+    "core.js": "c88b5a9d9e4ac79e385557cde99cc27b4660de8a8ba1f621d7476bf7e6e84ce4",
+    "gfx.js": "0a241f9e8a438ff480288e38a8119900e9432145a16ac00c83ff9c142f1367ec",
+    "items.js": "60e0dff71a328b096a84ea4a11c21b577e938cea175afb2ebbbced21696270d6",
+    "uiicons.js": "0ac4e9da408af8811f41f952e20c9e9d7bfe5ffe5f69423b071808c356ce6bf2",
+    "classic.js": "5a8ebe31d1f8bb7b5a3193ee0357b1ab15ea2a7fb08e81adb009a109492aca2d",
+    "client.js": "712273e529bd347e4964e175ddaa6c83b150ab65c2b2bbb7eb74bbd8157f5087"
+  },
+  "renderer": {
+    "package": "@napi-rs/canvas",
+    "modulePath": "/tmp/oldskool-ui-render/node_modules/@napi-rs/canvas"
+  },
+  "files": [
+    {
+      "filename": "ui-components-desktop.png",
+      "width": 1472,
+      "height": 1651,
+      "layoutWidth": 1440,
+      "layoutHeight": 900,
+      "touch": false,
+      "sha256": "d99b4c93c7179bcc0dde60647abbe3e66c7e5707bdb4a6c4f257c6ea957db9d7"
+    },
+    {
+      "filename": "ui-components-phone.png",
+      "width": 930,
+      "height": 960,
+      "layoutWidth": 390,
+      "layoutHeight": 844,
+      "touch": true,
+      "sha256": "5509cdbd24e6dd961181ced80faa8441f4038fcbe960c9e7e18168e2ee72e329"
+    },
+    {
+      "filename": "ui-components-phone-landscape.png",
+      "width": 876,
+      "height": 1253,
+      "layoutWidth": 844,
+      "layoutHeight": 390,
+      "touch": true,
+      "sha256": "e40b0c4b0a77e51b9a8847820b0ebda2a9cdbefe08e10082e135a3d07c321f22"
+    }
+  ]
+}
