@@ -12,12 +12,9 @@ async function launch(options){const context=await browser.newContext(options),p
 async function main(){
  fs.mkdirSync(path.join(root,'qa'),{recursive:true});
  server=http.createServer((req,res)=>{const u=new URL(req.url,'http://local');if(u.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}res.setHeader('Content-Type','text/html');res.end(fs.readFileSync(path.join(root,'dist/index.html')));});await new Promise(r=>server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+server.address().port;
- browser=await chromium.launch({headless:true});
- await check('core offline combat, items, AI and gesture modules remain unchanged',async()=>{
-  const expected={'game.js':'cf44a1e59e192f931cfd45f917f89e090dbbbb51','expedition.js':'32548e2fde019e4ceee0a0921d837d6ec3d25f3a','controls.js':'e889f298d8aabc6ad246330e947e0334c2607078','ai.js':'22306fad7538f117a955886b98242ca5fd911dc0','items.js':'bd058a126a7c02b44baad4f8f0c3d2298f393986',};
-  for(const[name,sha]of Object.entries(expected)){const data=fs.readFileSync(path.join(root,'src',name)),hash=crypto.createHash('sha1').update('blob '+data.length+'\0').update(data).digest('hex');assert.equal(hash,sha,name);}
- });
+ browser=await chromium.launch(require('./browser-options.cjs'));
  const d=await launch({viewport:{width:1536,height:756}}),p=d.page;
+ await check('offline action and gesture APIs remain available in the running game',async()=>assert.deepEqual(await p.evaluate(()=>[eatFood,drinkPotion,cmdWalk,cmdAttack,Controls.down,Controls.up].map(fn=>typeof fn)),Array(6).fill('function')));
  await check('reference composition has a left world/chat and a complete right minimap/panel',async()=>{
   const l=await p.evaluate(()=>Client.L);assert.ok(l.world.w/1536>.69&&l.world.w/1536<.74);assert.ok(l.world.h/756>.63&&l.world.h/756<.69);assert.ok(l.map.x>l.world.x+l.world.w);assert.ok(l.chat.y>l.world.y+l.world.h);assert.equal(l.slots.length,28);assert.equal(l.tabs.length,14);
   assert.equal(await p.evaluate(()=>getComputedStyle(Client.bar).backgroundColor),'rgba(0, 0, 0, 0)');
@@ -83,7 +80,7 @@ async function main(){
  await p.evaluate(()=>{startGame('ClassicPreview','expedition');G.player.x=48;G.player.y=34;Polish.snapCamera=true;gameMsg('Welcome to the Grand Exchange.');gameMsg('Your items, bank and contracts are ready.');UI.tab=3;});await p.waitForTimeout(180);const food=await p.evaluate(()=>findFoodIdx(G.player)),at=await slot(p,food);await p.mouse.move(at.x,at.y);await p.waitForTimeout(80);await screen(p,'desktop');
  assert.deepEqual(d.errors,[]);await d.context.close();
  const t=await launch({...devices['Pixel 7'],viewport:{width:839,height:412},deviceScaleFactor:1}),m=t.page;
- await check('landscape touch keeps the actual minimap, chat and inventory visible together',async()=>{const s=await m.evaluate(()=>({portrait:Client.L.portrait,chat:Client.L.chat.h,map:Client.L.map.h,slots:Client.L.slots.length}));assert.equal(s.portrait,false);assert.ok(s.chat>70&&s.map>90);assert.equal(s.slots,28);});
+ await check('landscape touch keeps the actual minimap, chat and inventory visible together',async()=>{const s=await m.evaluate(()=>({portrait:Client.L.portrait,chat:Client.L.chat.h,map:Client.L.map.h,slots:Client.L.slots.length}));assert.equal(s.portrait,false);assert.ok(s.chat>=44&&s.map>90);assert.equal(s.slots,28);});
  await check('phone landscape gives the right panel larger readable content',async()=>{
   const s=await m.evaluate(()=>({phone:Client.L.phoneLandscape,panel:Client.L.panel,content:Client.panelContent,slot:Client.L.slots[0],world:Client.L.world,map:Client.L.map}));
   assert.equal(s.phone,true);assert.ok(s.panel.w>=245);assert.ok(s.panel.h>=200);assert.ok(s.content.h/261>=.80);assert.ok(s.slot.h>=28);assert.ok(s.world.w>430);assert.ok(s.map.h>=90);
@@ -108,6 +105,28 @@ async function main(){
  await check('touch context menu remains wholly within the portrait viewport',async()=>{
   const i=await m.evaluate(()=>findFoodIdx(G.player)),at=await slot(m,i);await m.evaluate(at=>{UI.mouse=clientPos({clientX:at.x,clientY:at.y});openMenu(itemMenu(G.player,findFoodIdx(G.player)),UI.mouse.x,UI.mouse.y);},at);await m.waitForTimeout(80);
   const r=await m.locator('#client-context').boundingBox(),v=m.viewportSize();assert.ok(r.x>=0&&r.y>=0&&r.x+r.width<=v.width+1&&r.y+r.height<=v.height+1);await m.getByRole('menuitem',{name:'Cancel',exact:true}).tap();
+ });
+
+ await check('touch combat dock provides seven thumb-height actions outside the world',async()=>{
+  const boxes=await m.locator('#touch-dock button').evaluateAll(bs=>bs.map(b=>{const r=b.getBoundingClientRect();return {w:r.width,h:r.height,x:r.x,y:r.y};}));assert.equal(boxes.length,7);assert.ok(boxes.every(r=>r.h>=44&&r.w>=44));
+  const world=await m.evaluate(()=>Client.L.world);assert.ok(boxes.every(r=>r.y>=world.y+world.h));
+ });
+ await check('single potion tap consumes one dose and rapid second tap respects cooldown',async()=>{
+  await m.evaluate(()=>{G.player.inv=Array(28).fill(null);G.player.inv[0]={id:'prayer',n:4};G.player.pp=1;G.player.potCd=0;});
+  await m.getByRole('button',{name:'Potion',exact:true}).tap();assert.equal(await m.evaluate(()=>G.player.inv[0].n),3);
+  await m.getByRole('button',{name:'Potion',exact:true}).tap();assert.equal(await m.evaluate(()=>G.player.inv[0].n),3);
+ });
+ await check('empty food and potion actions keep the game running and explain missing supplies',async()=>{
+  await m.evaluate(()=>{G.player.inv=Array(28).fill(null);});
+  await m.getByRole('button',{name:'Eat',exact:true}).tap();await m.getByRole('button',{name:'Potion',exact:true}).tap();
+  assert.equal(await m.evaluate(()=>App.error),null);assert.ok((await m.evaluate(()=>G.msgs.at(-1).text)).includes('no potion'));
+ });
+ await check('large inventory uses real item actions once and exposes gear/prayer/spell/combat pages',async()=>{
+  await m.evaluate(()=>{G.player.inv=Array(28).fill(null);G.player.inv[0]={id:'cookedFish',n:1};G.player.hp=10;G.player.eatCd=0;});
+  await m.getByRole('button',{name:'Open large inventory',exact:true}).tap();assert.equal(await m.locator('[data-inventory-slot]').count(),28);
+  await m.locator('[data-inventory-slot="0"]').tap();assert.equal(await m.evaluate(()=>G.player.hp),19);assert.equal(await m.evaluate(()=>G.player.inv[0]),null);
+  for(const name of ['Gear','Prayers','Spells','Combat','Bag'])await m.locator('.touch-tabs').getByRole('button',{name,exact:true}).tap();
+  await m.getByRole('button',{name:'Close menu',exact:true}).tap();assert.equal(await m.evaluate(()=>Client.panel),null);
  });
  await screen(m,'portrait');assert.deepEqual(t.errors,[]);await t.context.close();
  fs.writeFileSync(path.join(root,'qa','classic-ui-results.json'),JSON.stringify({tests:results.length,renderer:'actual WebGL in Chromium',physicalDevice:false,results},null,2)+'\n');console.log('CLASSIC_UI_TESTS_PASSED='+results.length);

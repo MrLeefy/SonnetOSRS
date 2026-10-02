@@ -6,7 +6,7 @@
   "scripts": {
     "build": "python3 tools/build.py",
     "check": "node tools/check.cjs",
-    "test": "node tests/runtime.cjs",
+    "test": "node tests/runtime.cjs && node tests/network-runtime.cjs && node tests/mobile-layout.cjs",
     "test:browser": "node tests/browser.cjs && node tests/classic.cjs",
     "test:classic": "node tests/classic.cjs",
     "verify": "npm run check && npm test && npm run build && npm run test:browser",
@@ -16,7 +16,9 @@
     "test:repair": "node tests/repair.cjs",
     "test:crowd": "node tests/crowd.cjs",
     "test:economy-online": "node tests/economy-online.cjs",
-    "test:ground-online": "node tests/ground-online.cjs"
+    "test:ground-online": "node tests/ground-online.cjs",
+    "test:network-runtime": "node tests/network-runtime.cjs",
+    "test:mobile-layout": "node tests/mobile-layout.cjs"
   },
   "devDependencies": {
     "playwright": "1.63.0"

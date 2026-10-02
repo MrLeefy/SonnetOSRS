@@ -33,7 +33,7 @@ async function main(){
   if(!f.startsWith(root+path.sep)||!fs.existsSync(f)||!fs.statSync(f).isFile()){res.writeHead(404);res.end();return;}
   res.setHeader('Content-Type',f.endsWith('.js')?'application/javascript':'text/html');res.end(fs.readFileSync(f));
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+server.address().port;
- browser=await chromium.launch({headless:true});fs.mkdirSync(path.join(root,'qa'),{recursive:true});
+ browser=await chromium.launch(require('./browser-options.cjs'));fs.mkdirSync(path.join(root,'qa'),{recursive:true});
  const desktop=await create({viewport:{width:1280,height:800}}),p=desktop.page;
  await check('desktop expedition boots the existing renderer and full world',async()=>{
   const s=await p.evaluate(()=>({ready:WORLD.ready,nodes:Expedition.nodes.length,monsters:G.actors.filter(a=>a.monster).length,mode:App.mode}));

@@ -19,7 +19,7 @@ const Client = (() => {
     .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
     #client-shade{position:fixed;inset:0;z-index:40;background:#080704a6;display:none;align-items:center;justify-content:center;padding:14px}
     #client-panel{position:relative;width:min(760px,100%);max-height:calc(100dvh - 28px);overflow:auto;border:7px ridge #71674d;border-radius:0;background:var(--brown-texture,#3e3529);padding:22px;box-shadow:0 0 0 2px #17120a,0 18px 70px #000b;overscroll-behavior:contain;scrollbar-color:#948365 #282114}
-    #client-panel h1{font-size:29px;font-weight:normal;color:#e8cf8c;text-align:center;text-shadow:2px 2px #100b04;margin:4px 45px 20px}#client-panel h2{font-size:18px;font-weight:normal;margin:15px 0 10px;color:#f0d691;text-shadow:1px 1px #000}#client-panel p{line-height:1.55;margin:10px 0;color:#d4c59f}.client-close{position:absolute;right:10px;top:8px;min-width:36px;min-height:32px!important;background:linear-gradient(#863e2e,#4e1e14);padding:2px 10px}
+    #client-panel h1{font-size:29px;font-weight:normal;color:#e8cf8c;text-align:center;text-shadow:2px 2px #100b04;margin:4px 45px 20px}#client-panel h2{font-size:18px;font-weight:normal;margin:15px 0 10px;color:#f0d691;text-shadow:1px 1px #000}#client-panel p{line-height:1.55;margin:10px 0;color:#d4c59f}.client-close{position:absolute;right:10px;top:8px;min-width:44px;min-height:44px!important;background:linear-gradient(#863e2e,#4e1e14);padding:2px 10px}
     .client-lead{text-align:center;font-size:12px;color:#ae9b6b;letter-spacing:1.5px}.client-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}.client-card{background:var(--paper-texture,#c5b080);border:3px ridge #81704c;padding:14px;border-radius:0;box-shadow:inset 0 0 14px #49311466;color:#332513}.client-card h2{color:#462a12!important;text-shadow:none!important;margin-top:0!important}.client-card small{display:block;color:#49351c;margin:7px 0 12px;line-height:1.5;font-size:13px}.client-card progress{width:100%;height:12px;accent-color:#807037}.client-card label{display:block;color:#49351c;margin:10px 0 5px;font-size:14px}.client-controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.client-help{font-size:13px;color:#bbac86!important}
     .client-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}.client-items button{font-size:12px;min-height:82px;padding:5px;overflow-wrap:anywhere;background:var(--brown-texture,#3e3529)}.client-items canvas{display:block;position:static!important;width:32px;height:32px;margin:0 auto 6px;image-rendering:pixelated}.client-message{padding:10px;border:2px groove #8d7b53;background:#2a2115;color:#e1c68e;font-size:14px;margin:12px 0}
     .oldskool-logo{text-align:center;font-family:Georgia,'Times New Roman',serif;font-size:clamp(34px,7vw,74px);font-weight:bold;letter-spacing:-3px;color:#d8c081;text-shadow:0 3px #23170b,2px 0 #5a4524,-2px 0 #5a4524,0 -2px #f0dfaa;margin:4px 0 3px}.oldskool-sub{text-align:center;color:#9e8d68;font-size:12px;letter-spacing:4px;margin-bottom:18px}.world-online{border-color:#9d8445!important;box-shadow:inset 0 0 18px #6c4a1d55}.world-status{display:flex;align-items:center;gap:8px;justify-content:center;color:#d7c58d;font-size:13px;margin:6px 0 14px}.world-dot{width:9px;height:9px;border-radius:50%;background:#8d2b22;box-shadow:0 0 5px #000}.world-dot.online{background:#63a33f;box-shadow:0 0 6px #89d65b}
@@ -73,7 +73,7 @@ const Client = (() => {
     C.width=Math.max(1,document.documentElement.clientWidth||innerWidth);C.height=Math.max(1,innerHeight);
     C.mobile=Profiles.settings.layout==='touch'||(Profiles.settings.layout==='auto'&&matchMedia('(pointer: coarse)').matches);
     const pad=getComputedStyle(C.safeProbe),left=parseFloat(pad.paddingLeft)||0,top=parseFloat(pad.paddingTop)||0,right=parseFloat(pad.paddingRight)||0,bottom=parseFloat(pad.paddingBottom)||0;
-    C.L=Classic.layout(C.width-left-right,C.height-top-bottom,C.compact);const L=C.L;
+    C.L=Classic.layout(C.width-left-right,C.height-top-bottom,C.compact,C.mobile);const L=C.L;
     for(const r of [L.frame,L.world,L.chat,L.channels,L.map,L.top,L.bottom,L.panelFrame,L.panel,L.mapTransform,L.mapCircle,L.compass,...L.tabs,...L.slots,...L.orbs,...L.utilities,L.quick])if(r){r.x+=left;r.y+=top;}
     C.hover=null;
     C.world=L.world;C.panelRect=L.panel;C.mapRect=L.map;
@@ -112,16 +112,16 @@ const Client = (() => {
       if(i===2)a.runOn=!a.runOn;if(i===3&&weaponOf(a).spec)a.specOn=!a.specOn;
     }));
     C.channelRects=[];const ch=L.channels,reportW=ch.w*.225,gap=3,cw=(ch.w-reportW-gap*6)/6;
-    for(let i=0;i<6;i++){const r={x:ch.x+i*(cw+gap),y:ch.y,w:cw,h:ch.h};C.channelRects.push(r);hit(['All','Game','Public','Private','Clan','Trade'][i],r,()=>{UI.chatTab=i;G.chatScroll=0;C.chatCache=null;if(i>2)gameMsg('This is an offline world. Online '+['','','','private','clan','trade'][i]+' chat is not connected.');});}
+    for(let i=0;i<6;i++){const r={x:ch.x+i*(cw+gap),y:ch.y,w:cw,h:ch.h};C.channelRects.push(r);hit(['All','Game','Public','Private','Clan','Trade'][i],r,()=>{UI.chatTab=i;G.chatScroll=0;C.chatCache=null;if(i>2)gameMsg(['','','','Private','Clan','Trade'][i]+' chat is not connected. Use Public for World 1 chat.');});}
     C.reportRect={x:ch.x+ch.w-reportW,y:ch.y,w:reportW,h:ch.h};hit('Report Abuse',C.reportRect,()=>C.open('report'));
     const chat=L.chat,line=clamp(C.width/85,12,17)*1.22;C.chatInputRect={x:chat.x+7,y:chat.y+chat.h-line-8,w:chat.w-32,h:line+2};
     hit('Type a chat message',C.chatInputRect,()=>C.open('chat'));
     C.scrollUp={x:chat.x+chat.w-25,y:chat.y+8,w:17,h:17};C.scrollDown={x:chat.x+chat.w-25,y:C.chatInputRect.y-21,w:17,h:17};
     if(chat.h>50){hit('Scroll chat up',C.scrollUp,()=>{G.chatScroll+=3;});hit('Scroll chat down',C.scrollDown,()=>{G.chatScroll=Math.max(0,G.chatScroll-3);});}
     C.quickButtons=[];
-    if(L.quick){const q=L.quick,keys=['Eat','Potion','Run','Special','Save','Chat','Full screen','Menu'],cols=2,hh=Math.min(46,(q.h-25)/4);keys.forEach((key,i)=>{
+    if(L.quick){const q=L.quick,keys=C.mobile?['Bank','Map','Journal','Save','Chat','Full screen']:['Eat','Potion','Run','Special','Save','Chat','Full screen','Menu'],cols=2,hh=Math.min(52,(q.h-25)/Math.ceil(keys.length/2));keys.forEach((key,i)=>{
       const r={x:q.x+(i%cols)*(q.w/cols),y:q.y+22+Math.floor(i/cols)*hh,w:q.w/cols-2,h:hh-2};C.quickButtons.push({key,r});
-      hit(key,r,()=>{const a=G.player;if(key==='Eat')eatFood(a,findFoodIdx(a));else if(key==='Potion'){let i=findPotIdx(a,'prayer');if(i<0)i=findPotIdx(a,'restore');drinkPotion(a,i);}else if(key==='Run')a.runOn=!a.runOn;else if(key==='Special'){if(weaponOf(a).spec)a.specOn=!a.specOn;}else if(key==='Save')Profiles.save(true);else if(key==='Full screen')C.fullscreen();else C.open(key==='Chat'?'chat':'menu');});
+      hit(key,r,()=>{const a=G.player;if(key==='Bank'){if(Online.active){const o=WORLD.objs.filter(o=>o.kind==='bank').sort((a,b)=>dist2(a.x,a.y,G.player.x,G.player.y)-dist2(b.x,b.y,G.player.x,G.player.y))[0];if(o)cmdJob(o.x,o.y,a=>dist2(a.x,a.y,o.x,o.y)<=2,()=>openBank(o));}else Expedition.goBank();}else if(key==='Map')C.open('map');else if(key==='Journal')C.open('journal');else if(key==='Eat')eatFood(a,findFoodIdx(a));else if(key==='Potion'){let i=findPotIdx(a,'prayer');if(i<0)i=findPotIdx(a,'restore');drinkPotion(a,i);}else if(key==='Run')a.runOn=!a.runOn;else if(key==='Special'){if(weaponOf(a).spec)a.specOn=!a.specOn;}else if(key==='Save')Profiles.save(true);else if(key==='Full screen')C.fullscreen();else C.open(key==='Chat'?'chat':'menu');});
     });}
     C.chatCache=null;C.menu=null;C.dialog=null;
     if(typeof Polish!=='undefined')Polish.resize();
@@ -231,7 +231,7 @@ const Client = (() => {
       Classic.text(p,label,badge.x+34,badge.y+19,size,safe?0xb9e38f:0xff8b69,true);
       Classic.text(p,Online.ready?'World 1':'Please wait',badge.x+34,badge.y+34,9,0xc9b88f,true);
     }
-    if(L.quick){Classic.text(p,Online.active?'World 1':Expedition.active?'Expedition':'Arena',L.quick.x+L.quick.w/2,L.quick.y+14,12,0xd3bf89,true,'center');for(const {key,r}of C.quickButtons){Classic.stone(p,r);const id=key==='Save'?'save':key==='Chat'?'chat':key==='Menu'?'menu':key==='Run'?'run':key==='Special'?'combat':'full',sz=Math.min(27,r.h-6);p.drawImage(key==='Eat'?itemIcon('cookedFish'):key==='Potion'?itemIcon('prayer'):Classic.icon(id),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2,sz,sz);}}
+    if(L.quick){Classic.text(p,Online.active?'World 1':Expedition.active?'Expedition':'Arena',L.quick.x+L.quick.w/2,L.quick.y+14,12,0xd3bf89,true,'center');for(const {key,r}of C.quickButtons){Classic.stone(p,r);const id=key==='Bank'?'bank':key==='Map'?'world':key==='Journal'?'journal':key==='Save'?'save':key==='Chat'?'chat':key==='Menu'?'menu':key==='Run'?'run':key==='Special'?'combat':'full',sz=Math.min(27,r.h-6);p.drawImage(key==='Eat'?itemIcon('cookedFish'):key==='Potion'?itemIcon('prayer'):Classic.icon(id),r.x+(r.w-sz)/2,r.y+(r.h-sz)/2-(C.mobile?6:0),sz,sz);if(C.mobile)Classic.text(p,key,r.x+r.w/2,r.y+r.h-4,10,0xf2e1bd,true,'center');}}
     const action=C.hover||UI.hoverText;
     if(action&&!UI.menu){p.save();p.beginPath();p.rect(L.world.x+4,L.world.y+3,Math.max(45,L.world.w-(Online.active?150:8)),50);p.clip();Classic.text(p,action+(!C.hover&&UI.hoverMore?' / '+UI.hoverMore:''),L.world.x+7,L.world.y+clamp(C.width/90,14,21),clamp(C.width/90,13,19),0xffffff,true,'left',true);p.restore();}
     if(G.spellSel)Classic.text(p,'Cast '+SPELL_BY_ID[G.spellSel].name+' on...',L.world.x+7,L.world.y+40,14,0x8ebde8,true);
@@ -262,16 +262,18 @@ const Client = (() => {
   C.open=page=>{
     if(!G.player&&!['welcome','menu'].includes(page))page='welcome';
     if(page==='bank'&&!Online.active&&!Expedition.canBank()){gameMsg('Move beside a bank booth and leave combat first.');return;}
+    if(page==='appearance'&&C.panel!=='appearance')C.appearanceDraft={...G.player.kit};
     C.panel=page;C.shade.style.display='flex';C.bar.inert=true;UI.menu=null;C.tooltip.style.display='none';if(typeof Controls!=='undefined')Controls.cancelAll();C.renderPanel();
     C.root.querySelector('input,button')?.focus({preventScroll:true});
   };
   C.renderPanel=()=>{
     if(!C.panel)return;const root=C.root;root.replaceChildren();
-    if(App.mode==='game')button('×',C.close,root).className='client-close';
+    if(App.mode==='game'){const close=button('×',C.close,root);close.className='client-close';close.setAttribute('aria-label','Close menu');}
     el('div',{class:'client-lead',text:'OLDSKOOL · CLASSIC WEBGL CLIENT'},root);
-    const titles={welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:Online.active?'Bank of OLDSKOOL':'Camp bank',ge:'Grand Exchange',appearance:'Character design',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
+    const titles={touch:'Adventurer controls',welcome:'OLDSKOOL',menu:'OLDSKOOL',journal:'Expedition journal',skills:'Character progression',bank:Online.active?'Bank of OLDSKOOL':Expedition.active?'Camp bank':'Arena bank & free kits',ge:'Grand Exchange',appearance:'Character design',craft:'The forge',cooking:'Camp cooking',chat:'Chat',map:'World map',report:'Report a problem'};
     el('h1',{text:titles[C.panel]||'SonnetOSRS'},root);
     if(C.panel==='welcome'||C.panel==='menu'){
+      if(App.mode==='game'){const shortcuts=el('div',{class:'client-controls'},root);button('Large inventory & combat controls',()=>Mobile.open('inventory'),shortcuts);button('Return to game',C.close,shortcuts);}
       if(C.panel==='welcome'){root.querySelector('h1')?.remove();el('div',{class:'oldskool-logo',text:'OLDSKOOL'},root);el('div',{class:'oldskool-sub',text:'GRAND EXCHANGE · WORLD 1'},root);}
       el('p',{text:'A classic WebGL Grand Exchange world. World 1 is multiplayer: the bank interior is protected and PvP begins outside the visible stone boundary. Arena and Expedition remain available as offline modes.'},root);
       const status=el('div',{class:'world-status'},root),dot=el('span',{class:'world-dot'},status),statusText=el('span',{text:Online.status},status);
@@ -313,7 +315,7 @@ const Client = (() => {
         el('p',{class:'client-help',text:'World 1 inventory, equipment, bank, Grand Exchange offers, appearance, position and PvP progress are authoritative on the Rust server.'},root);
       }
       el('div',{class:'client-message',text:Profiles.status},root);
-      el('p',{class:'client-help',text:'Touch: tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause local simulation; the online world continues on the server.'},root);
+      el('p',{class:'client-help',text:'Touch: use the bottom combat controls and Bag for large buttons. Tap to act, drag the world to orbit, pinch to zoom, hold for options. Desktop: arrows / middle mouse orbit, wheel zoom, F1–F7 panels. Menus pause local simulation; the online world continues on the server.'},root);
     }else if(C.panel==='journal'){
       if(!Expedition.active){el('p',{text:'Arena is the free-kit combat sandbox. Open Menu → Expedition for persistent gathering, crafting, enemies and contracts.'},root);}
       else{
@@ -402,14 +404,14 @@ const Client = (() => {
       if(!Online.active){el('p',{text:'Persistent character appearance is available in World 1.'},root);}
       else{
         el('p',{text:'Choose a classic character palette while you are inside the Grand Exchange safe area and out of combat.'},root);
-        const draft={...G.player.kit};
+        const draft=C.appearanceDraft||(C.appearanceDraft={...G.player.kit});
         const colors=[['Skin','skin',SKIN],['Hair','hair',HAIR],['Shirt','shirt',SHIRT],['Trousers','pants',[0x3a3a2a,0x2a3a5a,0x5a3a2a,0x2a2a2a,0x4a4a5a]],['Boots','boots',[0x3a2a1a,0x1a1a1a,0x5a4a3a]]];
         for(const [label,key,values] of colors){
           el('h2',{text:label},root);const row=el('div',{class:'client-controls'},root);
-          values.forEach(value=>{const b=button(' ',()=>{draft[key]=value;G.player.kit={...draft};C.renderPanel();},row);b.style.cssText+=';width:46px;min-width:46px;background:#'+value.toString(16).padStart(6,'0');b.setAttribute('aria-label',label+' color');});
+          values.forEach(value=>{const b=button(' ',()=>{draft[key]=value;C.renderPanel();},row);b.style.cssText+=';width:46px;min-width:46px;background:#'+value.toString(16).padStart(6,'0');b.setAttribute('aria-label',label+' color '+value.toString(16));b.setAttribute('aria-pressed',String(draft[key]===value));});
         }
-        el('h2',{text:'Hair style'},root);const styles=el('div',{class:'client-controls'},root);for(let i=0;i<3;i++)button('Style '+(i+1),()=>{draft.hairStyle=i;G.player.kit={...draft};C.renderPanel();},styles);
-        const actions=el('div',{class:'client-controls'},root);button('Save appearance',()=>Online.setAppearance(draft),actions);button('Cancel',()=>{Online.openBank&&0;C.close();},actions);
+        el('h2',{text:'Hair style'},root);const styles=el('div',{class:'client-controls'},root);for(let i=0;i<3;i++)button('Style '+(i+1),()=>{draft.hairStyle=i;C.renderPanel();},styles);
+        const actions=el('div',{class:'client-controls'},root);button('Save appearance',()=>Online.setAppearance(draft),actions);button('Cancel',()=>{C.appearanceDraft=null;C.close();},actions);
       }
     }else if(C.panel==='craft'||C.panel==='cooking'){
       el('p',{text:'Ingredients are consumed only when there is space for the complete result.'},root);const grid=el('div',{class:'client-grid'},root);

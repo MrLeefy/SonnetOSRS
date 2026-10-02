@@ -74,20 +74,20 @@ const Classic = (() => {
     }
     p.bevel(1.17,.7);p.outline(0x17140c,true);return S.icons[id]=p.canvas();
   };
-  S.layout=(w,h,compact=false)=>{
+  S.layout=(w,h,compact=false,touch=false)=>{
     w=Math.max(240,w);h=Math.max(240,h);const m=clamp(Math.round(w/250),3,8),gap=Math.max(3,m),portrait=h>w*1.15,phoneLandscape=!portrait&&h<860&&w<=1000&&w/h>1.45;
-    const L={w,h,m,portrait,phoneLandscape,frame:{x:0,y:0,w,h}};
-    const footer=phoneLandscape?clamp(h*.068,28,48):clamp(h*.077,30,60);
+    const L={w,h,m,portrait,phoneLandscape,touch,frame:{x:0,y:0,w,h}};
+    const footer=touch?52:phoneLandscape?clamp(h*.068,28,48):clamp(h*.077,30,60);
     if(!portrait){
       const sw=phoneLandscape?clamp(w*.335,Math.min(248,w*.40),Math.min(560,w*.43)):clamp(w*.279,Math.min(185,w*.36),Math.min(490,w*.36)),sx=w-sw-m,lw=sx-m-gap;
-      const ch=compact?28:(phoneLandscape?Math.max(58,h*.205):Math.max(70,h*.251));const worldH=h-2*m-footer-ch-gap;
+      const ch=touch?(compact?28:h<360?32:48):compact?28:(phoneLandscape?Math.max(58,h*.205):Math.max(70,h*.251));const worldH=h-2*m-footer-ch-gap;
       L.world={x:m,y:m,w:lw,h:worldH};L.chat={x:m,y:m+worldH+gap,w:lw,h:ch};L.channels={x:m,y:h-m-footer,w:lw,h:footer};
       const mapH=phoneLandscape?Math.min(sw*.515,h*.285):Math.min(sw*.665,h*.369),tabH=phoneLandscape?clamp(h*.07,27,48):clamp(h*.079,29,62),bottom=h-m-footer;
       L.map={x:sx,y:m,w:sw,h:mapH};L.top={x:sx,y:m+mapH,w:sw,h:tabH};L.bottom={x:sx,y:bottom,w:sw,h:footer};
       L.panelFrame={x:sx,y:L.top.y+tabH,w:sw,h:bottom-(L.top.y+tabH)};
     }else{
-      const worldH=compact?Math.min(w*.95,h*.45):Math.min(w*.76,h*.355),ch=compact?30:Math.min(155,h*.19);
-      L.world={x:m,y:m,w:w-2*m,h:worldH};L.channels={x:m,y:h-m-38,w:w-2*m,h:38};L.chat={x:m,y:L.channels.y-ch-gap,w:w-2*m,h:ch};
+      const worldH=touch?Math.min(w*.95,h*.44):compact?Math.min(w*.95,h*.45):Math.min(w*.76,h*.355),ch=touch?(compact?28:48):compact?30:Math.min(155,h*.19);
+      L.world={x:m,y:m,w:w-2*m,h:worldH};L.channels={x:m,y:h-m-(touch?52:38),w:w-2*m,h:touch?52:38};L.chat={x:m,y:L.channels.y-ch-gap,w:w-2*m,h:ch};
       const my=m+worldH+gap,mh=L.chat.y-my-gap,sw=(w-3*m)*.54,sx=w-sw-m,th=34,bh=34;
       L.map={x:m,y:my,w:sx-2*m,h:Math.min((sx-2*m)*.79,mh*.55)};
       L.top={x:sx,y:my,w:sw,h:th};L.bottom={x:sx,y:my+mh-bh,w:sw,h:bh};L.panelFrame={x:sx,y:my+th,w:sw,h:mh-th-bh};

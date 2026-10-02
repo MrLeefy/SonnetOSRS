@@ -14,7 +14,7 @@ async function go(page,x,y){await page.evaluate(([x,y])=>cmdWalk(x,y),[x,y]);awa
  backend=cp.spawn(binary,[],{cwd:root,env:{...process.env,SONNET_BIND:'127.0.0.1:'+rustPort,SONNET_STATE:stateFile,OLDSKOOL_COLLISION:path.join(root,'server/data/world_collision.json'),OLDSKOOL_ALLOWED_ORIGINS:origin,OLDSKOOL_RESIDENTS:'0',RUST_LOG:'oldskool_server=warn'},stdio:['ignore','ignore','pipe']});
  let stderr='';backend.stderr.on('data',b=>stderr+=b);
  web=http.createServer((req,res)=>{if(req.url==='/favicon.ico'){res.writeHead(204);res.end();return;}res.setHeader('content-type','text/html');res.end(fs.readFileSync(path.join(root,'dist/index.html')));});await new Promise(r=>web.listen(webPort,'127.0.0.1',r));
- browser=await chromium.launch({headless:true});
+ browser=await chromium.launch(require('./browser-options.cjs'));
  const ctxA=await browser.newContext({viewport:{width:1280,height:720}}),ctxB=await browser.newContext({viewport:{width:839,height:412}});
  const a=await ctxA.newPage(),b=await ctxB.newPage(),errors=[];for(const p of[a,b])p.on('pageerror',e=>errors.push(e.message));
  async function join(page,name){await page.goto(origin);await page.waitForFunction(()=>typeof App!=='undefined'&&App.mode==='login');await page.evaluate(({ws,name})=>{Online.endpoint=ws;startGame(name,'online');},{ws,name});await page.waitForFunction(()=>Online.ready&&Online.account.bank.length>0,{},{timeout:10000});}

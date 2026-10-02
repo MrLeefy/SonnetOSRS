@@ -227,13 +227,15 @@ const Online = (() => {
     if(msg.type==='account_state'){
       const inv=Array.isArray(msg.inventory)?msg.inventory.slice(0,28):[];
       while(inv.length<28)inv.push(null);
-      G.player.inv=inv.map(s=>s&&ITEMS[s.id]?{id:s.id,n:s.amount}:null);
+      const nextInv=inv.map(s=>s&&ITEMS[s.id]?{id:s.id,n:s.amount}:null);
+      if(JSON.stringify(G.player.inv)!==JSON.stringify(nextInv)){UI.menu=null;UI.drag=null;if(typeof Controls!=='undefined')Controls.cancelAll();}
+      G.player.inv=nextInv;
       const eq={};for(const [slot,item] of Object.entries(msg.equipment||{}))if(item&&ITEMS[item.id])eq[slot]={id:item.id,n:item.amount};
       G.player.eq=eq;recalcBonus(G.player);
       if(msg.appearance)G.player.kit={skin:msg.appearance.skin,hair:msg.appearance.hair,shirt:msg.appearance.shirt,pants:msg.appearance.pants,boots:msg.appearance.boots,hairStyle:msg.appearance.hair_style};
       O.account={bank:Array.isArray(msg.bank)?msg.bank:[],offers:Array.isArray(msg.offers)?msg.offers:[],catalog:Array.isArray(msg.catalog)?msg.catalog:[],equipment:msg.equipment||{}};
       if(O.pendingPanel){const page=O.pendingPanel;O.pendingPanel=null;Client.open(page);}
-      else if(['bank','ge','appearance'].includes(Client.panel))Client.renderPanel();
+      else if(['bank','ge','appearance','touch'].includes(Client.panel))Client.renderPanel();
       return;
     }
     if(msg.type==='ground_items'){
@@ -304,6 +306,7 @@ const Online = (() => {
   O.geCollect=(slot,toBank=false)=>usable()&&send({type:'ge_collect',slot:Number(slot),to_bank:!!toBank});
   O.equip=index=>usable()&&send({type:'equip',index:Number(index)});
   O.unequip=slot=>usable()&&send({type:'unequip',slot:String(slot)});
+  O.eat=index=>usable()&&!G.player.dead&&G.player.hp>0&&Number.isInteger(index)&&!!ITEMS[G.player.inv[index]?.id]?.food&&send({type:'eat',index});
   O.drink=index=>usable()&&send({type:'drink',index:Number(index)});
   O.setPrayer=(id,enabled)=>usable()&&send({type:'prayer',id:String(id),enabled:!!enabled});
   O.drop=index=>{if(!usable())return;const i=Number(index);if(Number.isInteger(i)&&i>=0&&i<28)send({type:'drop',index:i});};
@@ -332,7 +335,7 @@ const Online = (() => {
   return O;
 })();
 // Offline rules remain the original rules. Online movement never runs local AI.
-const netBase={cmdTake,cmdWalk,cmdJob,cmdFollow,cmdAttack,stepActor,renderPos,chatCommand,openBank,equipFromInv,unequipSlot,drinkPotion,togglePrayer,itemMenu};
+const netBase={restock,selectSpell,cmdTake,cmdWalk,cmdJob,cmdFollow,cmdAttack,stepActor,renderPos,chatCommand,openBank,equipFromInv,unequipSlot,drinkPotion,togglePrayer,itemMenu};
 cmdTake=g=>Online.active?Online.take(g):netBase.cmdTake(g);
 cmdWalk=(x,y)=>Online.active?Online.walk(x,y):netBase.cmdWalk(x,y);
 cmdJob=(x,y,near,run,label)=>Online.active?Online.doJob(x,y,near,run):netBase.cmdJob(x,y,near,run,label);
@@ -340,7 +343,9 @@ cmdFollow=a=>Online.active&&a?.onlineRemote?Online.follow(a):netBase.cmdFollow(a
 cmdAttack=a=>{if(Online.active&&a?.onlineRemote){if(G.spellSel){G.player.pendingSpell=G.spellSel;G.spellSel=null;}Online.attack(a);}else netBase.cmdAttack(a);};
 stepActor=a=>{if(Online.active&&(a===G.player||a.onlineRemote)){for(const k of ['eatCd','potCd','atkCd'])if(a[k]>0)a[k]--;return;}netBase.stepActor(a);};
 renderPos=(a,frac)=>Online.active&&(a===G.player||a.onlineRemote)?Online.renderPosition(a):netBase.renderPos(a,frac);
-chatCommand=t=>{if(Online.active&&!String(t).startsWith('::'))Online.sendChat(t);else netBase.chatCommand(t);};
+chatCommand=t=>{if(Online.active){if(/^::(heal|restock|bots)(?:\s|$)/i.test(String(t).trim())){gameMsg('Practice commands are available in offline Arena only. World 1 supplies come from the bank.');return;}if(!String(t).startsWith('::')){Online.sendChat(t);return;}}netBase.chatCommand(t);};
+restock=kind=>{if(Online.active){gameMsg('Free kits are available in offline Arena only.');return;}netBase.restock(kind);};
+selectSpell=sp=>{if(Online.active&&['frostDart','sanguineDart'].includes(sp?.id)){G.spellSel=null;gameMsg('That spell is for Expedition. Choose an ancient spell in World 1.');return;}netBase.selectSpell(sp);};
 openBank=obj=>{if(Online.active)Online.openBank();else netBase.openBank(obj);};
 equipFromInv=(a,i)=>Online.active&&a===G.player?(Online.equip(i),true):netBase.equipFromInv(a,i);
 unequipSlot=(a,slot)=>Online.active&&a===G.player?(Online.unequip(slot),true):netBase.unequipSlot(a,slot);
@@ -349,7 +354,7 @@ togglePrayer=(a,id,quiet)=>Online.active&&a===G.player?(Online.setPrayer(id,!a.p
 itemMenu=(a,i)=>{
   const entries=netBase.itemMenu(a,i);
   // Online Drop is a server intention: Rust removes the item and creates the ground item.
-  if(Online.active&&a===G.player)return entries.map(entry=>stripTags(entry.text).startsWith('Drop ')?{...entry,fn:()=>Online.drop(i)}:entry);
+  if(Online.active&&a===G.player){const s=a.inv[i],id=s?.id,n=s?.n;return entries.map(entry=>stripTags(entry.text).startsWith('Drop ')?{...entry,fn:()=>{const current=a.inv[i];if(!a.dead&&a.hp>0&&current&&current.id===id&&current.n===n)Online.drop(i);}}:entry);}
   return entries;
 };
 
@@ -358,4 +363,4 @@ applyHit=h=>{if(Online.active&&(h?.src?.onlineRemote||h?.dst===G.player||h?.dst?
 setBotCount=n=>netLocalBots(Online.active?0:n);
 
 const netLocalEat=eatFood;
-eatFood=(a,i)=>{if(Online.active&&a===G.player){const item=a.inv[i];if(item&&ITEMS[item.id]?.food){send({type:'eat',index:i});return true;}return false;}return netLocalEat(a,i);};
+eatFood=(a,i)=>{if(Online.active&&a===G.player){return Online.eat(i);}return netLocalEat(a,i);};
