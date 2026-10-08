@@ -122,10 +122,28 @@ def('mboots', { name: 'Mystic boots', ex: 'Mystic boots.', slot: 'feet', bonus: 
   p.poly([[6, 8], [13, 8], [13, 22], [20, 24], [20, 28], [6, 28]], 0x6f8ed8); p.poly([[17, 6], [24, 6], [24, 20], [29, 24], [29, 28], [17, 28]], 0x7f9ee8);
 });
 
+/* black dragonhide: sits below rune in the same bonus scale */
+def('bfullhelm', { name: 'Black full helm', ex: 'A full face helmet of black dragonhide.', slot: 'head', bonus: bon({ [D_STAB]: 22, [D_SLASH]: 24, [D_CRUSH]: 20, [D_MAGIC]: -4, [D_RANGE]: 22 }), color: 0x2c2c34, model: 'fullhelm', val: 9000 }, p => {
+  p.ellipse(16, 14, 9, 9, 0x3e3e4a); p.rect(7, 14, 18, 12, 0x3e3e4a); p.rect(9, 26, 14, 2, 0x1c1c22);
+  p.rect(9, 14, 14, 3, 0x0a0a0e); p.rect(15, 14, 2, 12, 0x5a5a6a);
+});
+def('bkite', { name: 'Black kiteshield', ex: 'A large shield of black dragonhide.', slot: 'shield', bonus: bon({ [D_STAB]: 34, [D_SLASH]: 36, [D_CRUSH]: 34, [D_MAGIC]: -4, [D_RANGE]: 34 }), color: 0x2c2c34, model: 'kite', val: 12000 }, p => {
+  p.poly([[6, 4], [26, 4], [26, 15], [16, 29], [6, 15]], 0x3e3e4a); p.line(16, 6, 16, 26, 0x1c1c22, 2); p.line(8, 12, 24, 12, 0x1c1c22, 2);
+});
+
 /* ---------- consumables ---------- */
 def('shark', { name: 'Shark', ex: 'I very much doubt it will be dangerous to eat.', food: { heal: 20 }, val: 800 }, p => {
   p.ellipse(15, 17, 11, 6, 0x6f8595); p.ellipse(15, 20, 9, 3, 0xc6d0d6); p.poly([[3, 12], [8, 17], [3, 24]], 0x6f8595); p.poly([[14, 11], [20, 4], [21, 12]], 0x5a6f7e); p.set(22, 15, 0x000000); p.set(23, 15, 0x000000);
   p.poly([[26, 15], [29, 17], [26, 19]], 0x6f8595);
+});
+def('lobster', { name: 'Lobster', ex: 'A cooked lobster.', food: { heal: 12 }, val: 300 }, p => {
+  p.ellipse(15, 19, 8, 4, 0xc8442a); p.poly([[21, 19], [28, 15], [28, 23]], 0xb03820);
+  p.line(9, 18, 4, 11, 0xc8442a, 2); p.line(20, 18, 25, 11, 0xc8442a, 2);
+  p.disc(4, 9, 3, 0xd85a36); p.disc(4, 9, 1, 0xf09070); p.disc(26, 9, 2, 0xd85a36); p.set(12, 17, 0x101010);
+});
+def('monkfish', { name: 'Monkfish', ex: 'A chunky, pale monkfish.', food: { heal: 16 }, val: 500 }, p => {
+  p.ellipse(15, 17, 11, 7, 0xb8b0a0); p.ellipse(15, 20, 9, 3, 0xe8e0d0); p.poly([[3, 12], [8, 17], [3, 23]], 0xa09888); p.poly([[25, 14], [29, 11], [29, 22], [25, 19]], 0xa09888);
+  p.set(21, 14, 0x101010); p.set(22, 14, 0x101010); p.set(9, 14, 0x7a6e5e); p.set(14, 12, 0x7a6e5e); p.set(17, 20, 0x7a6e5e);
 });
 function potIcon(col) {
   return p => { p.rect(13, 4, 6, 3, 0xc8b07a); p.rect(14, 7, 4, 4, 0xd8e8f0); p.poly([[14, 10], [18, 10], [25, 18], [25, 27], [7, 27], [7, 18]], 0xd8e8f0); p.poly([[14, 13], [18, 13], [23, 19], [23, 26], [9, 26], [9, 19]], col); p.rect(11, 20, 3, 3, mixCol(col, 0xffffff, 0.5)); };

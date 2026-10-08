@@ -217,7 +217,7 @@ function doAttack(a, t) {
       queueHit({ src: a, dst: t, dmg, type: 'pmelee', delay: 0, sever: spec && spec.sever });
     }
     a.anim = { type: (w.cat === 'maul' || atype === 'crush') ? 'crush' : atype === 'stab' ? 'stab' : 'slash', t0: G.now, dur: 480 };
-    sfx(spec ? 'spec' : a.anim.type, a.x, a.y);
+    sfx(spec ? 'spec' : a.anim.type, a.x, a.y); if (spec) feedSpec(a, spec);
     if (instant) { cd = a.atkCd > 0 ? a.atkCd : w.speed; }
   } else if (kind === 'ranged') {
     const ammo = a.eq.ammo; const need = w.ammo;
@@ -235,7 +235,7 @@ function doAttack(a, t) {
       G.projs.push({ kind: w.model === 'bow' ? 'arrow' : 'bolt', sx: a.x + 0.5, sy: a.y + 0.5, tgt: t, t0: G.now + i * 60, t1: G.now + delay * TICK_MS * 0.85 + i * 60 });
     }
     ammo.n -= hits; if (ammo.n <= 0) a.eq.ammo = null; recalcBonus(a);
-    a.anim = { type: 'bow', t0: G.now, dur: 500 }; sfx(spec ? 'spec' : 'bow', a.x, a.y);
+    a.anim = { type: 'bow', t0: G.now, dur: 500 }; sfx(spec ? 'spec' : 'bow', a.x, a.y); if (spec) feedSpec(a, spec);
     if (st.b === 'rapid') cd -= 1;
   } else { // magic
     if (a.stats.mag < spell.lvl) { if (a.isPlayer) gameMsg('You need a Magic level of ' + spell.lvl + ' to cast this spell.'); a.target = null; a.pendingSpell = null; return; }
@@ -260,6 +260,7 @@ function killActor(d, s) {
   d.respawnAt = G.tick + (d.isPlayer ? 9 : 14);
   d.prayers.clear(); d.overhead = null; d.pendingSpell = null; d.splats.length = Math.min(d.splats.length, 2); sfx('death', d.x, d.y);
   s.kills = (s.kills || 0) + 1; d.deaths = (d.deaths || 0) + 1;
+  feedKill(s, d); if (d.isPlayer) gameMsg('<col=b02020>' + s.name + ' has defeated you.</col>');
   if (s.isPlayer) { G.kills++; G.streak++; G.best = Math.max(G.best, G.streak); gameMsg('You have defeated ' + d.name + '.'); }
   if (d.isPlayer) { G.deaths++; G.streak = 0; gameMsg('Oh dear, you are dead!'); }
   if (s.isBot && chance(0.5)) sayOverhead(s, pick(['gf', 'ez', 'lol', 'noob', 'ty', 'nice try', 'l0l', 'owned', 'rofl']));

@@ -11,8 +11,23 @@ const TAB_ID = ['combat', 'stats', 'quests', 'inv', 'equip', 'prayer', 'magic', 
 const TAB_TIP = ['Combat Options', 'Skills', 'Player Killing', 'Inventory', 'Worn Equipment', 'Prayer', 'Magic', 'Clan Chat', 'Friends List', 'Ignore List', 'Logout', 'Options', 'Emotes', 'Music Player'];
 const UI = {
   tab: 3, mouse: { x: -100, y: -100 }, menu: null, chatInput: '', chatFocus: false, frame: null, hoverText: '', clicks: [], tip: null, showBonus: false,
-  drag: null, chatTab: 0, brightness: 3, sound: true, sharp: false, lastPrayers: [], bonusWin: false, frameCount: 0, cursorMode: 'arrow'
+  drag: null, chatTab: 0, brightness: 3, sound: true, sharp: false, lastPrayers: [], bonusWin: false, frameCount: 0, cursorMode: 'arrow',
+  opt: { splats: true, stamps: false, flash: true }, feed: [], flashT: -1e9, lastHp: -1
 };
+/* per-viewer option persistence (localStorage, optional: the page works without it) */
+const OPT_KEY = 'sonnetosrs.opts';
+function optLoad() {
+  try {
+    const s = JSON.parse(localStorage.getItem(OPT_KEY) || '{}');
+    if (typeof s.sound === 'boolean') UI.sound = s.sound;
+    if (typeof s.splats === 'boolean') UI.opt.splats = s.splats;
+    if (typeof s.stamps === 'boolean') UI.opt.stamps = s.stamps;
+    if (typeof s.flash === 'boolean') UI.opt.flash = s.flash;
+  } catch (e) { }
+}
+function optSave() {
+  try { localStorage.setItem(OPT_KEY, JSON.stringify({ sound: UI.sound, splats: UI.opt.splats, stamps: UI.opt.stamps, flash: UI.opt.flash })); } catch (e) { }
+}
 const MSG_COL = { game: 0x000000, public: 0x000000 };
 
 /* ---------------- static frame ---------------- */
@@ -75,10 +90,16 @@ function drawTabStone(ctx, idx, sel) {
 function tabRect(idx) { const row = idx < 7 ? 0 : 1, col = idx % 7; return { x: TAB_X0 + col * TAB_W, y: row === 0 ? TAB_Y_TOP : TAB_Y_BOT, w: TAB_W, h: TAB_H }; }
 
 /* ---------------- chat ---------------- */
+/* wall-clock [hh:mm] for a message stamped with performance.now() time t */
+function clockStr(t) {
+  const d = new Date(Date.now() - (performance.now() - t));
+  return '[' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + '] ';
+}
 function wrapMsg(m, maxW) {
-  const lines = []; let segs;
-  if (m.type === 'public') segs = [{ t: m.name + ': ', c: 0x000000 }, { t: m.text, c: 0x0000ff }];
-  else segs = [{ t: m.text, c: m.col !== undefined ? m.col : 0x000000 }];
+  const lines = []; let segs = [];
+  if (UI.opt.stamps) segs.push({ t: clockStr(m.t), c: 0x4a4a3a });
+  if (m.type === 'public') segs.push({ t: m.name + ': ', c: 0x000000 }, { t: m.text, c: 0x0000ff });
+  else segs = segs.concat(parseSegs(m.text, m.col !== undefined ? m.col : 0x000000)); // game lines may carry <col=rrggbb> runs
   // tokenise into words carrying colour
   const words = []; for (const s of segs) { let cur = ''; for (const ch of s.t) { cur += ch; if (ch === ' ') { words.push({ t: cur, c: s.c }); cur = ''; } } if (cur) words.push({ t: cur, c: s.c }); }
   let cur = [], cw = 0;
@@ -196,12 +217,22 @@ function drawItem(ctx, s, x, y) { // x,y = slot top-left (42x36)
   if (it.stack && s.n > 1 || (it.stack && s.n >= 1 && false)) { const st = stackText(s.n); drawText(ctx, 'p11', st.t, x + 3, y + 11, st.c, true); }
   else if (it.stack) { drawText(ctx, 'p11', '1', x + 3, y + 11, 0xffff00, true); }
 }
+/* items of one id across the whole inventory: stacks and potion doses count their n, other items count 1 each */
+function invTotal(a, id) { let n = 0; for (const s of a.inv) if (s && s.id === id) n += (ITEMS[id].stack || ITEMS[id].doses) ? s.n : 1; return n; }
 function drawInvTab(ctx, a) {
+  let free = -1, used = 0;
+  for (let i = 0; i < 28; i++) { if (a.inv[i]) used++; else if (free < 0) free = i; }
   for (let i = 0; i < 28; i++) {
     const r = invSlotRect(i); const s = a.inv[i];
     if (UI.drag && UI.drag.from === i && UI.drag.active) continue;
     if (s) drawItem(ctx, s, r.x, r.y);
-    if (s && inRect(UI.mouse.x, UI.mouse.y, r) && !UI.menu && !UI.drag) tipBox(null);
+    else if (i === free) frameR(ctx, r.x + 2, r.y + 2, 38, 32, 0x8a7e62); // next free slot
+    if (!UI.menu && !UI.drag && inRect(UI.mouse.x, UI.mouse.y, r)) {
+      if (s) {
+        const it = ITEMS[s.id];
+        tipBox([itemName(s), it.doses ? 'Total doses: ' + invTotal(a, s.id) : it.stack ? 'Total: ' + fmtNum(s.n) : 'In inventory: ' + invTotal(a, s.id)]);
+      } else tipBox(['Empty slot', 'Free: ' + (28 - used) + ' of 28']);
+    }
   }
 }
 const EQ_POS = { head: [77, 7], cape: [36, 46], neck: [77, 46], ammo: [118, 46], weapon: [24, 85], body: [77, 85], shield: [130, 85], legs: [77, 125], hands: [24, 165], feet: [77, 165], ring: [130, 165] };
@@ -299,16 +330,44 @@ function drawLogoutTab(ctx) {
   drawTextC(ctx, 'p11', 'World 301', PANEL.x + 95, PANEL.y + 24, 0xffffff, true); drawTextC(ctx, 'p11', 'Grand Exchange PvP', PANEL.x + 95, PANEL.y + 38, 0xdcd0b0, true);
   const b = LOGOUT_BTN; stoneButton(ctx, b.x, b.y, b.w, b.h, false, inRect(UI.mouse.x, UI.mouse.y, b)); drawTextC(ctx, 'p11', 'Click here to logout', b.x + b.w / 2, b.y + 22, 0xff981f, true);
 }
-const OPT = { bright: i => ({ x: PANEL.x + 12 + i * 41, y: PANEL.y + 38, w: 38, h: 22 }), run: { x: PANEL.x + 12, y: PANEL.y + 84, w: 166, h: 26 }, sound: { x: PANEL.x + 12, y: PANEL.y + 116, w: 166, h: 26 }, bots: { x: PANEL.x + 12, y: PANEL.y + 148, w: 166, h: 26 }, scale: { x: PANEL.x + 12, y: PANEL.y + 180, w: 166, h: 26 } };
+/* two-column toggle grid; each label is 'name: On/Off' and must fit the 80px button */
+const OPT = {
+  bright: i => ({ x: PANEL.x + 12 + i * 41, y: PANEL.y + 38, w: 38, h: 22 }),
+  run: { x: PANEL.x + 12, y: PANEL.y + 84, w: 80, h: 26 }, sound: { x: PANEL.x + 98, y: PANEL.y + 84, w: 80, h: 26 },
+  splats: { x: PANEL.x + 12, y: PANEL.y + 116, w: 80, h: 26 }, stamps: { x: PANEL.x + 98, y: PANEL.y + 116, w: 80, h: 26 },
+  flash: { x: PANEL.x + 12, y: PANEL.y + 148, w: 80, h: 26 }, scale: { x: PANEL.x + 98, y: PANEL.y + 148, w: 80, h: 26 },
+  bots: { x: PANEL.x + 12, y: PANEL.y + 180, w: 166, h: 26 }
+};
+function optBtn(ctx, r, label, val, c) {
+  stoneButton(ctx, r.x, r.y, r.w, r.h, false, inRect(UI.mouse.x, UI.mouse.y, r));
+  drawTextC(ctx, 'p11', label + ': ' + val, r.x + r.w / 2, r.y + 17, c, true);
+}
 function drawOptionsTab(ctx) {
   drawTextC(ctx, 'p11', 'Brightness', PANEL.x + 95, PANEL.y + 30, 0xffffff, true);
   for (let i = 0; i < 4; i++) { const r = OPT.bright(i); stoneButton(ctx, r.x, r.y, r.w, r.h, UI.brightness === i, inRect(UI.mouse.x, UI.mouse.y, r)); fillR(ctx, r.x + 12, r.y + 7, 14, 8, mixCol(0x303030, 0xf0f0f0, i / 3)); }
-  const rr = OPT.run; stoneButton(ctx, rr.x, rr.y, rr.w, rr.h, false, inRect(UI.mouse.x, UI.mouse.y, rr)); drawTextC(ctx, 'p11', 'Run: ' + (G.player.runOn ? 'On' : 'Off'), rr.x + rr.w / 2, rr.y + 17, G.player.runOn ? 0x40ff40 : 0xff9040, true);
-  const so = OPT.sound; stoneButton(ctx, so.x, so.y, so.w, so.h, false, inRect(UI.mouse.x, UI.mouse.y, so)); drawTextC(ctx, 'p11', 'Sound effects: ' + (UI.sound ? 'On' : 'Off'), so.x + so.w / 2, so.y + 17, UI.sound ? 0x40ff40 : 0xff9040, true);
-  const bo = OPT.bots; stoneButton(ctx, bo.x, bo.y, bo.w, bo.h, false, inRect(UI.mouse.x, UI.mouse.y, bo)); drawTextC(ctx, 'p11', 'Opponents: ' + UI.botCount, bo.x + bo.w / 2, bo.y + 17, 0xffff00, true);
-  const sc = OPT.scale; stoneButton(ctx, sc.x, sc.y, sc.w, sc.h, false, inRect(UI.mouse.x, UI.mouse.y, sc)); drawTextC(ctx, 'p11', 'Scaling: ' + (UI.sharp ? 'Sharp' : 'Smooth'), sc.x + sc.w / 2, sc.y + 17, 0xffff00, true);
+  const yn = v => v ? 'On' : 'Off', yc = v => v ? 0x40ff40 : 0xff9040;
+  optBtn(ctx, OPT.run, 'Run', yn(G.player.runOn), yc(G.player.runOn));
+  optBtn(ctx, OPT.sound, 'Sound', yn(UI.sound), yc(UI.sound));
+  optBtn(ctx, OPT.splats, 'Splats', yn(UI.opt.splats), yc(UI.opt.splats));
+  optBtn(ctx, OPT.stamps, 'Stamps', yn(UI.opt.stamps), yc(UI.opt.stamps));
+  optBtn(ctx, OPT.flash, 'Flash', yn(UI.opt.flash), yc(UI.opt.flash));
+  optBtn(ctx, OPT.scale, 'Sharp', yn(UI.sharp), yc(UI.sharp));
+  optBtn(ctx, OPT.bots, 'Opponents', UI.botCount, 0xffff00);
   const lines = ['Arrows / middle-mouse: camera', 'F1-F7: panels   Enter: chat'];
   for (let i = 0; i < lines.length; i++) drawTextC(ctx, 'p11', lines[i], PANEL.x + 95, PANEL.y + 226 + i * 13, 0xc8c0a0, true);
+}
+/* Options tab clicks (called from input.js panelHit) */
+function optClick(mx, my) {
+  for (let i = 0; i < 4; i++) if (inRect(mx, my, OPT.bright(i))) { UI.brightness = i; applyBrightness(); return true; }
+  const a = G.player;
+  if (inRect(mx, my, OPT.run)) { a.runOn = !a.runOn; sfx('click'); return true; }
+  if (inRect(mx, my, OPT.sound)) { UI.sound = !UI.sound; if (UI.sound) sfx('click'); optSave(); return true; }
+  if (inRect(mx, my, OPT.splats)) { UI.opt.splats = !UI.opt.splats; sfx('click'); optSave(); return true; }
+  if (inRect(mx, my, OPT.stamps)) { UI.opt.stamps = !UI.opt.stamps; sfx('click'); optSave(); return true; }
+  if (inRect(mx, my, OPT.flash)) { UI.opt.flash = !UI.opt.flash; sfx('click'); optSave(); return true; }
+  if (inRect(mx, my, OPT.bots)) { cycleBots(); sfx('click'); return true; }
+  if (inRect(mx, my, OPT.scale)) { UI.sharp = !UI.sharp; sfx('click'); fitClient(); return true; }
+  return false;
 }
 const EMOTES = ['Yes', 'No', 'Bow', 'Angry', 'Think', 'Wave', 'Shrug', 'Cheer', 'Beckon', 'Laugh', 'Jump', 'Dance'];
 function emoteRect(i) { return { x: PANEL.x + 5 + (i % 4) * 45, y: PANEL.y + 6 + Math.floor(i / 4) * 44, w: 42, h: 40 }; }
@@ -337,13 +396,25 @@ function drawMinimap(ctx, cam) {
     d[o] = c >> 16 & 255; d[o + 1] = c >> 8 & 255; d[o + 2] = c & 255; d[o + 3] = 255;
   }
   MMCV.getContext('2d').putImageData(MMIMG, 0, 0); ctx.drawImage(MMCV, MM.cx - R, MM.cy - R);
-  const dot = (ox, oy, col) => {
-    const dx = 4 * (ox * cs - oy * sn), dy = -4 * (ox * sn + oy * cs); if (dx * dx + dy * dy > (R - 3) * (R - 3)) return;
-    fillR(ctx, Math.round(MM.cx + dx) - 1, Math.round(MM.cy + dy) - 1, 3, 3, 0x000000); fillR(ctx, Math.round(MM.cx + dx) - 1, Math.round(MM.cy + dy) - 1, 2, 2, col);
+  // s x s square with a 1px black rim, positioned by tile offset from the player
+  const dot = (ox, oy, c, s) => {
+    const dx = 4 * (ox * cs - oy * sn), dy = -4 * (ox * sn + oy * cs); if (dx * dx + dy * dy > (R - 4) * (R - 4)) return;
+    const x = Math.round(MM.cx + dx) - (s >> 1), y = Math.round(MM.cy + dy) - (s >> 1);
+    fillR(ctx, x - 1, y - 1, s + 2, s + 2, 0x000000); fillR(ctx, x, y, s, s, c);
   };
-  for (const g of G.ground) dot(g.x + 0.5 - px, g.y + 0.5 - py, 0xff0000);
-  for (const a of G.actors) { if (a === pl || a.dead) continue; dot(a.rx - px, a.ry - py, a.npc ? 0xffff00 : 0xffffff); }
-  dot(0, 0, 0xffffff);
+  // fixed landmarks first, so living actors draw on top
+  for (const o of WORLD.objs) if (o.kind === 'bank') dot(o.x + 0.5 - px, o.y + 0.5 - py, 0xf0a020, 4);
+  dot(GEC + 0.5 - px, GEC + 0.5 - py, 0x50d0ff, 4);
+  for (const g of G.ground) dot(g.x + 0.5 - px, g.y + 0.5 - py, 0xff3030, 2);
+  for (const a of G.actors) {
+    if (a === pl) continue;
+    if (a.dead) { dot(a.rx - px, a.ry - py, 0x707070, 2); continue; }
+    // clerks yellow, bots white, bots fighting the local player red
+    dot(a.rx - px, a.ry - py, a.npc ? 0xffff00 : (a.target === pl ? 0xff4040 : 0xffffff), 3);
+  }
+  // local player: white with a short tick showing the facing
+  dot(Math.sin(pl.face) * 2.5, Math.cos(pl.face) * 2.5, 0xc8c8c8, 2);
+  dot(0, 0, 0xffffff, 3);
   // ring
   drawRing(ctx, MM.cx, MM.cy, R + 1, R + 4);
 }
@@ -424,7 +495,7 @@ function drawOverlays(ctx, cam) {
       const im = sp.dmg > 0 ? IC.splatRed : IC.splatBlue; const idx = a.splats.indexOf(sp);
       const off = [[0, 0], [-12, -12], [12, -12], [0, 12]][idx % 4]; let dy = age > 1000 ? (age - 1000) / 15 : 0;
       const x = mx + off[0] + sp.ox - 12, y = my + off[1] + sp.oy - 12 - dy;
-      ctx.drawImage(im, x, y); drawTextC(ctx, 'b12', String(sp.dmg), x + 12, y + 16, 0xffffff, true);
+      ctx.drawImage(im, x, y); if (UI.opt.splats) drawTextC(ctx, 'b12', String(sp.dmg), x + 12, y + 16, 0xffffff, true);
     }
     a.splats = a.splats.filter(sp => now - sp.t0 < 1300);
   }
@@ -478,11 +549,46 @@ function drawCursor(ctx) {
   if (UI.drag && UI.drag.active) { const s = G.player.inv[UI.drag.from]; if (s) ctx.drawImage(itemIcon(s.id), m.x - 16, m.y - 16); }
 }
 
+/* ---------------- kill feed (top-right of the viewport) and hit flash ---------------- */
+const FEED_MS = 6000;
+function feedName(a) { return '<col=' + (a.isPlayer ? '60ff60' : 'ffffff') + '>' + a.name + '</col>'; }
+function feedAdd(text) { UI.feed.push({ t: text, t0: G.now }); if (UI.feed.length > 4) UI.feed.shift(); }
+function feedKill(s, d) { feedAdd(feedName(s) + ' defeated ' + feedName(d) + '.'); }
+function feedSpec(a, sp) { feedAdd(feedName(a) + ' used <col=ffa030>' + sp.name + '</col> special.'); }
+function drawFeed(ctx) {
+  if (!UI.feed.length) return;
+  const now = G.now; UI.feed = UI.feed.filter(f => now - f.t0 < FEED_MS);
+  for (let i = 0; i < UI.feed.length; i++) {
+    const f = UI.feed[UI.feed.length - 1 - i], age = now - f.t0;
+    ctx.globalAlpha = age > FEED_MS - 1000 ? (FEED_MS - age) / 1000 : 1;
+    drawText(ctx, 'p11', f.t, VX + VW - 6 - textWidth('p11', f.t), VY + 14 + i * 14, 0xffffff, true);
+  }
+  ctx.globalAlpha = 1;
+}
+/* a short red wash over the 3D view whenever the local player's hitpoints fall */
+function trackHp() { const pl = G.player; if (pl.hp < UI.lastHp) UI.flashT = G.now; UI.lastHp = pl.hp; }
+function drawHitFlash(ctx) {
+  const age = G.now - UI.flashT; if (!UI.opt.flash || age < 0 || age >= 260) return;
+  ctx.globalAlpha = 0.3 * (1 - age / 260); ctx.fillStyle = '#c00000'; ctx.fillRect(VX, VY, VW, VH); ctx.globalAlpha = 1;
+}
+
+/* cursor box for whatever is under the pointer in the viewport: actor, world object or loot pile */
+function viewTip() {
+  const m = UI.mouse; if (UI.menu || UI.drag || UI.bonusWin || !inRect(m.x, m.y, { x: VX, y: VY, w: VW, h: VH })) return;
+  const vx = m.x - VX, vy = m.y - VY, a = pickActor(vx, vy);
+  if (a && a !== G.player) { tipBox([a.name + ' (level-' + a.level + ')', a.npc ? 'Grand Exchange clerk' : 'Hitpoints: ' + a.hp + '/' + a.maxHp]); return; }
+  const o = pickObject(vx, vy, INP.cam); if (o) { tipBox([o.name, o.kind === 'bank' ? 'Restock your gear here' : 'Click to open']); return; }
+  const t = pickTile(INP.cam, vx, vy); if (!t) return;
+  const g = G.ground.filter(g => g.x === t.x && g.y === t.y);
+  if (g.length) tipBox([groundName(g[g.length - 1]) + (g.length > 1 ? ' (+' + (g.length - 1) + ' more)' : '')]);
+}
+
 /* ---------------- master draw ---------------- */
 function drawUI(ctx, cam) {
   ctx.clearRect(0, 0, W, H); ctx.drawImage(UI.frame, 0, 0);
   UI.tip = null;
-  drawOverlays(ctx, cam);
+  trackHp(); drawHitFlash(ctx);
+  drawOverlays(ctx, cam); drawFeed(ctx);
   // hover text (top-left of viewport)
   if (UI.hoverText && !UI.menu) { drawText(ctx, 'b12', UI.hoverText, 7, 17, 0xffffff, true); if (UI.hoverMore) drawText(ctx, 'b12', '  / ' + UI.hoverMore, 7 + textWidth('b12', stripTags(UI.hoverText)), 17, 0xffffff, true); }
   if (G.spellSel) drawText(ctx, 'b12', 'Cast ' + SPELL_BY_ID[G.spellSel].name + ' on...', 7, 32, 0x80d0ff, true);
@@ -490,5 +596,6 @@ function drawUI(ctx, cam) {
   drawCompass(ctx, cam); drawMinimap(ctx, cam); drawOrbs(ctx);
   for (let i = 0; i < 14; i++) drawTabStone(ctx, i, i === UI.tab);
   drawPanel(ctx); drawChat(ctx);
-  drawMenu(ctx); drawTooltip(ctx); drawCursor(ctx);
+  viewTip(); drawMenu(ctx); drawTooltip(ctx); drawCursor(ctx);
 }
+optLoad();
