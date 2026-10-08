@@ -618,6 +618,11 @@ function buildWorld(R) {
     for (const s of [-0.34, 0.34]) WD.box(null, along === 'x' ? cx + s : cx, g + 0.2, along === 'x' ? cz : cz + s, along === 'x' ? 0.04 : 0.14, 0.2, along === 'x' ? 0.14 : 0.04, 0xffffff, 1);
   };
   const rock = (cx, cz, g) => S.blob(null, cx, g + 0.22, cz, 0.42, 0.3, 0.38, 7, 4, shadeCol(0x7a7a70, 0.9 + pr() * 0.2), 0.3, pr);
+  const fence = (cx, cz, g, along) => { // one-tile rail fence section
+    const hx = along === 'x' ? 0.5 : 0.04, hz = along === 'x' ? 0.04 : 0.5;
+    for (const yy of [0.3, 0.6]) WD.box(null, cx, g + yy, cz, hx, 0.035, hz, 0xffffff, 1);
+    for (const sv of [-0.44, 0.44]) WD.box(null, cx + (along === 'x' ? sv : 0), g + 0.35, cz + (along === 'x' ? 0 : sv), 0.04, 0.35, 0.04, 0xffffff, 1);
+  };
   // place a prop on a free tile; solid props also block the tile
   const prop = (x, y, solid, fn) => {
     if (!freeTile(x, y)) return false;
@@ -646,6 +651,9 @@ function buildWorld(R) {
     [14, 70, true, (x, z, g) => treeAt(x, -z, 0.8, 2)],
     [81, 30, true, (x, z, g) => treeAt(x, -z, 0.8, 2)],
     [82, 62, true, (x, z, g) => treeAt(x, -z, 0.8, 2)],
+    [24, 57, true, (x, z, g) => fence(x, z, g, 'z')],
+    [24, 58, true, (x, z, g) => fence(x, z, g, 'z')],
+    [24, 59, true, (x, z, g) => fence(x, z, g, 'z')],
   ];
   let propsPlaced = 0;
   for (const [x, y, solid, fn] of PROPS) if (prop(x, y, solid, fn)) propsPlaced++;
