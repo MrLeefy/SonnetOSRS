@@ -556,6 +556,7 @@ function feedAdd(text) { UI.feed.push({ t: text, t0: G.now }); if (UI.feed.lengt
 function feedKill(s, d) { feedAdd(feedName(s) + ' defeated ' + feedName(d) + '.'); }
 function feedSpec(a, sp) { feedAdd(feedName(a) + ' used <col=ffa030>' + sp.name + '</col> special.'); }
 function drawFeed(ctx) {
+  if (!UI.feed.length) return;
   const now = G.now; UI.feed = UI.feed.filter(f => now - f.t0 < FEED_MS);
   for (let i = 0; i < UI.feed.length; i++) {
     const f = UI.feed[UI.feed.length - 1 - i], age = now - f.t0;
@@ -571,6 +572,17 @@ function drawHitFlash(ctx) {
   ctx.globalAlpha = 0.3 * (1 - age / 260); ctx.fillStyle = '#c00000'; ctx.fillRect(VX, VY, VW, VH); ctx.globalAlpha = 1;
 }
 
+/* cursor box for whatever is under the pointer in the viewport: actor, world object or loot pile */
+function viewTip() {
+  const m = UI.mouse; if (UI.menu || UI.drag || !inRect(m.x, m.y, { x: VX, y: VY, w: VW, h: VH })) return;
+  const vx = m.x - VX, vy = m.y - VY, a = pickActor(vx, vy);
+  if (a && a !== G.player) { tipBox([a.name + ' (level-' + a.level + ')', a.npc ? 'Grand Exchange clerk' : 'Hitpoints: ' + a.hp + '/' + a.maxHp]); return; }
+  const o = pickObject(vx, vy, INP.cam); if (o) { tipBox([o.name, o.kind === 'bank' ? 'Restock your gear here' : 'Click to open']); return; }
+  const t = pickTile(INP.cam, vx, vy); if (!t) return;
+  const g = G.ground.filter(g => g.x === t.x && g.y === t.y);
+  if (g.length) tipBox([groundName(g[g.length - 1]) + (g.length > 1 ? ' (+' + (g.length - 1) + ' more)' : '')]);
+}
+
 /* ---------------- master draw ---------------- */
 function drawUI(ctx, cam) {
   ctx.clearRect(0, 0, W, H); ctx.drawImage(UI.frame, 0, 0);
@@ -584,6 +596,6 @@ function drawUI(ctx, cam) {
   drawCompass(ctx, cam); drawMinimap(ctx, cam); drawOrbs(ctx);
   for (let i = 0; i < 14; i++) drawTabStone(ctx, i, i === UI.tab);
   drawPanel(ctx); drawChat(ctx);
-  drawMenu(ctx); drawTooltip(ctx); drawCursor(ctx);
+  viewTip(); drawMenu(ctx); drawTooltip(ctx); drawCursor(ctx);
 }
 optLoad();
