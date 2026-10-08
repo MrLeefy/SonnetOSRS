@@ -358,15 +358,15 @@ function drawProjectiles() {
       for (let i = 0; i < 8; i++) {
         const ang = i / 8 * TAU + 0.4, r = 0.12 + t * (0.35 + (i % 3) * 0.1);
         const h = Math.sin(Math.min(1, t * 1.6) * Math.PI) * (0.3 + (i % 3) * 0.08);
-        BLD.blob(null, e.x + Math.cos(ang) * r, gh + 0.12 + h, -(e.y + Math.sin(ang) * r), 0.04, 0.055, 0.04, 4, 2, 0xc4e6ff, 0, null, 220 * (1 - t) | 0);
+        BLD.blob(null, e.x + Math.cos(ang) * r, gh + 0.12 + h, -(e.y + Math.sin(ang) * r), 0.055, 0.075, 0.055, 4, 2, 0xd4f0ff, 0, null, 230 * (1 - t) | 0);
       }
     } else { // ice spikes or blood droplets bursting out of the ground
       const ice = e.type === 'ice'; const c1 = ice ? 0xbfeaff : 0xd02020, c2 = ice ? 0xffffff : 0xff8080;
       const al = 230 * (1 - t * t) | 0, grow = Math.min(1, t * 3);
       for (let i = 0; i < 12; i++) {
         const ang = i / 12 * TAU + i * 0.5, r = 0.15 + t * 0.7 * (0.6 + (i % 3) * 0.25);
-        const hh = (0.22 + (i % 4) * 0.1) * grow * (1 - t * 0.5);
-        const bx = e.x + Math.cos(ang) * r, bz = -(e.y + Math.sin(ang) * r), s = 0.05 + (i % 3) * 0.02;
+        const hh = (0.3 + (i % 4) * 0.12) * grow * (1 - t * 0.5);
+        const bx = e.x + Math.cos(ang) * r, bz = -(e.y + Math.sin(ang) * r), s = 0.06 + (i % 3) * 0.025;
         if (ice) {
           const ap = [bx, gh + hh, bz], a0 = [bx - s, gh, bz - s], a1 = [bx + s, gh, bz - s], a2 = [bx + s, gh, bz + s], a3 = [bx - s, gh, bz + s];
           const c = i % 2 ? c1 : c2;
@@ -376,7 +376,7 @@ function drawProjectiles() {
           BLD.blob(null, bx, gh + hh, bz, s, s * 1.2, s, 4, 2, i % 2 ? c1 : c2, 0, null, al);
         }
       }
-      BLD.blob(null, e.x, gh + 0.6 + t * 0.3, -e.y, 0.4 + t * 0.9, 0.5 + t * 0.6, 0.4 + t * 0.9, 8, 3, c1, 0, null, Math.max(0, 120 * (1 - t)) | 0);
+      BLD.blob(null, e.x, gh + 0.5 + t * 0.2, -e.y, 0.3 + t * 0.6, 0.35 + t * 0.4, 0.3 + t * 0.6, 8, 3, c1, 0, null, Math.max(0, 100 * (1 - t)) | 0);
     }
   }
 }
