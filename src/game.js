@@ -59,7 +59,7 @@ function newActor(o) {
     eq: {}, inv: new Array(28).fill(null), prayers: new Set(), overhead: null, style: 0, autocast: null, specOn: false, autoRetal: true, pendingSpell: null,
     target: null, follow: null, atkCd: 0, eatCd: 0, potCd: 0, frozen: 0, freezeImm: 0, skull: 0, hpBarUntil: 0, splats: [], anim: null, chat: null,
     dead: false, deathTick: 0, respawnAt: 0, kills: 0, deaths: 0, bon: Z.slice(), drain: 0, walkPh: 0, moving: false, attackedBy: {}, prayerBlock: 0,
-    boostT: 0, hpT: 0, specT: 0, lastHitTick: -99, hits: 0, level: 0, kit: o.kit || {}, ai: null, actRetalDelay: 0, lastAtk: -99, sevText: 0
+    boostT: 0, hpT: 0, specT: 0, lastHitTick: -99, hits: 0, level: 0, kit: o.kit || {}, ai: null, actRetalDelay: 0, lastAtk: -99, sevText: 0, stuck: 0
   };
   a.level = combatLevel(st);
   return a;
@@ -127,7 +127,9 @@ function initLoS() {
   for (let i = 0; i < LOSB.length; i++) LOSB[i] = WORLD.block[i];
   for (const o of WORLD.objs) LOSB[o.y * MAPN + o.x] = 0;
 }
-function hasLoS(x0, y0, x1, y1) {
+/* a Bresenham line bends differently each way, so a corner must be clear both ways to count */
+function hasLoS(x0, y0, x1, y1) { return lineClear(x0, y0, x1, y1) && lineClear(x1, y1, x0, y0); }
+function lineClear(x0, y0, x1, y1) {
   const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx - dy, x = x0, y = y0;
   while (!(x === x1 && y === y1)) {
     const e2 = 2 * err; if (e2 > -dy) { err -= dy; x += sx; } if (e2 < dx) { err += dx; y += sy; }
@@ -381,14 +383,17 @@ function stepActor(a) {
   if (t) {
     const rng = attackRange(a);
     if (inRangeAt(a.x, a.y, t, rng)) {
-      a.path.length = 0; a.face = Math.atan2(t.x - a.x, t.y - a.y);
+      a.path.length = 0; a.stuck = 0; a.face = Math.atan2(t.x - a.x, t.y - a.y);
       const w = weaponOf(a); const instant = a.specOn && w.spec && w.spec.instant && a.spec >= w.spec.cost;
       if (a.atkCd <= 0 || instant) doAttack(a, t);
     } else if (a.frozen > 0) {
-      a.path.length = 0;
+      a.path.length = 0; a.stuck = 0;
     } else {
       const p = findPath(a.x, a.y, (x, y) => inRangeAt(x, y, t, rng), { x: t.x, y: t.y }, 2500);
       if (p) { a.path = p; if (moveAlong(a)) a.moving = true; }
+      // cannot get any closer (sealed off, or no line of sight from anywhere we can stand): give the target up
+      if (a.moving) a.stuck = 0;
+      else if (++a.stuck >= 6) { a.target = null; a.stuck = 0; a.path.length = 0; if (a.isPlayer) gameMsg("I can't reach that!"); }
     }
   } else if (a.follow && !a.follow.dead) {
     const f = a.follow; if (dist2(a.x, a.y, f.x, f.y) > 1 || (a.x === f.x && a.y === f.y)) {
@@ -404,7 +409,7 @@ function stepActor(a) {
 }
 function respawn(a) {
   a.dead = false; a.hp = a.maxHp; a.pp = a.stats.pray; a.cur = Object.assign({}, a.stats); a.run = 100; a.spec = 100; a.frozen = 0; a.freezeImm = 0; a.skull = 0; a.anim = null;
-  a.atkCd = 2; a.prayers.clear(); a.overhead = null; a.seg.length = 0; a.path.length = 0; a.target = null; a.splats.length = 0; a.eatCd = 0; a.potCd = 0;
+  a.atkCd = 2; a.prayers.clear(); a.overhead = null; a.seg.length = 0; a.path.length = 0; a.target = null; a.stuck = 0; a.splats.length = 0; a.eatCd = 0; a.potCd = 0;
   const sp = a.isPlayer ? spawnPoint(true) : spawnPoint(false); a.x = sp.x; a.y = sp.y;
   applyLoadout(a, a.isPlayer ? (a.loadoutKind || 'main') : a.ai.kind);
   if (a.isPlayer) { gameMsg('You have been transported back to the Grand Exchange.'); G.spellSel = null; a.protectUntil = G.tick + 20; }
