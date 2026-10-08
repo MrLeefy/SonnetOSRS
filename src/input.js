@@ -13,20 +13,21 @@ const CANCEL = () => ent('Cancel', () => { });
 
 /* ---------------- world commands ---------------- */
 function clickMark(x, y, red) { UI.clicks.push({ x, y, t0: G.now, red: !!red }); }
+/* any world command ends the open dialogue, so a stale option list cannot fire after the player has moved on */
 function cmdWalk(tx, ty) {
   const pl = G.player; if (pl.dead) return;
-  pl.target = null; pl.follow = null; pl.job = null; pl.pendingSpell = null;
+  G.dialog = null; pl.target = null; pl.follow = null; pl.job = null; pl.pendingSpell = null;
   if (pl.frozen > 0) { gameMsg('A magical force stops you from moving.'); return; }
   const p = findPath(pl.x, pl.y, (x, y) => x === tx && y === ty, { x: tx, y: ty }, 5000); pl.path = p || [];
 }
 function cmdAttack(a) {
   const pl = G.player; if (pl.dead || a.dead || a === pl) return;
-  pl.follow = null; pl.job = null; pl.path.length = 0; pl.target = a;
+  G.dialog = null; pl.follow = null; pl.job = null; pl.path.length = 0; pl.target = a;
   if (G.spellSel) { pl.pendingSpell = G.spellSel; G.spellSel = null; } else pl.pendingSpell = null;
 }
-function cmdFollow(a) { const pl = G.player; pl.target = null; pl.job = null; pl.path.length = 0; pl.follow = a; }
+function cmdFollow(a) { const pl = G.player; G.dialog = null; pl.target = null; pl.job = null; pl.path.length = 0; pl.follow = a; }
 function cmdJob(tx, ty, near, run, label) {
-  const pl = G.player; if (pl.dead) return; pl.target = null; pl.follow = null; pl.pendingSpell = null;
+  const pl = G.player; if (pl.dead) return; G.dialog = null; pl.target = null; pl.follow = null; pl.pendingSpell = null;
   const job = { near, run }; if (near(pl)) { pl.path.length = 0; run(); return; }
   if (pl.frozen > 0) { gameMsg('A magical force stops you from moving.'); return; }
   const p = findPath(pl.x, pl.y, (x, y) => near({ x, y }), { x: tx, y: ty }, 5000); pl.path = p || []; pl.job = job;
@@ -201,8 +202,10 @@ function setBotCount(n) {
 }
 
 /* ---------------- mouse handling ---------------- */
+/* page pixel -> logical 765x503 pixel. Uses the canvas's on-screen rect, so CSS scale and devicePixelRatio drop out. */
 function clientPos(e) {
-  const r = INP.canvas.getBoundingClientRect(); return { x: Math.floor((e.clientX - r.left) * W / r.width), y: Math.floor((e.clientY - r.top) * H / r.height) };
+  const r = INP.canvas.getBoundingClientRect(); if (!r.width || !r.height) return { x: -1, y: -1 };
+  return { x: Math.floor((e.clientX - r.left) * W / r.width), y: Math.floor((e.clientY - r.top) * H / r.height) };
 }
 function chatClick(mx, my) {
   for (let i = 0; i < 6; i++) { const bx = 5 + i * 56; if (mx >= bx && mx < bx + 54 && my >= 482 && my < 502) { if (i < 3) UI.chatTab = i; return true; } }
@@ -240,7 +243,7 @@ function onDown(e) {
   const od = (o) => (mx - o.x) * (mx - o.x) + (my - o.y) * (my - o.y) < 14 * 14;
   if (od(ORB.run)) { G.player.runOn = !G.player.runOn; return; }
   if (od(ORB.pray)) { const a = G.player; if (a.prayers.size) { UI.lastPrayers = Array.from(a.prayers); for (const id of UI.lastPrayers) togglePrayer(a, id, true); } else { for (const id of UI.lastPrayers) togglePrayer(a, id, true); } return; }
-  if ((mx - 573) * (mx - 573) + (my - 22) * (my - 22) < 16 * 16) { INP.cam.yaw = 0; return; }
+  if ((mx - 573) * (mx - 573) + (my - 22) * (my - 22) < 16 * 16) { INP.cam.yawG = 0; return; }
   if (minimapClick(mx, my)) return;
   if (inRect(mx, my, { x: VX, y: VY, w: VW, h: VH })) {
     const ents = contextMenuFor(mx, my);
@@ -261,15 +264,18 @@ function onUp(e) {
 function onMove(e) {
   const p = clientPos(e); UI.mouse = p;
   if (App.mode !== 'game') return;
-  if (INP.mmb) { INP.cam.yaw += (e.clientX - INP.mmbX) * 0.006; INP.cam.pitch = clamp(INP.cam.pitch + (e.clientY - INP.mmbY) * 0.004, 0.25, 1.35); INP.mmbX = e.clientX; INP.mmbY = e.clientY; }
+  if (INP.mmb && e.buttons !== undefined && !(e.buttons & 4)) INP.mmb = false; // released outside the page
+  if (INP.mmb) { const c = INP.cam; c.yawG += (e.clientX - INP.mmbX) * 0.006; c.pitchG = clamp(c.pitchG + (e.clientY - INP.mmbY) * 0.004, 0.25, 1.35); INP.mmbX = e.clientX; INP.mmbY = e.clientY; }
   if (UI.drag && !UI.drag.active && Math.hypot(p.x - UI.drag.sx, p.y - UI.drag.sy) > 5) UI.drag.active = true;
   if (UI.menu) { const m = UI.menu, g = menuGeom(m); if (p.x < m.x - 12 || p.x > m.x + g.w + 12 || p.y < m.y - 12 || p.y > m.y + g.h + 12) UI.menu = null; }
 }
 function onWheel(e) {
   if (App.mode !== 'game') return; e.preventDefault(); const p = clientPos(e);
   if (p.y >= 338 && p.x < 519) { G.chatScroll = Math.max(0, G.chatScroll + (e.deltaY < 0 ? 1 : -1) * 2); }
-  else if (p.x < 520) INP.cam.dist = clamp(INP.cam.dist + (e.deltaY > 0 ? 1 : -1) * 1.0, 8, 26);
+  else if (p.x < 520) { const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; INP.cam.distG = clamp(INP.cam.distG + clamp(dy / 100, -1, 1), 8, 26); }
 }
+/* window lost focus or the tab was hidden: drop held keys, a middle-drag and an item drag */
+function releaseInput() { INP.keys = {}; INP.mmb = false; UI.drag = null; }
 
 /* ---------------- keyboard ---------------- */
 function onKeyDown(e) {
@@ -279,7 +285,7 @@ function onKeyDown(e) {
   if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown' || (k[0] === 'F' && k.length <= 3 && /F\d+/.test(k))) e.preventDefault();
   const fmap = { F1: 0, F2: 1, F3: 2, F4: 3, F5: 4, F6: 5, F7: 6, F8: 8, F9: 9, F10: 11, F11: 12, F12: 13 };
   if (k in fmap) { UI.tab = fmap[k]; G.spellSel = null; return; }
-  if (k === 'Escape') { UI.menu = null; G.spellSel = null; G.dialog = null; UI.bonusWin = false; return; }
+  if (k === 'Escape') { UI.menu = null; G.spellSel = null; G.dialog = null; UI.bonusWin = false; UI.drag = null; return; }
   if (k === 'Enter') {
     if (G.dialog && !UI.chatInput) { if (G.dialog.type !== 'options') dialogContinue(); return; }
     const t = UI.chatInput.trim(); UI.chatInput = '';
@@ -304,10 +310,11 @@ function chatCommand(t) {
   }
   sayOverhead(pl, t);
 }
+/* arrow keys move the yaw / pitch goals; the camera eases toward them in main.js */
 function updateCameraKeys(dt) {
   const cam = INP.cam, K = INP.keys;
-  if (K.ArrowLeft) cam.yaw -= dt * 1.9; if (K.ArrowRight) cam.yaw += dt * 1.9;
-  if (K.ArrowUp) cam.pitch = clamp(cam.pitch + dt * 1.0, 0.25, 1.35); if (K.ArrowDown) cam.pitch = clamp(cam.pitch - dt * 1.0, 0.25, 1.35);
+  if (K.ArrowLeft) cam.yawG -= dt * 1.9; if (K.ArrowRight) cam.yawG += dt * 1.9;
+  if (K.ArrowUp) cam.pitchG = clamp(cam.pitchG + dt * 1.0, 0.25, 1.35); if (K.ArrowDown) cam.pitchG = clamp(cam.pitchG - dt * 1.0, 0.25, 1.35);
 }
 /* hover text every frame */
 function updateHover() {

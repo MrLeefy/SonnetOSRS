@@ -108,7 +108,7 @@ function startGame(name) {
   G.msgs.length = 0; gameMsg('Welcome to RuneScape.');
   gameMsg('You are at the Grand Exchange, Varrock - a multi-combat PvP zone.', 'game');
   gameMsg('Right-click players to attack. Ice Barrage + special attacks win fights!');
-  App.mode = 'game'; G.lastTick = performance.now(); pl.protectUntil = G.tick + 25;
+  App.mode = 'game'; G.lastTick = performance.now(); pl.protectUntil = G.tick + 25; App.camSnap = true;
 }
 function respawnNow(a) {
   a.dead = false; a.hp = a.maxHp; a.pp = a.stats.pray; a.cur = Object.assign({}, a.stats); a.run = 100; a.spec = 100; a.frozen = 0; a.skull = 0; a.anim = null; a.prayers.clear(); a.overhead = null;
@@ -124,10 +124,28 @@ function fit() {
   let s = Math.min(innerWidth / W, innerHeight / H); s = Math.max(0.5, Math.min(s, 6));
   let sd = s * dpr; const r = Math.round(sd);
   if (Math.abs(sd - r) < 0.1 * dpr || UI.sharp) sd = UI.sharp && sd >= 1 ? Math.floor(sd) : (Math.abs(sd - r) < 0.1 * dpr ? r : sd);
+  if (sd > s * dpr + 1e-6) sd = s * dpr; // snapping up must never push the page past the window
   s = sd / dpr; App.scale = s;
   const integer = sd === Math.floor(sd) && sd >= 1;
-  for (const c of [App.glCanvas, INP.canvas]) if (c) c.style.imageRendering = integer ? 'pixelated' : 'auto';
+  // the 3D backing store is supersampled: nearest-neighbour only when each backing pixel covers a whole number of device pixels
+  const g = sd / (App.R ? App.R.ss : 1);
+  if (INP.canvas) INP.canvas.style.imageRendering = integer ? 'pixelated' : 'auto';
+  if (App.glCanvas) App.glCanvas.style.imageRendering = g >= 1 && g === Math.floor(g) ? 'pixelated' : 'auto';
   wrap.style.transform = 'translate(' + Math.floor((innerWidth - W * s) / 2) + 'px,' + Math.floor((innerHeight - H * s) / 2) + 'px) scale(' + s + ')';
+}
+
+/* ---------------- camera follow ---------------- */
+const CAM_POS_RATE = 9, CAM_ROT_RATE = 14; // damping rates per second (frame-rate independent)
+/* eases the look-at point toward the player and yaw/pitch/dist toward their goals. A jump larger
+   than a normal tick step (login, respawn) snaps instead of gliding across the map. */
+function followCam(cam, dt, x, y, z) {
+  const kp = 1 - Math.exp(-dt * CAM_POS_RATE), kr = 1 - Math.exp(-dt * CAM_ROT_RATE);
+  const dx = x - cam.tx, dz = z - cam.tz;
+  if (App.camSnap || dx * dx + dz * dz > 25) { App.camSnap = false; cam.tx = x; cam.ty = y; cam.tz = z; }
+  else { cam.tx += dx * kp; cam.ty += (y - cam.ty) * kp; cam.tz += dz * kp; }
+  cam.yaw += angDiff(cam.yaw, cam.yawG) * kr;
+  cam.pitch += (cam.pitchG - cam.pitch) * kr;
+  cam.dist += (cam.distG - cam.dist) * kr;
 }
 
 /* ---------------- main loop ---------------- */
@@ -137,14 +155,17 @@ function frame(t) {
   if (App.mode === 'load') { drawLoading(ctx); return; }
   if (App.mode === 'login') { App.glCanvas.style.visibility = 'hidden'; drawLogin(ctx); return; }
   App.glCanvas.style.visibility = 'visible';
-  // ticks
-  if (t - G.lastTick > 3000) G.lastTick = t;
-  while (t - G.lastTick >= TICK_MS) { G.lastTick += TICK_MS; gameTick(); }
-  const frac = (t - G.lastTick) / TICK_MS;
+  // ticks: at most two per frame, and a long stall (hidden tab) resumes without replaying the missed ticks
+  const lag = t - G.lastTick;
+  if (lag > 1800 || lag < -1800) G.lastTick = t;
+  for (let n = 0; n < 2 && t - G.lastTick >= TICK_MS; n++) { G.lastTick += TICK_MS; gameTick(); }
+  if (t - G.lastTick >= TICK_MS) G.lastTick = t;
+  const frac = clamp((t - G.lastTick) / TICK_MS, 0, 1);
   const cam = App.cam, pl = G.player;
   updateCameraKeys(dt);
   const rp = renderPos(pl, frac); const gh = groundH(rp[0], rp[1]);
-  cam.tx = rp[0]; cam.ty = gh + 0.6; cam.tz = -rp[1]; cam.update();
+  followCam(cam, dt, rp[0], gh + 0.6, -rp[1]);
+  cam.update();
   drawDynamic(frac, dt, cam); updateScreenInfo(cam, frac);
   const R = App.R; R.begin(cam);
   for (const g of WORLD.statics) R.drawGPU(g);
@@ -160,17 +181,18 @@ async function boot() {
   fit(); addEventListener('resize', fit); window.fitClient = fit;
   await initFonts(); requestAnimationFrame(frame);
   const steps = [
-    ['Loading textures', () => { App.R = new Renderer(glc); App.R.fogCol = [0.02, 0.02, 0.02]; App.R.fogRange = [34, 62]; }],
+    ['Loading textures', () => { App.R = new Renderer(glc); App.R.fogCol = [0.02, 0.02, 0.02]; App.R.fogRange = [34, 62]; fit(); }],
     ['Constructing the Grand Exchange', () => buildWorld(App.R)],
     ['Preparing interface', () => { buildAllIcons(); buildFrame(); }],
     ['Loading items', () => { for (const id in ITEMS) itemIcon(id); }],
-    ['Preparing camera', () => { App.cam = new Camera(); App.cam.yaw = 0; App.cam.pitch = 0.95; App.cam.dist = 17; INP.cam = App.cam; }]
+    ['Preparing camera', () => { App.cam = new Camera(); App.cam.yaw = 0; App.cam.pitch = 0.95; App.cam.dist = 17; App.cam.snap(); App.cam.floor = groundH; INP.cam = App.cam; }]
   ];
   for (let i = 0; i < steps.length; i++) { App.status = steps[i][0] + '.'; App.progress = i / steps.length; await tick(); await tick(); steps[i][1](); }
   App.progress = 1; App.status = 'Loaded'; await tick();
   ui.addEventListener('mousedown', onDown); addEventListener('mouseup', onUp); addEventListener('mousemove', onMove);
   ui.addEventListener('wheel', onWheel, { passive: false }); ui.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('keydown', onKeyDown); addEventListener('keyup', onKeyUp);
+  addEventListener('blur', releaseInput); document.addEventListener('visibilitychange', () => { if (document.hidden) releaseInput(); });
   ui.style.cursor = 'none';
   const q = new URLSearchParams(location.search);
   setTimeout(() => { App.mode = 'login'; if (q.get('auto')) { App.loginStage = 1; startGame(App.user); } }, 350);

@@ -433,5 +433,7 @@ function gameTick() {
 function renderPos(a, frac) {
   if (!a.seg.length) return [a.x + 0.5, a.y + 0.5];
   const n = a.seg.length, t = clamp(frac, 0, 1) * n, i = Math.min(n - 1, Math.floor(t)), f = t - i; const s = a.seg[i];
+  // a walk step is one tile per axis; anything longer is a teleport and must not be interpolated across the map
+  if (Math.abs(s.tx - s.fx) > 1 || Math.abs(s.ty - s.fy) > 1) return [s.tx + 0.5, s.ty + 0.5];
   return [lerp(s.fx, s.tx, f) + 0.5, lerp(s.fy, s.ty, f) + 0.5];
 }

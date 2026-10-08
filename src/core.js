@@ -4,6 +4,7 @@
    ========================================================================== */
 const W = 765, H = 503;              // fixed-mode client size
 const VX = 4, VY = 4, VW = 512, VH = 334; // 3D viewport rectangle
+const VSS = 2; // 3D backing-store supersampling (logical size stays VW x VH; falls back to 1)
 const TICK_MS = 600;
 const TAU = Math.PI * 2;
 
