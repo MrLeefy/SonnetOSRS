@@ -59,7 +59,7 @@ function newActor(o) {
     eq: {}, inv: new Array(28).fill(null), prayers: new Set(), overhead: null, style: 0, autocast: null, specOn: false, autoRetal: true, pendingSpell: null,
     target: null, follow: null, atkCd: 0, eatCd: 0, potCd: 0, frozen: 0, freezeImm: 0, skull: 0, hpBarUntil: 0, splats: [], anim: null, chat: null,
     dead: false, deathTick: 0, respawnAt: 0, kills: 0, deaths: 0, bon: Z.slice(), drain: 0, walkPh: 0, moving: false, attackedBy: {}, prayerBlock: 0,
-    boostT: 0, hpT: 0, specT: 0, lastHitTick: -99, hits: 0, level: 0, kit: o.kit || {}, ai: null, actRetalDelay: 0, lastAtk: -99, sevText: 0
+    boostT: 0, hpT: 0, specT: 0, lastHitTick: -99, hits: 0, level: 0, kit: o.kit || {}, ai: null, actRetalDelay: 0, lastAtk: -99, sevText: 0, stuck: 0
   };
   a.level = combatLevel(st);
   return a;
@@ -127,7 +127,9 @@ function initLoS() {
   for (let i = 0; i < LOSB.length; i++) LOSB[i] = WORLD.block[i];
   for (const o of WORLD.objs) LOSB[o.y * MAPN + o.x] = 0;
 }
-function hasLoS(x0, y0, x1, y1) {
+/* a Bresenham line bends differently each way, so a corner must be clear both ways to count */
+function hasLoS(x0, y0, x1, y1) { return lineClear(x0, y0, x1, y1) && lineClear(x1, y1, x0, y0); }
+function lineClear(x0, y0, x1, y1) {
   const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx - dy, x = x0, y = y0;
   while (!(x === x1 && y === y1)) {
     const e2 = 2 * err; if (e2 > -dy) { err -= dy; x += sx; } if (e2 < dx) { err += dx; y += sy; }
@@ -168,7 +170,7 @@ function applyHit(h) {
   if (h.spell) {
     if (!h.splash) {
       if (h.spell.freeze && d.freezeImm <= 0 && d.frozen <= 0) { d.frozen = h.spell.freeze; d.freezeMax = h.spell.freeze; d.path.length = 0; if (d.isPlayer) gameMsg('You have been frozen!'); }
-      if (h.spell.kind === 'blood') { const heal = Math.floor(dmg * 0.25); s.hp = Math.min(s.maxHp, s.hp + heal); }
+      if (h.spell.kind === 'blood' && !s.dead) { const heal = Math.floor(dmg * 0.25); s.hp = Math.min(s.maxHp, s.hp + heal); }
       G.effects.push({ type: h.spell.kind, x: d.x + 0.5, y: d.y + 0.5, t0: G.now, dur: 900 }); sfx(h.spell.kind === 'ice' ? 'ice' : 'blood', d.x, d.y);
     } else { G.effects.push({ type: 'splash', x: d.x + 0.5, y: d.y + 0.5, t0: G.now, dur: 700 }); sfx('splash', d.x, d.y); }
   }
@@ -262,13 +264,13 @@ function killActor(d, s) {
   s.kills = (s.kills || 0) + 1; d.deaths = (d.deaths || 0) + 1;
   feedKill(s, d); if (d.isPlayer) gameMsg('<col=b02020>' + s.name + ' has defeated you.</col>');
   if (s.isPlayer) { G.kills++; G.streak++; G.best = Math.max(G.best, G.streak); gameMsg('You have defeated ' + d.name + '.'); }
-  if (d.isPlayer) { G.deaths++; G.streak = 0; gameMsg('Oh dear, you are dead!'); }
+  if (d.isPlayer) { G.deaths++; G.streak = 0; G.dialog = null; gameMsg('Oh dear, you are dead!'); }
   if (s.isBot && chance(0.5)) sayOverhead(s, pick(['gf', 'ez', 'lol', 'noob', 'ty', 'nice try', 'l0l', 'owned', 'rofl']));
   if (ov === 'retribution') {
     for (const o of G.actors) if (o !== d && !o.dead && !o.npc && dist2(o.x, o.y, d.x, d.y) <= 1) { const dm = rint(Math.floor(d.stats.pray * 0.25) + 1); o.hp = Math.max(0, o.hp - dm); addSplat(o, dm); o.attackedBy[d.id] = G.tick; if (o.hp <= 0) killActor(o, d); }
   }
   if (!d.isPlayer) dropLoot(d);
-  for (const o of G.actors) if (o.target === d) o.target = null;
+  for (const o of G.actors) { if (o.target === d) o.target = null; if (o.follow === d) o.follow = null; }
 }
 function dropLoot(d) {
   const drops = []; const inv = d.inv.filter(Boolean);
@@ -282,14 +284,14 @@ function dropLoot(d) {
 
 /* ---------------- consumables ---------------- */
 function eatFood(a, idx) {
-  const s = a.inv[idx]; if (!s) return; const it = ITEMS[s.id];
+  const s = a.inv[idx]; if (!s || a.dead) return; const it = ITEMS[s.id];
   if (a.eatCd > 0) return;
   a.inv[idx] = null; a.eatCd = 3; a.atkCd += 3; sfx('eat', a.x, a.y);
   const before = a.hp; a.hp = Math.min(a.maxHp > a.hp ? a.maxHp : a.hp, a.hp + it.food.heal);
   if (a.isPlayer) { gameMsg('You eat the ' + it.name.toLowerCase() + '.'); if (a.hp > before) gameMsg('It heals some health.'); }
 }
 function drinkPotion(a, idx) {
-  const s = a.inv[idx]; if (!s) return; const it = ITEMS[s.id]; if (a.potCd > 0) return;
+  const s = a.inv[idx]; if (!s || a.dead) return; const it = ITEMS[s.id]; if (a.potCd > 0) return;
   a.potCd = 3; s.n--; const L = a.stats; sfx('drink', a.x, a.y);
   const boost = (k, add, pct) => { a.cur[k] = Math.max(a.cur[k], L[k] + add + Math.floor(L[k] * pct)); };
   switch (it.pot) {
@@ -308,23 +310,23 @@ function drinkPotion(a, idx) {
   if (s.n <= 0) a.inv[idx] = null;
 }
 function equipFromInv(a, idx) {
-  const s = a.inv[idx]; if (!s) return false; const it = ITEMS[s.id];
+  const s = a.inv[idx]; if (!s || a.dead) return false; const it = ITEMS[s.id];
   if (!it.slot) { if (a.isPlayer) gameMsg("You can't wear that."); return false; }
   const cur = a.eq[it.slot];
   if (it.slot === 'ammo' && cur && cur.id === s.id) { cur.n += s.n; a.inv[idx] = null; recalcBonus(a); return true; }
+  // a two-hander pushes the shield out, and a shield pushes a two-hander out
+  const off = it.two && a.eq.shield ? a.eq.shield : (it.slot === 'shield' && a.eq.weapon && ITEMS[a.eq.weapon.id].two ? a.eq.weapon : null);
   a.inv[idx] = null;
-  if (it.two && a.eq.shield) {
-    const f = freeSlot(a); if (f < 0) { a.inv[idx] = s; if (a.isPlayer) gameMsg('You don\'t have enough inventory space.'); return false; }
-    a.inv[f] = a.eq.shield; a.eq.shield = null;
-  }
-  if (it.slot === 'shield' && a.eq.weapon && ITEMS[a.eq.weapon.id].two) { a.inv[freeSlot(a) >= 0 ? freeSlot(a) : idx] = a.eq.weapon; a.eq.weapon = null; }
+  let free = 0; for (const x of a.inv) if (!x) free++;
+  if (free < (cur ? 1 : 0) + (off ? 1 : 0)) { a.inv[idx] = s; if (a.isPlayer) gameMsg('You don\'t have enough inventory space.'); return false; }
+  if (off) { a.inv[freeSlot(a)] = off; if (off === a.eq.shield) a.eq.shield = null; else a.eq.weapon = null; }
   a.eq[it.slot] = s;
-  if (cur) { const f = a.inv[idx] ? freeSlot(a) : idx; a.inv[f] = cur; }
+  if (cur) a.inv[freeSlot(a)] = cur;
   if (it.slot === 'weapon') { a.style = 0; a.specOn = false; if (!it.magic) a.autocast = null; }
   recalcBonus(a); if (a.isPlayer) sfx('equip'); return true;
 }
 function unequipSlot(a, slot) {
-  const s = a.eq[slot]; if (!s) return;
+  const s = a.eq[slot]; if (!s || a.dead) return;
   if (ITEMS[s.id].stack) { if (!addItem(a, s.id, s.n)) { if (a.isPlayer) gameMsg('You don\'t have enough inventory space.'); return; } }
   else { const f = freeSlot(a); if (f < 0) { if (a.isPlayer) gameMsg('You don\'t have enough inventory space.'); return; } a.inv[f] = s; }
   a.eq[slot] = null; if (slot === 'weapon') { a.style = 0; a.specOn = false; a.autocast = null; }
@@ -333,7 +335,7 @@ function unequipSlot(a, slot) {
 
 /* ---------------- prayers ---------------- */
 function togglePrayer(a, id, quiet) {
-  const p = PRAYER_BY_ID[id];
+  const p = PRAYER_BY_ID[id]; if (a.dead) return;
   if (a.prayers.has(id)) { a.prayers.delete(id); if (p.ov && a.overhead === p.ov) a.overhead = null; if (a.isPlayer && !quiet) sfx('prayoff'); return; }
   if (a.stats.pray < p.lvl) { if (a.isPlayer && !quiet) gameMsg('You need a Prayer level of ' + p.lvl + ' to use ' + p.name + '.'); return; }
   if (a.pp <= 0) { if (a.isPlayer && !quiet) gameMsg('You have run out of Prayer points; you must recharge at an altar.'); return; }
@@ -382,14 +384,17 @@ function stepActor(a) {
   if (t) {
     const rng = attackRange(a);
     if (inRangeAt(a.x, a.y, t, rng)) {
-      a.path.length = 0; a.face = Math.atan2(t.x - a.x, t.y - a.y);
+      a.path.length = 0; a.stuck = 0; a.face = Math.atan2(t.x - a.x, t.y - a.y);
       const w = weaponOf(a); const instant = a.specOn && w.spec && w.spec.instant && a.spec >= w.spec.cost;
       if (a.atkCd <= 0 || instant) doAttack(a, t);
     } else if (a.frozen > 0) {
-      a.path.length = 0;
+      a.path.length = 0; a.stuck = 0;
     } else {
       const p = findPath(a.x, a.y, (x, y) => inRangeAt(x, y, t, rng), { x: t.x, y: t.y }, 2500);
       if (p) { a.path = p; if (moveAlong(a)) a.moving = true; }
+      // cannot get any closer (sealed off, or no line of sight from anywhere we can stand): give the target up
+      if (a.moving) a.stuck = 0;
+      else if (++a.stuck >= 6) { a.target = null; a.stuck = 0; a.path.length = 0; if (a.isPlayer) gameMsg("I can't reach that!"); }
     }
   } else if (a.follow && !a.follow.dead) {
     const f = a.follow; if (dist2(a.x, a.y, f.x, f.y) > 1 || (a.x === f.x && a.y === f.y)) {
@@ -405,10 +410,11 @@ function stepActor(a) {
 }
 function respawn(a) {
   a.dead = false; a.hp = a.maxHp; a.pp = a.stats.pray; a.cur = Object.assign({}, a.stats); a.run = 100; a.spec = 100; a.frozen = 0; a.freezeImm = 0; a.skull = 0; a.anim = null;
-  a.atkCd = 2; a.prayers.clear(); a.overhead = null; a.seg.length = 0; a.path.length = 0; a.target = null; a.splats.length = 0; a.eatCd = 0; a.potCd = 0;
+  a.atkCd = 2; a.prayers.clear(); a.overhead = null; a.seg.length = 0; a.path.length = 0; a.target = null; a.stuck = 0; a.splats.length = 0; a.eatCd = 0; a.potCd = 0;
   const sp = a.isPlayer ? spawnPoint(true) : spawnPoint(false); a.x = sp.x; a.y = sp.y;
   applyLoadout(a, a.isPlayer ? (a.loadoutKind || 'main') : a.ai.kind);
   if (a.isPlayer) { gameMsg('You have been transported back to the Grand Exchange.'); G.spellSel = null; a.protectUntil = G.tick + 20; }
+  else if (a.ai) { a.ai.fleeT = 0; a.ai.kiteTick = -1; a.ai.kiteCd = 0; }
 }
 function spawnPoint(player) {
   if (player) return { x: GEC + rrange(-4, 4), y: GEC - 14 + rrange(-1, 1) };
