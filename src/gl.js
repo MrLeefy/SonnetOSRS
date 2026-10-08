@@ -41,10 +41,10 @@ function lightAt(nx, ny, nz) {
 
 /* vertex layout (24 bytes, matches the GPU attribs): xyz uv as 5 floats, then rgba as 4 bytes.
    A Mesh owns one grow-only ArrayBuffer and writes straight into it, so per-frame meshes allocate nothing. */
-const VB = 24;
+const VERT_BYTES = 24;
 /* box helpers: scratch corners (bit0 = +x, bit1 = +y, bit2 = +z), faces ccw from outside, uv axes 0=x 1=y 2=z */
-const BOX_P = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
-const BOX_UV = [[0, 0], [0, 0], [0, 0], [0, 0]];
+const BOX_CORNERS = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
+const BOX_UVS = [[0, 0], [0, 0], [0, 0], [0, 0]];
 const BOX_FACES = [
   [4, 5, 7, 6, 0, 1], // +z
   [1, 0, 2, 3, 0, 1], // -z
@@ -53,7 +53,7 @@ const BOX_FACES = [
   [6, 7, 3, 2, 0, 2], // +y
   [0, 1, 5, 4, 0, 2]  // -y
 ];
-function boxExt(ax, hx, hy, hz) { return ax === 0 ? hx : ax === 1 ? hy : hz; }
+function boxHalf(ax, hx, hy, hz) { return ax === 0 ? hx : ax === 1 ? hy : hz; }
 class Mesh {
   constructor(tex) {
     this.tex = tex || 'white'; this.blend = false;
@@ -62,8 +62,8 @@ class Mesh {
   get count() { return this.n; }
   grow(need) {
     let c = this.cap || 256; while (c < need) c *= 2;
-    const b = new ArrayBuffer(c * VB), u = new Uint8Array(b);
-    if (this.u) u.set(this.u.subarray(0, this.n * VB));
+    const b = new ArrayBuffer(c * VERT_BYTES), u = new Uint8Array(b);
+    if (this.u) u.set(this.u.subarray(0, this.n * VERT_BYTES));
     this.buf = b; this.u = u; this.f = new Float32Array(b); this.cap = c;
   }
   clear() { this.n = 0; }
@@ -105,7 +105,7 @@ class Mesh {
   }
   /* box centred at (cx,cy,cz) with half extents, transformed by matrix m (or null). k = texture repeat per unit */
   box(m, cx, cy, cz, hx, hy, hz, col, k, alpha, shadeMul) {
-    const P = BOX_P;
+    const P = BOX_CORNERS;
     for (let i = 0; i < 8; i++) { // the eight corners, transformed once
       const x = cx + ((i & 1) ? hx : -hx), y = cy + ((i & 2) ? hy : -hy), z = cz + ((i & 4) ? hz : -hz), p = P[i];
       if (m) { p[0] = m[0] * x + m[4] * y + m[8] * z + m[12]; p[1] = m[1] * x + m[5] * y + m[9] * z + m[13]; p[2] = m[2] * x + m[6] * y + m[10] * z + m[14]; }
@@ -115,7 +115,7 @@ class Mesh {
     for (let fi = 0; fi < 6; fi++) {
       const f = BOX_FACES[fi]; let uvs = null;
       if (k) {
-        const u = boxExt(f[4], hx, hy, hz) * 2 * k, v = boxExt(f[5], hx, hy, hz) * 2 * k, T = BOX_UV;
+        const u = boxHalf(f[4], hx, hy, hz) * 2 * k, v = boxHalf(f[5], hx, hy, hz) * 2 * k, T = BOX_UVS;
         T[0][0] = 0; T[0][1] = v; T[1][0] = u; T[1][1] = v; T[2][0] = u; T[2][1] = 0; T[3][0] = 0; T[3][1] = 0;
         uvs = T;
       }
@@ -197,7 +197,7 @@ class Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
     this.textures[name] = t;
   }
-  pack(mesh) { return mesh.buf.slice(0, mesh.n * VB); }
+  pack(mesh) { return mesh.buf.slice(0, mesh.n * VERT_BYTES); }
   upload(mesh) {
     const gl = this.gl; const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
     gl.bufferData(gl.ARRAY_BUFFER, this.pack(mesh), gl.STATIC_DRAW);
@@ -217,7 +217,7 @@ class Renderer {
   }
   /* per-frame mesh: the GPU buffer only grows, and each frame streams the mesh's bytes into it */
   drawDynamic(mesh) {
-    const n = mesh.count; if (!n) return; const gl = this.gl, bytes = n * VB;
+    const n = mesh.count; if (!n) return; const gl = this.gl, bytes = n * VERT_BYTES;
     let d = this.dyn.get(mesh);
     if (!d) { d = { buf: gl.createBuffer(), cap: 0 }; this.dyn.set(mesh, d); }
     gl.bindBuffer(gl.ARRAY_BUFFER, d.buf);
