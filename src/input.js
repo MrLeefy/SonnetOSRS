@@ -169,14 +169,7 @@ function panelHit(mx, my, right) {
       if (w.spec && inRect(mx, my, CB.spec)) { if (a.spec < w.spec.cost) gameMsg('You don\'t have enough power left.'); else a.specOn = !a.specOn; return true; }
       return true;
     }
-    case 'options': {
-      for (let i = 0; i < 4; i++) if (inRect(mx, my, OPT.bright(i))) { UI.brightness = i; applyBrightness(); return true; }
-      if (inRect(mx, my, OPT.run)) { a.runOn = !a.runOn; return true; }
-      if (inRect(mx, my, OPT.sound)) { UI.sound = !UI.sound; return true; }
-      if (inRect(mx, my, OPT.bots)) { cycleBots(); return true; }
-      if (inRect(mx, my, OPT.scale)) { UI.sharp = !UI.sharp; fitClient(); return true; }
-      return true;
-    }
+    case 'options': optClick(mx, my); return true; // toggles live in ui.js
     case 'emotes': {
       for (let i = 0; i < EMOTES.length; i++) if (inRect(mx, my, emoteRect(i))) { a.anim = { type: ['cast', 'block', 'block', 'crush', 'block', 'slash', 'block', 'cast', 'slash', 'block', 'stab', 'slash'][i], t0: G.now, dur: 900 }; return true; }
       return true;
