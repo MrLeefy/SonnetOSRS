@@ -191,6 +191,7 @@ async function boot() {
   App.progress = 1; App.status = 'Loaded'; await tick();
   ui.addEventListener('mousedown', onDown); addEventListener('mouseup', onUp); addEventListener('mousemove', onMove);
   ui.addEventListener('wheel', onWheel, { passive: false }); ui.addEventListener('contextmenu', e => e.preventDefault());
+  initTouch();
   addEventListener('keydown', onKeyDown); addEventListener('keyup', onKeyUp);
   addEventListener('blur', releaseInput); document.addEventListener('visibilitychange', () => { if (document.hidden) releaseInput(); });
   ui.style.cursor = 'none';

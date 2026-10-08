@@ -14,6 +14,12 @@ Open `dist/index.html` in any modern browser (Chrome / Edge / Firefox / Safari; 
 - Options tab: Brightness, Run, **Sound**, **Splats** (hitsplat numbers), **Stamps** (`[hh:mm]` on chat lines), **Flash** (red wash on damage), Sharp scaling, Opponents count. Toggles are remembered in this browser only
 - Minimap: white = you and bots, red = a bot attacking you, yellow = clerks, grey = bodies, orange = bank booths, cyan = Grand Exchange, red dots = loot
 
+## Touch (phones and tablets)
+- **Tap** = left-click (walk, attack, use a panel button) · **hold** about half a second = right-click menu
+- **Drag** in the 3D view rotates the camera · **pinch** zooms · drag over the side panels to move items
+- Tap the chat box (or the login name field) to open the on-screen keyboard; **Enter** sends
+- Play in landscape: on a portrait phone a notice asks you to turn the phone (you can dismiss it)
+
 ## Combat (600ms game ticks)
 Weapon speeds, accuracy/max-hit formulas, protection prayers (40% PvP reduction), specials (Dragon dagger p++,
 Granite maul instant spec, AGS, Dragon scimitar "Sever", Magic shortbow), Ancient Ice/Blood spells with freezes,

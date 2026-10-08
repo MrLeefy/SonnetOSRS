@@ -333,3 +333,120 @@ function updateHover() {
   else if ((m.x - 573) * (m.x - 573) + (m.y - 22) * (m.y - 22) < 16 * 16) UI.hoverText = 'Face North';
   else if ((m.x - MM.cx) * (m.x - MM.cx) + (m.y - MM.cy) * (m.y - MM.cy) < MM.r * MM.r) UI.hoverText = 'Walk here';
 }
+
+/* ---------------- touch (phones and tablets) ----------------
+   one finger: tap = click, hold = right-click (context menu), drag in the 3D view = rotate,
+   drag over the panels = press and drag (moves items). two fingers: pinch = zoom.
+   a hidden text field brings up the on-screen keyboard for chat and the login form. */
+const TOUCH = { id: -1, x0: 0, y0: 0, x: 0, y: 0, mode: 'tap', moved: false, held: false, multi: false, pinch: 0, px: 0, py: 0, timer: 0, kb: null };
+const TOUCH_HOLD_MS = 450, TOUCH_SLOP = 10;
+function touchEv(x, y, button, buttons) { return { clientX: x, clientY: y, button: button || 0, buttons: buttons || 0, preventDefault() {} }; }
+function touchKey(k) { return { key: k, ctrlKey: false, metaKey: false, preventDefault() {}, stopPropagation() {} }; }
+function touchFind(list, id) { for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i]; return null; }
+/* 'view' = the 3D viewport, 'ui' = panels, chat and minimap, 'tap' = login and loading screens */
+function touchMode(x, y) {
+  if (App.mode !== 'game') return 'tap';
+  const p = clientPos(touchEv(x, y));
+  return inRect(p.x, p.y, { x: VX, y: VY, w: VW, h: VH }) ? 'view' : 'ui';
+}
+function touchReset() { clearTimeout(TOUCH.timer); TOUCH.id = -1; TOUCH.multi = false; UI.mouse = { x: -100, y: -100 }; }
+function touchHold() {
+  if (TOUCH.id === -1 || TOUCH.moved || TOUCH.multi) return;
+  TOUCH.held = true; if (navigator.vibrate) navigator.vibrate(12);
+  if (TOUCH.mode === 'ui') UI.drag = null; // a hold is a right-click, not an item drag
+  onDown(touchEv(TOUCH.x0, TOUCH.y0, 2, 2));
+}
+function onTouchStart(e) {
+  e.preventDefault(); sndInit();
+  if (e.touches.length >= 2) { // second finger: start a pinch and a two-finger pan
+    const a = e.touches[0], b = e.touches[1];
+    if (TOUCH.mode === 'ui') UI.drag = null;
+    TOUCH.multi = true; clearTimeout(TOUCH.timer);
+    TOUCH.pinch = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    TOUCH.px = (a.clientX + b.clientX) / 2; TOUCH.py = (a.clientY + b.clientY) / 2;
+    return;
+  }
+  const t = e.changedTouches[0]; if (TOUCH.id !== -1) return; // extra fingers are ignored until the first one lifts
+  TOUCH.id = t.identifier; TOUCH.x0 = TOUCH.x = t.clientX; TOUCH.y0 = TOUCH.y = t.clientY;
+  TOUCH.moved = false; TOUCH.held = false; TOUCH.multi = false;
+  TOUCH.mode = touchMode(t.clientX, t.clientY);
+  UI.mouse = clientPos(touchEv(t.clientX, t.clientY));
+  if (TOUCH.mode === 'ui') onDown(touchEv(t.clientX, t.clientY, 0, 1)); // panels act on press, like the mouse
+  TOUCH.timer = setTimeout(touchHold, TOUCH_HOLD_MS);
+}
+function onTouchMove(e) {
+  e.preventDefault();
+  if (e.touches.length >= 2 && TOUCH.multi) { // pinch zooms, and the midpoint pans the camera
+    const a = e.touches[0], b = e.touches[1];
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), cx = (a.clientX + b.clientX) / 2, cy = (a.clientY + b.clientY) / 2;
+    if (App.mode === 'game' && INP.cam) {
+      const cam = INP.cam;
+      cam.distG = clamp(cam.distG - (d - TOUCH.pinch) / 25, 8, 26);
+      cam.yawG += (cx - TOUCH.px) * 0.006; cam.pitchG = clamp(cam.pitchG + (cy - TOUCH.py) * 0.004, 0.25, 1.35);
+    }
+    TOUCH.pinch = d; TOUCH.px = cx; TOUCH.py = cy; return;
+  }
+  const t = touchFind(e.changedTouches, TOUCH.id); if (!t || TOUCH.multi) return;
+  const dx = t.clientX - TOUCH.x, dy = t.clientY - TOUCH.y;
+  if (!TOUCH.moved) { // a small wobble is still a tap
+    if (Math.hypot(t.clientX - TOUCH.x0, t.clientY - TOUCH.y0) <= TOUCH_SLOP) return;
+    TOUCH.moved = true; clearTimeout(TOUCH.timer);
+  }
+  TOUCH.x = t.clientX; TOUCH.y = t.clientY;
+  UI.mouse = clientPos(touchEv(t.clientX, t.clientY));
+  if (TOUCH.mode === 'view' && App.mode === 'game' && INP.cam) { const cam = INP.cam; cam.yawG += dx * 0.006; cam.pitchG = clamp(cam.pitchG + dy * 0.004, 0.25, 1.35); }
+  else if (TOUCH.mode === 'ui') onMove(touchEv(t.clientX, t.clientY, 0, 1));
+}
+function onTouchEnd(e) {
+  e.preventDefault();
+  const t = touchFind(e.changedTouches, TOUCH.id);
+  if (!t) { if (e.touches.length === 0) touchReset(); return; }
+  clearTimeout(TOUCH.timer);
+  const x = t.clientX, y = t.clientY, tap = !TOUCH.multi && !TOUCH.moved && !TOUCH.held;
+  if (TOUCH.mode === 'ui') { if (!TOUCH.multi) onUp(touchEv(x, y, 0)); } // release a press or drop a dragged item
+  else if (tap) { onDown(touchEv(x, y, 0, 1)); onUp(touchEv(x, y, 0)); }
+  if (tap) {
+    const kb = TOUCH.kb, gp = clientPos(touchEv(x, y)), inChat = App.mode === 'game' && gp.x < 519 && gp.y >= 338 && gp.y < 480;
+    if (TOUCH.mode === 'view' && kb && document.activeElement === kb) kb.blur();
+    if (inChat || (App.mode === 'login' && App.loginStage === 1)) touchKeyboard();
+  }
+  touchReset();
+}
+function onTouchCancel(e) { TOUCH.moved = true; onTouchEnd(e); }
+/* focusing the hidden field must happen inside the tap, which is a user gesture */
+function touchKeyboard() { const kb = TOUCH.kb; if (!kb) return; kb.value = ' '; kb.focus(); }
+function initTouch() {
+  const ui = INP.canvas;
+  ui.addEventListener('touchstart', onTouchStart, { passive: false });
+  ui.addEventListener('touchmove', onTouchMove, { passive: false });
+  ui.addEventListener('touchend', onTouchEnd, { passive: false });
+  ui.addEventListener('touchcancel', onTouchCancel, { passive: false });
+  document.addEventListener('gesturestart', e => e.preventDefault()); // iOS pinch would zoom the whole page
+  // hidden text field: the keyboard types into it and the input events feed the game's chat and login fields
+  const kb = document.createElement('input');
+  kb.type = 'text'; kb.autocomplete = 'off'; kb.autocapitalize = 'off'; kb.spellcheck = false; kb.tabIndex = -1;
+  kb.setAttribute('autocorrect', 'off'); kb.setAttribute('enterkeyhint', 'send'); kb.setAttribute('aria-hidden', 'true');
+  kb.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;border:0;padding:0;font-size:16px;';
+  kb.value = ' '; document.body.appendChild(kb); TOUCH.kb = kb;
+  kb.addEventListener('keydown', e => { // Enter and Backspace are handled here; the input event handles text
+    e.stopPropagation();
+    if (e.key === 'Enter' || e.key === 'Backspace') { e.preventDefault(); onKeyDown(touchKey(e.key)); }
+  });
+  kb.addEventListener('input', () => {
+    if (kb.isComposing) return;
+    const v = kb.value; kb.value = ' '; // the leading space is a sentinel, so Backspace always produces an input event
+    if (v === '') { onKeyDown(touchKey('Backspace')); return; }
+    for (const ch of (v[0] === ' ' ? v.slice(1) : v)) onKeyDown(touchKey(ch));
+  });
+  // portrait phones: the 765x503 game is tiny, so ask for landscape (the player can dismiss it)
+  const st = document.createElement('style');
+  st.textContent = 'html,body,canvas{touch-action:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}' +
+    '#rot{position:fixed;inset:0;z-index:99;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;background:#000;color:#e8d8a0;font:16px sans-serif;text-align:center}' +
+    '#rot button{font:inherit;color:#fff;background:#3b3327;border:1px solid #6a6a66;padding:10px 16px}' +
+    '@media (orientation:portrait) and (pointer:coarse){#rot{display:flex}}#rot.gone{display:none}';
+  document.head.appendChild(st);
+  const rot = document.createElement('div'); rot.id = 'rot';
+  rot.innerHTML = '<div>Turn your phone sideways to play.</div><button type="button">Play in portrait anyway</button>';
+  rot.querySelector('button').addEventListener('click', () => rot.classList.add('gone'));
+  document.body.appendChild(rot);
+}
