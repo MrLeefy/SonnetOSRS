@@ -84,6 +84,8 @@ class Pix {
     }
     return this;
   }
+  /* per-pixel fill: fn(x, y) returns 0xRRGGBB */
+  fill(fn) { for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) this.set(x, y, fn(x, y)); return this; }
   blit(o, x, y) {
     for (let j = 0; j < o.h; j++) for (let i = 0; i < o.w; i++) {
       const s = (j * o.w + i) * 4; if (o.d[s + 3] === 0) continue;
@@ -99,6 +101,24 @@ class Pix {
   }
 }
 function newSprite(w, h, fn) { const p = new Pix(w, h); fn(p); return p.canvas(); }
+
+/* seamless value noise for textures: f(u, v) in 0..1, u and v in tile units (wraps every 1.0) */
+function tileNoise(cells, seed) {
+  const r = mulberry32(seed), L = new Float32Array(cells * cells);
+  for (let i = 0; i < L.length; i++) L[i] = r();
+  const g = (a, b) => L[((((b % cells) + cells) % cells) * cells) + (((a % cells) + cells) % cells)];
+  return (u, v) => {
+    const x = u * cells, y = v * cells, xi = Math.floor(x), yi = Math.floor(y);
+    const fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    return lerp(lerp(g(xi, yi), g(xi + 1, yi), sx), lerp(g(xi, yi + 1), g(xi + 1, yi + 1), sx), sy);
+  };
+}
+/* stateless integer hash -> 0..1 (deterministic per pixel or cell) */
+function hash2(x, y, s) {
+  let h = Math.imul(x + 1013 * (s | 0), 374761393) ^ Math.imul(y + 7919, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 
 /* noise-textured fill */
 function noiseFill(p, x, y, w, h, base, amp, seed) {
