@@ -21,4 +21,7 @@ canvas{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges}
 </script></body></html>'''
 os.makedirs(os.path.join(root,'dist'),exist_ok=True)
 open(os.path.join(root,'dist','index.html'),'w').write(html)
-print('dist/index.html', len(html)//1024, 'KB')
+# GitHub Pages serves the branch's docs/ folder, so keep a copy there too
+os.makedirs(os.path.join(root,'docs'),exist_ok=True)
+open(os.path.join(root,'docs','index.html'),'w').write(html)
+print('dist/index.html and docs/index.html', len(html)//1024, 'KB')
