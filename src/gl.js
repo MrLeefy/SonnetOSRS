@@ -252,13 +252,10 @@ class Camera {
   /* yaw / pitch / dist ease toward these goals; input writes the goals, snap() makes them match */
   snap() { this.yawG = this.yaw; this.pitchG = this.pitch; this.distG = this.dist; }
   update() {
-    let d = this.dist, eye = null;
-    for (let i = 0; ; i++) {
-      const dh = Math.cos(this.pitch) * d, dv = Math.sin(this.pitch) * d;
-      eye = [this.tx - Math.sin(this.yaw) * dh, this.ty + dv, this.tz + Math.cos(this.yaw) * dh];
-      if (!this.floor || i >= 4 || eye[1] >= this.floor(eye[0], -eye[2]) + CAM_CLEAR) break;
-      d *= 0.8; // pull in toward the target until the eye clears the ground
-    }
+    const dh = Math.cos(this.pitch) * this.dist, dv = Math.sin(this.pitch) * this.dist;
+    const eye = [this.tx - Math.sin(this.yaw) * dh, this.ty + dv, this.tz + Math.cos(this.yaw) * dh];
+    // never let the eye dip under the ground beneath it: lift it instead, so pitch and distance stay as set
+    if (this.floor) { const g = this.floor(eye[0], -eye[2]) + CAM_CLEAR; if (eye[1] < g) eye[1] = g; }
     this.eye = eye;
     const view = M4.lookAt(this.eye, [this.tx, this.ty, this.tz], [0, 1, 0]);
     this.view = view;
