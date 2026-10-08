@@ -74,6 +74,11 @@ function mdTip(m, z0, z1, hw, col) {
   const a = V(-hw, -hw, z0), b = V(hw, -hw, z0), c = V(hw, hw, z0), d = V(-hw, hw, z0), e = V(0, 0, z1);
   DYN.tri(a, b, e, col); DYN.tri(b, c, e, col); DYN.tri(c, d, e, col); DYN.tri(d, a, e, col);
 }
+/* flat quad in the x,y plane at depth z, facing +Z (face details) */
+function mdQuadZ(m, cx, cy, z, hx, hy, col) {
+  const V = (x, y) => m ? M4.pt(m, cx + x, cy + y, z) : [cx + x, cy + y, z];
+  DYN.quad(V(-hx, -hy), V(hx, -hy), V(hx, hy), V(-hx, hy), col);
+}
 /* two crossed fletching vanes between z0 and z1 */
 function mdFin(m, z0, z1, h, col) {
   const V = (x, y, z) => m ? M4.pt(m, x, y, z) : [x, y, z];
@@ -213,6 +218,7 @@ function drawActor(a, frac, dt, cam) {
     const A = M4.mul(K, M4.trans(0, -0.32, 0));
     mdFrustum(L, 0, 0, 0, 0.1, 0.1, -0.34, 0.075, 0.078, 8, legCol, false, false);     // thigh
     mdFrustum(K, 0, 0, 0, 0.072, 0.072, -0.32, 0.05, 0.054, 8, legCol, false, false);   // shin
+    mdFrustum(K, 0, 0.03, 0, 0.082, 0.082, -0.03, 0.082, 0.082, 6, legCol, false, false); // knee joint
     if (legsI && legsI.model === 'legs') mdFrustum(L, 0, 0.02, 0, 0.116, 0.116, -0.3, 0.096, 0.096, 8, legCol, false, false); // plate thigh guard
     // foot: heel block, rounded toe, ankle sock (and a tall boot shaft when equipped)
     B(A, 0, -0.03, -0.02, 0.07, 0.03, 0.068, bootCol);
@@ -261,6 +267,7 @@ function drawActor(a, frac, dt, cam) {
     mdFrustum(M, 0, 0, 0, 0.074, 0.074, -0.26, 0.062, 0.062, 8, sleeve, false, false);    // upper arm
     const E = M4.mul(M, M4.mul(M4.trans(0, -0.26, 0), M4.rotX(bend)));                    // elbow frame
     mdFrustum(E, 0, 0, 0, 0.062, 0.062, -0.2, 0.054, 0.054, 8, sleeve, false, false);     // forearm
+    mdFrustum(E, 0, 0.03, 0, 0.068, 0.068, -0.03, 0.068, 0.068, 6, sleeve, false, false); // elbow joint
     if (hands && hands.model === 'gloves') mdFrustum(E, 0, -0.16, 0, 0.064, 0.064, -0.2, 0.066, 0.066, 8, shadeCol(handCol, 0.85), false, false);
     B(E, 0, -0.245, 0, 0.058, 0.07, 0.06, handCol);                                       // fist
     B(E, ix * 0.05, -0.2, 0.035, 0.022, 0.03, 0.04, handCol);                              // thumb
@@ -284,17 +291,17 @@ function drawActor(a, frac, dt, cam) {
     DYN.blob(hm, 0, 1.39, -0.01, 0.13, 0.135, 0.135, 8, 3, skin);                        // skull
     B(hm, 0, 1.27, 0, 0.095, 0.045, 0.1, skin);                                          // jaw
     B(hm, 0, 1.36, 0.135, 0.02, 0.035, 0.018, shadeCol(skin, 0.92));                     // nose
-    B(hm, 0.05, 1.395, 0.136, 0.022, 0.016, 0.008, 0x101010);                            // eyes
-    B(hm, -0.05, 1.395, 0.136, 0.022, 0.016, 0.008, 0x101010);
-    B(hm, 0.05, 1.43, 0.133, 0.03, 0.01, 0.01, hair);                                    // brows
-    B(hm, -0.05, 1.43, 0.133, 0.03, 0.01, 0.01, hair);
-    B(hm, 0, 1.31, 0.122, 0.028, 0.008, 0.008, shadeCol(skin, 0.6));                     // mouth
+    mdQuadZ(hm, 0.05, 1.395, 0.13, 0.022, 0.016, 0x101010);                              // eyes
+    mdQuadZ(hm, -0.05, 1.395, 0.13, 0.022, 0.016, 0x101010);
+    mdQuadZ(hm, 0.05, 1.43, 0.13, 0.03, 0.01, hair);                                     // brows
+    mdQuadZ(hm, -0.05, 1.43, 0.13, 0.03, 0.01, hair);
+    mdQuadZ(hm, 0, 1.31, 0.12, 0.028, 0.008, shadeCol(skin, 0.6));                       // mouth
   }
   if (head) {
     if (fullhelm) {
       DYN.blob(hm, 0, 1.39, 0, 0.152, 0.172, 0.152, 8, 3, head.color);                  // rounded helm
-      B(hm, 0, 1.37, 0.15, 0.11, 0.012, 0.01, 0x0a1a20);                                // visor slit
-      B(hm, 0, 1.33, 0.158, 0.016, 0.05, 0.01, shadeCol(head.color, 0.7));               // nasal bar
+      mdQuadZ(hm, 0, 1.37, 0.158, 0.11, 0.012, 0x0a1a20);                               // visor slit
+      mdQuadZ(hm, 0, 1.33, 0.159, 0.016, 0.05, shadeCol(head.color, 0.7));               // nasal bar
       mdFrustum(hm, 0, 1.2, 0, 0.166, 0.166, 1.245, 0.158, 0.158, 8, shadeCol(head.color, 0.8), false, false); // rim
     } else if (head.model === 'coif') {
       DYN.blob(hm, 0, 1.44, -0.03, 0.148, 0.105, 0.148, 8, 2, head.color);              // woollen hood over the crown
