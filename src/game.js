@@ -264,7 +264,7 @@ function killActor(d, s) {
   s.kills = (s.kills || 0) + 1; d.deaths = (d.deaths || 0) + 1;
   feedKill(s, d); if (d.isPlayer) gameMsg('<col=b02020>' + s.name + ' has defeated you.</col>');
   if (s.isPlayer) { G.kills++; G.streak++; G.best = Math.max(G.best, G.streak); gameMsg('You have defeated ' + d.name + '.'); }
-  if (d.isPlayer) { G.deaths++; G.streak = 0; G.dialog = null; gameMsg('Oh dear, you are dead!'); }
+  if (d.isPlayer) { G.deaths++; G.streak = 0; G.dialog = null; G.spellSel = null; UI.menu = null; gameMsg('Oh dear, you are dead!'); }
   if (s.isBot && chance(0.5)) sayOverhead(s, pick(['gf', 'ez', 'lol', 'noob', 'ty', 'nice try', 'l0l', 'owned', 'rofl']));
   if (ov === 'retribution') {
     for (const o of G.actors) if (o !== d && !o.dead && !o.npc && dist2(o.x, o.y, d.x, d.y) <= 1) { const dm = rint(Math.floor(d.stats.pray * 0.25) + 1); o.hp = Math.max(0, o.hp - dm); addSplat(o, dm); o.attackedBy[d.id] = G.tick; if (o.hp <= 0) killActor(o, d); }

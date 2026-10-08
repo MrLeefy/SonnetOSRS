@@ -77,7 +77,7 @@ function itemMenu(a, i) {
   else if (it.pot) out.push(ent('Drink ' + nm, () => drinkPotion(G.player, i)));
   else if (it.slot) out.push(ent('Wield ' + nm, () => equipFromInv(G.player, i)));
   out.push(ent('Use ' + nm, () => gameMsg('Nothing interesting happens.')));
-  out.push(ent('Drop ' + nm, () => { const pl = G.player; if (!pl.inv[i]) return; G.ground.push({ id: s.id, n: s.n, x: pl.x, y: pl.y, t: G.tick }); pl.inv[i] = null; }));
+  out.push(ent('Drop ' + nm, () => { const pl = G.player; if (pl.dead || !pl.inv[i]) return; G.ground.push({ id: s.id, n: s.n, x: pl.x, y: pl.y, t: G.tick }); pl.inv[i] = null; }));
   out.push(ent('Examine ' + nm, () => gameMsg(it.ex)));
   out.push(CANCEL()); return out;
 }
