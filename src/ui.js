@@ -574,7 +574,7 @@ function drawHitFlash(ctx) {
 
 /* cursor box for whatever is under the pointer in the viewport: actor, world object or loot pile */
 function viewTip() {
-  const m = UI.mouse; if (UI.menu || UI.drag || !inRect(m.x, m.y, { x: VX, y: VY, w: VW, h: VH })) return;
+  const m = UI.mouse; if (UI.menu || UI.drag || UI.bonusWin || !inRect(m.x, m.y, { x: VX, y: VY, w: VW, h: VH })) return;
   const vx = m.x - VX, vy = m.y - VY, a = pickActor(vx, vy);
   if (a && a !== G.player) { tipBox([a.name + ' (level-' + a.level + ')', a.npc ? 'Grand Exchange clerk' : 'Hitpoints: ' + a.hp + '/' + a.maxHp]); return; }
   const o = pickObject(vx, vy, INP.cam); if (o) { tipBox([o.name, o.kind === 'bank' ? 'Restock your gear here' : 'Click to open']); return; }
