@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1118">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Hollowmere Arena</title>
+<style>/*CSS*/</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vignette"></div>
+<div id="plates"></div>
+
+<div id="hud" class="hidden">
+  <div class="top">
+    <div class="me panel">
+      <div class="bar hp"><i></i><span id="hp-txt">99</span><em>HP</em></div>
+      <div class="bar focus"><i></i><span id="focus-txt">100</span><em>FOCUS</em></div>
+    </div>
+    <div class="tgt panel hidden" id="tgt">
+      <div class="tgt-head"><b id="tgt-name"></b><span class="chip" id="tgt-stance"></span><span class="chip" id="tgt-ward"></span></div>
+      <div class="bar hp small"><i id="tgt-hp"></i></div>
+    </div>
+    <div class="right">
+      <div class="row">
+        <div class="stats panel"><div><b id="st-kills">0</b><small>KILLS</small></div><div><b id="st-streak">0</b><small>STREAK</small></div><div><b id="st-score">0</b><small>SCORE</small></div></div>
+        <button class="ibtn" id="btn-pause" aria-label="Pause"></button>
+      </div>
+      <canvas id="minimap" width="192" height="192"></canvas>
+      <div id="feed"></div>
+    </div>
+  </div>
+  <div id="status"></div>
+  <div id="banner"><b></b><span></span></div>
+  <div id="toast"></div>
+  <div class="pads">
+    <div class="pad left">
+      <div class="row">
+        <button class="gbtn" id="btn-food" aria-label="Eat"><span class="ico"></span><span class="badge">0</span><span class="cd"></span></button>
+        <button class="gbtn" id="btn-tonic" aria-label="Tonic"><span class="ico"></span><span class="badge">0</span><span class="cd"></span></button>
+        <button class="gbtn" id="btn-target" aria-label="Next target"><span class="ico"></span></button>
+      </div>
+      <div class="lbl">WARD AGAINST</div>
+      <div class="row" id="wards"></div>
+    </div>
+    <div class="pad right">
+      <button class="gbtn wide" id="btn-spec" aria-label="Special attack"><span class="fill"></span><span class="ico"></span><span class="txt"><b id="spec-name">Special</b><small id="spec-pct">100%</small></span></button>
+      <div class="lbl">FIGHT WITH</div>
+      <div class="row" id="stances"></div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screen-title">
+  <div class="card">
+    <h1>HOLLOWMERE<span>ARENA</span></h1>
+    <p class="tag">Read your rival. Switch your stance. Raise the right ward.</p>
+    <div class="how">
+      <div><span class="ico" data-ico="tap"></span><p><b>Tap</b> the ground to move, <b>tap a fighter</b> to attack. Drag to turn the camera, pinch to zoom.</p></div>
+      <div><span class="ico" data-ico="melee"></span><p><b>Stance</b> picks your weapon <i>and</i> armour. Blade beats Bow, Bow beats Staff, Staff beats Blade.</p></div>
+      <div><span class="ico" data-ico="wardmagic"></span><p><b>Wards</b> block 60% of one attack type. Match the weapon your rival is holding.</p></div>
+      <div><span class="ico" data-ico="spec"></span><p>Eat to heal, drink tonics for focus, and unleash your <b>special</b> when the bar is half full.</p></div>
+    </div>
+    <div class="seg" id="diff"><button data-d="easy">Easy</button><button data-d="normal" class="on">Normal</button><button data-d="hard">Hard</button></div>
+    <button class="big" id="btn-play">ENTER THE ARENA</button>
+    <div class="sub"><span id="best-line"></span><button class="link" id="btn-fs">Fullscreen</button></div>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-pause">
+  <div class="card narrow">
+    <h2>Paused</h2>
+    <label>Graphics</label>
+    <div class="seg" id="opt-quality"><button data-q="low">Low</button><button data-q="med">Medium</button><button data-q="high">High</button></div>
+    <div class="toggles"><button class="tog" id="opt-sound">Sound</button><button class="tog" id="opt-haptics">Vibration</button></div>
+    <button class="big" id="btn-resume">RESUME</button>
+    <button class="ghost" id="btn-quit">Quit to title</button>
+  </div>
+</div>
+
+<div class="screen hidden" id="screen-dead">
+  <div class="card narrow">
+    <h2 class="red">Defeated</h2>
+    <p id="dead-by"></p>
+    <div class="deadstats"><div><b id="d-streak">0</b><small>STREAK</small></div><div><b id="d-kills">0</b><small>KILLS</small></div><div><b id="d-best">0</b><small>BEST</small></div></div>
+    <p class="tip" id="dead-tip"></p>
+    <button class="big" id="btn-respawn">FIGHT AGAIN</button>
+    <button class="ghost" id="btn-quit2">Quit to title</button>
+  </div>
+</div>
+<div id="fatal" class="hidden"></div>
+<script>/*JS*/</script>
+</body>
+</html>

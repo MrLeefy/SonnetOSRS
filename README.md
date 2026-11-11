@@ -1,19 +1,50 @@
-# Grand Exchange PvP (2007-style) — playable replica
+# Hollowmere Arena
 
-Open `dist/index.html` in any modern browser (Chrome / Edge / Firefox / Safari; needs WebGL). No install, no network.
+A mobile-first 3D arena brawler with tick-based "read and react" combat: tap to move, tap a rival to fight,
+swap stance to beat their armour and raise the right ward before their hit lands.
 
-## Controls
-- **Left-click** ground: walk (yellow X) · left-click a player: attack (red X) · **right-click**: RuneScape-style context menu
-- **Arrow keys** / **middle-mouse drag**: rotate & tilt camera · mouse wheel: zoom · click the compass: face north
-- **F1–F7** switch side panels (Combat, Skills, Player Killing, Inventory, Worn Equipment, Prayer, Magic) · F8-F12 the bottom row
-- Type to chat, **Enter** to send (`::bots 8`, `::restock`, `::heal`, `::run`) · **Space** continues dialogue
-- Inventory: click = default action (Wield / Eat / Drink), drag to rearrange, right-click for Use / Drop / Examine
-- Bank booths restock your gear (Hybrid, Melee, Ranged, Magic); the Grand Exchange clerks will talk to you
+**Play:** open `dist/index.html` in any current mobile or desktop browser (needs WebGL). It is one self-contained
+file - no install, no network. Works in portrait and landscape; add it to your home screen for a full-screen feel.
 
-## Combat (600ms game ticks)
-Weapon speeds, accuracy/max-hit formulas, protection prayers (40% PvP reduction), specials (Dragon dagger p++,
-Granite maul instant spec, AGS, Dragon scimitar "Sever", Magic shortbow), Ancient Ice/Blood spells with freezes,
-skulls, run energy, food/potion delays, loot drops. Opponents are AI "pkers": melee mains, zerkers, pures,
-rangers, mages and hybrids that flick prayers, eat, kite, freeze and use specials.
+## How to play
 
-Source is in `src/`, `tools/build.py` bundles it, `tools/makefont.py` regenerates the bitmap fonts.
+| | Touch | Keyboard / mouse |
+|---|---|---|
+| Move | tap the ground | click |
+| Attack | tap a fighter, or the crosshair button for the nearest | click / `Tab` |
+| Camera | drag to orbit, pinch to zoom, twist to turn | drag, wheel, arrow keys |
+| Stance (Blade / Bow / Staff) | right pad | `1` `2` `3` |
+| Ward (vs Blade / Bow / Staff) | left pad | `Q` `W` `E` |
+| Eat / Tonic / Special | buttons | `F` / `R` / `Space` |
+| Pause | top right | `Esc` or `P` |
+
+- **Stance** sets both your weapon and your armour. Blade beats Bow leathers, Bow beats Staff robes, Staff beats Blade plate.
+- **Wards** remove 60% of one attack type, checked when the hit lands - so you can react to an arrow or spell in flight.
+  They drain focus while raised. The icon over a rival's head shows what *they* are warding: hit them with something else.
+- **Staff** hits root their target in place. Rooted fighters can still attack, so switch to Bow or Staff.
+- **Specials** cost 50% energy: *Twin Fang* (two fast accurate strikes), *Deadeye* (never misses, mostly ignores wards),
+  *Frostbind* (heavy blast that roots everything around the target).
+- Kills heal you, refill special energy and drop golden loot (food, tonic, energy). Chain kills for a streak multiplier.
+- Rivals come in four kinds - Brutes, Stalkers, Hexers and stance-switching Wardens - and get sharper as your streak grows.
+
+## Development
+
+```
+npm install
+npm run build        # bundles src/ into dist/index.html
+npm run dev          # rebuild on change
+node tools/simtest.mjs   # headless smoke test of the combat simulation
+```
+
+| File | What it does |
+|---|---|
+| `src/data.js` | all tuning numbers: styles, accuracy table, specials, difficulty |
+| `src/world.js` | arena layout, collision grid, pathfinding, line of sight |
+| `src/sim.js` | the 600 ms tick simulation (rendering-free, event driven) |
+| `src/ai.js` | rival behaviour: targeting, wards, stance swaps, kiting, specials |
+| `src/gfx/` | three.js scene, procedural low-poly fighters and animation, particles and projectiles |
+| `src/ui.js`, `src/style.css`, `src/index.html` | touch HUD and menus |
+| `src/input.js`, `src/audio.js`, `src/main.js` | gestures, procedural sound, main loop |
+
+Graphics quality (Low / Medium / High) is in the pause menu and steps down automatically on slow devices.
+All models, textures and sounds are generated in code; the only dependency is [three.js](https://threejs.org) (MIT), bundled into the build.

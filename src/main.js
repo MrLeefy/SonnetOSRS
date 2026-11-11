@@ -1,178 +1,207 @@
-'use strict';
-/* ==========================================================================
-   main.js  -  boot sequence, login screen, main loop
-   ========================================================================== */
-const App = {
-  mode: 'load', progress: 0, status: 'Loading - please wait.', ctx: null, R: null, cam: null, loginStage: 0, user: 'Pk_Player', pass: '', field: 0, prev: 0, scale: 1, msg: '',
-  logout() { this.mode = 'login'; this.loginStage = 0; G.dialog = null; UI.menu = null; },
-  onDown(e) { loginDown(e); },
-  onKey(e) { loginKey(e); }
-};
-const tick = () => new Promise(r => setTimeout(r, 0));
+/* main.js - boot, main loop, and the glue between the simulation, renderer, HUD, input and audio */
+import * as THREE from 'three';
+import { TICK, STYLES, SPECIALS, STYLE_IDS, clamp } from './data.js';
+import { C, cheb } from './world.js';
+import { Game, renderPos } from './sim.js';
+import { World3D } from './gfx/scene.js';
+import { Character } from './gfx/character.js';
+import { FX, STYLE_COLOR } from './gfx/fx.js';
+import { HUD } from './ui.js';
+import { initInput } from './input.js';
+import { Sound } from './audio.js';
 
-/* extra player loadouts (bank restock) */
-LOADOUTS.pmelee = {
-  eq: { head: 'rhelm', cape: 'firecape', neck: 'glory', weapon: 'whip', body: 'rbody', shield: 'rkite', legs: 'rlegs', hands: 'bgloves', feet: 'rboots' },
-  inv: ['dds', 'gmaul', 'ags', 'dscim', 'supstr', 'supdef', 'prayer', 'prayer', 'prayer', 'restore', 'restore', 'shark*16']
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('hm_' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('hm_' + k, JSON.stringify(v)); } catch (e) { /* private mode */ } }
 };
-LOADOUTS.pranged = {
-  eq: { head: 'coif', cape: 'firecape', neck: 'glory', weapon: 'rcb', body: 'bdbody', legs: 'bdchaps', hands: 'bgloves', feet: 'rboots', ammo: 'dbolts:400' },
-  inv: ['whip', 'rkite', 'ranging', 'prayer', 'prayer', 'prayer', 'restore', 'restore', 'shark*19']
-};
-LOADOUTS.pmage = {
-  eq: { head: 'mhat', cape: 'firecape', neck: 'glory', weapon: 'ancstaff', body: 'mtop', legs: 'mbottom', hands: 'bgloves', feet: 'mboots' },
-  inv: ['whip', 'dds', 'death:800', 'blood:600', 'water:1500', 'prayer', 'prayer', 'prayer', 'restore', 'restore', 'shark*16'], autocast: 'iceBarrage'
-};
+const coarse = matchMedia('(pointer: coarse)').matches;
+const settings = { quality: store.get('quality', null), sound: store.get('sound', true), haptics: store.get('haptics', true) };
+let autoQuality = !settings.quality; if (!settings.quality) settings.quality = coarse ? 'med' : 'high';
 
-/* ---------------- loading screen (classic red bar) ---------------- */
-function drawLoading(ctx) {
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  const cx = W / 2, cy = H / 2 + 6;
-  if (Fonts.b12) { drawTextC(ctx, 'b12', 'RuneScape is loading - please wait...', cx, cy - 30, 0xffffff, false); }
-  fillR(ctx, cx - 152, cy - 18, 304, 34, 0x8c1111); fillR(ctx, cx - 150, cy - 16, 300, 30, 0x000000);
-  fillR(ctx, cx - 148, cy - 14, Math.round(296 * App.progress), 26, 0x8c1111);
-  if (Fonts.b12) drawTextC(ctx, 'b12', App.status + ' ' + Math.round(App.progress * 100) + '%', cx, cy + 4, 0xffffff, false);
-}
-/* ---------------- login screen ---------------- */
-let LOGIN_BG = null;
-function buildLoginBg() {
-  const p = new Pix(W, H); const r = mulberry32(3);
-  noiseFill(p, 0, 0, W, H, 0x4a4a44, 6, 21);
-  for (let row = 0; row < H / 26; row++) { const y = row * 26, off = (row & 1) ? 34 : 0; p.rect(0, y, W, 2, 0x2a2a26); for (let x = off; x < W + 68; x += 68) p.rect(x, y, 2, 26, 0x2a2a26); }
-  // columns
-  for (const cx of [130, 560]) { p.rect(cx, 0, 78, H, 0x6a6a64); for (let y = 0; y < H; y++) { for (let x = 0; x < 78; x++) { const t = x / 78; const c = 0x6a6a64 * 0 + rgb(clamp(90 + 40 * Math.sin(t * Math.PI) - (r() * 8) | 0, 0, 255), clamp(90 + 40 * Math.sin(t * Math.PI) | 0, 0, 255), clamp(84 + 40 * Math.sin(t * Math.PI) | 0, 0, 255)); p.set(cx + x, y, c); } } p.rect(cx - 8, 440, 94, 63, 0x4a4a46); }
-  // torches
-  for (const tx of [30, 705]) { p.rect(tx + 14, 300, 6, 180, 0x2a2a2a); p.ellipse(tx + 17, 300, 22, 10, 0x1a1a1a); for (let i = 0; i < 90; i++) { const fx = tx + 17 + Math.round((r() - 0.5) * 34 * (1 - i / 120)), fy = 296 - i * 1.3 * r() * 2; p.rect(fx, Math.round(fy), 3, 3, i < 40 ? 0xf0c030 : i < 70 ? 0xf08a20 : 0xc83c10); } }
-  // vignette
-  const q = p.canvas(); LOGIN_BG = q;
-}
-const LB = { boxX: 202, boxY: 190, boxW: 360, boxH: 200 };
-function loginStoneBox(ctx, x, y, w, h) {
-  fillR(ctx, x, y, w, h, 0x000000); fillR(ctx, x + 3, y + 3, w - 6, h - 6, 0x50504c);
-  const rr = mulberry32(8); for (let i = 0; i < 900; i++) { const px = x + 4 + (rr() * (w - 8) | 0), py = y + 4 + (rr() * (h - 8) | 0); ctx.fillStyle = css(rr() < 0.5 ? 0x5e5e5a : 0x444440); ctx.fillRect(px, py, 2, 1); }
-  frameR(ctx, x + 3, y + 3, w - 6, h - 6, 0x2a2a28); frameR(ctx, x + 4, y + 4, w - 8, h - 8, 0x6a6a66);
-}
-function loginBtn(ctx, x, y, w, h, label, hov) { fillR(ctx, x, y, w, h, 0x000000); fillR(ctx, x + 2, y + 2, w - 4, h - 4, hov ? 0x5c5c58 : 0x48484a); frameR(ctx, x + 2, y + 2, w - 4, h - 4, 0x6a6a6a); drawTextC(ctx, 'b12', label, x + w / 2, y + h / 2 + 5, 0xffffff, true); }
-const LBTN = { newUser: { x: 232, y: 300, w: 148, h: 34 }, exist: { x: 384, y: 300, w: 148, h: 34 }, login: { x: 232, y: 336, w: 148, h: 34 }, cancel: { x: 384, y: 336, w: 148, h: 34 } };
-function drawLogin(ctx) {
-  if (!LOGIN_BG) buildLoginBg();
-  ctx.drawImage(LOGIN_BG, 0, 0);
-  // title (plain text; no logo)
-  drawTextC(ctx, 'q16', 'RuneScape', W / 2, 90, 0xd8d8d0, true);
-  loginStoneBox(ctx, LB.boxX, LB.boxY, LB.boxW, LB.boxH);
-  const m = UI.mouse;
-  if (App.loginStage === 0) {
-    drawTextC(ctx, 'b12', 'Welcome to RuneScape', W / 2, 262, 0xffff00, true);
-    loginBtn(ctx, LBTN.newUser.x, LBTN.newUser.y, LBTN.newUser.w, LBTN.newUser.h, 'New user', inRect(m.x, m.y, LBTN.newUser));
-    loginBtn(ctx, LBTN.exist.x, LBTN.exist.y, LBTN.exist.w, LBTN.exist.h, 'Existing User', inRect(m.x, m.y, LBTN.exist));
-    drawTextC(ctx, 'p11', 'Grand Exchange PvP - World 301', W / 2, 372, 0xc8c8c0, true);
-  } else if (App.loginStage === 1) {
-    drawTextC(ctx, 'b12', 'Welcome to RuneScape', W / 2, 232, 0xffff00, true);
-    drawTextC(ctx, 'p11', App.msg || 'Enter your username & password.', W / 2, 252, 0xffffff, true);
-    const blink = Math.floor(performance.now() / 500) % 2 ? '|' : '';
-    drawText(ctx, 'b12', 'Username: ', 246, 278, 0xffffff, true); drawText(ctx, 'b12', App.user + (App.field === 0 ? blink : ''), 320, 278, 0xffff00, true);
-    drawText(ctx, 'b12', 'Password: ', 246, 298, 0xffffff, true); drawText(ctx, 'b12', '*'.repeat(App.pass.length) + (App.field === 1 ? blink : ''), 320, 298, 0xffff00, true);
-    loginBtn(ctx, LBTN.login.x, LBTN.login.y + 10, LBTN.login.w, LBTN.login.h, 'Login', inRect(m.x, m.y - 10, LBTN.login));
-    loginBtn(ctx, LBTN.cancel.x, LBTN.cancel.y + 10, LBTN.cancel.w, LBTN.cancel.h, 'Cancel', inRect(m.x, m.y - 10, LBTN.cancel));
-  } else {
-    drawTextC(ctx, 'b12', 'Connecting to server...', W / 2, 270, 0xffff00, true); drawTextC(ctx, 'p11', 'Please wait...', W / 2, 290, 0xffffff, true);
+function boot() {
+  const canvas = document.getElementById('c');
+  const world = new World3D(canvas, settings.quality), fx = new FX(world.scene);
+  const cam = { yaw: 0.6, pitch: 0.82, dist: 13, minDist: 6, maxDist: 24, x: C, z: C, shake: 0 };
+  const views = new Map(), timers = [], tmp = new THREE.Vector3(), rp = { x: 0, y: 0 };
+  let game = null, mode = 'title', acc = 0, last = performance.now(), deadTimer = 0, best = store.get('best', 0), fpsT = 0, fpsN = 0, mmT = 0;
+  Sound.setEnabled(settings.sound);
+  const buzz = ms => { if (settings.haptics && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* ignore */ } } };
+  const later = (t, fn) => timers.push({ t, fn });
+  const volAt = a => { const p = game.player; if (!p || mode === 'title') return 0.12; if (a === p) return 1; return clamp(1 - cheb(a.x, a.y, p.x, p.y) / 20, 0, 1) * 0.7; };
+
+  /* ---------------- views ---------------- */
+  function addView(a) {
+    if (views.has(a.id)) return views.get(a.id);
+    const ch = new Character(a.palette), v = { a, ch, pos: new THREE.Vector3(a.x + 0.5, 0, a.y + 0.5), chest: new THREE.Vector3(a.x + 0.5, 1.15, a.y + 0.5) };
+    ch.yaw = a.face; world.scene.add(ch.root); views.set(a.id, v); return v;
   }
-  ctx.drawImage(IC.cursor, m.x, m.y);
-}
-function loginDown(e) {
-  const p = clientPos(e); UI.mouse = p; if (App.mode !== 'login') return;
-  if (App.loginStage === 0) {
-    if (inRect(p.x, p.y, LBTN.exist) || inRect(p.x, p.y, LBTN.newUser)) App.loginStage = 1;
-  } else if (App.loginStage === 1) {
-    if (inRect(p.x, p.y - 10, LBTN.login)) doLogin();
-    else if (inRect(p.x, p.y - 10, LBTN.cancel)) App.loginStage = 0;
-    else if (p.y > 266 && p.y < 286) App.field = 0; else if (p.y >= 286 && p.y < 304) App.field = 1;
+  function dropView(id) { const v = views.get(id); if (!v) return; world.scene.remove(v.ch.root); v.ch.dispose(); views.delete(id); hud.removePlate(id); }
+  function screenOf(v3) { tmp.copy(v3).project(world.camera); return tmp.z < 1 && tmp.z > -1 ? { x: (tmp.x * 0.5 + 0.5) * world.w, y: (-tmp.y * 0.5 + 0.5) * world.h } : null; }
+  function splatAt(a, text, cls) { const v = views.get(a.id); if (!v || mode === 'title') return; tmp.copy(v.pos); tmp.y = 1.9; const s = screenOf(tmp); if (s) hud.splat(s.x, s.y, text, cls); }
+
+  /* ---------------- simulation events -> sights and sounds ---------------- */
+  function onEvent(type, d) {
+    const p = game.player;
+    if (type === 'spawn') { const v = addView(d.a); v.ch.age = 0; v.ch.dead = 0; fx.burst(d.a.x + 0.5, 1, d.a.y + 0.5, 0xbfe6ff, 22, 2.2, 0.3, 0.7, -1, 1.5); Sound.play('spawn', volAt(d.a) * 0.6); }
+    else if (type === 'remove') dropView(d.a.id);
+    else if (type === 'attack') {
+      const v = views.get(d.a.id), tv = views.get(d.t.id); if (!v || !tv) return; const vol = volAt(d.a);
+      v.ch.play(d.style === 'melee' && d.spec ? 'spin' : d.style);
+      if (d.spec) { fx.burst(v.pos.x, 1.2, v.pos.z, 0xffd76a, 26, 3, 0.34, 0.6, 0, 1); Sound.play('spec', vol); }
+      if (d.style === 'melee') Sound.play('swing', vol);
+      else {
+        const rel = d.style === 'ranged' ? 0.4 : 0.36, fly = Math.max(0.16, d.delay * TICK - rel);
+        later(rel, () => { if (!views.has(d.a.id)) return; tmp.copy(v.pos); tmp.y = d.style === 'ranged' ? 1.25 : 1.9; fx.shoot(d.style, tmp, tv.chest, fly, !!d.spec); Sound.play(d.style === 'ranged' ? 'bow' : 'cast', vol); });
+      }
+    } else if (type === 'hit') {
+      const show = () => {
+        const tv = views.get(d.t.id); if (!tv) return; const vol = Math.max(volAt(d.t), d.src === p ? 1 : 0), c = tv.chest, mine = d.t === p;
+        if (d.dmg > 0) {
+          splatAt(d.t, d.dmg, mine ? 'hit me' : (d.dmg >= 25 ? 'hit big' : 'hit'));
+          tv.ch.flash = 1; if (!tv.ch.act) tv.ch.play('hurt');
+          fx.burst(c.x, c.y, c.z, d.style === 'magic' ? 0x8fdcff : d.style === 'ranged' ? 0xffe9a8 : 0xffb070, 8 + Math.min(18, d.dmg), 3.2, 0.24, 0.45, 9, 1.5);
+          Sound.play(d.style === 'melee' ? 'hitMelee' : d.style === 'ranged' ? 'hitRanged' : 'hitMagic', vol);
+          if (d.warded) { fx.bubble(c, STYLE_COLOR[d.style]); Sound.play('ward', vol); }
+          if (mine) { hud.hurtFlash(); cam.shake = Math.min(0.5, 0.12 + d.dmg * 0.012); buzz(Math.min(60, 15 + d.dmg * 1.5)); Sound.play('hurt', 0.7); }
+        } else { splatAt(d.t, 'miss', 'miss'); Sound.play('miss', vol); }
+        if (d.froze) { fx.burst(c.x, 0.5, c.z, 0xbfeaff, 30, 3, 0.3, 0.8, 5, 2); Sound.play('freeze', vol); if (mine) hud.toast('Rooted! Switch to Bow or Staff and keep fighting.'); }
+      };
+      if (d.style === 'melee') later(d.late ? 0.5 : 0.26, show); else show();
+    } else if (type === 'eat' || type === 'tonic') {
+      const v = views.get(d.a.id); if (!v) return; v.ch.play('eat');
+      if (type === 'eat') { splatAt(d.a, '+' + d.heal, 'heal'); fx.burst(v.pos.x, 1.3, v.pos.z, 0x73e079, 12, 1.2, 0.22, 0.7, -1.5, 0.6); } else fx.burst(v.pos.x, 1.3, v.pos.z, 0x6ec8ff, 14, 1.2, 0.22, 0.7, -1.5, 0.6);
+      Sound.play(type, d.a === p ? 1 : volAt(d.a) * 0.4);
+    } else if (type === 'death') {
+      const v = views.get(d.a.id); if (v) fx.burst(v.pos.x, 1, v.pos.z, 0xff5a48, 30, 3.5, 0.3, 0.8, 8, 2);
+      Sound.play('death', Math.max(volAt(d.a), d.killer === p ? 1 : 0));
+      if (mode !== 'title') hud.feed(`<b>${d.killer ? esc(d.killer.name) : '?'}</b> defeated <i>${esc(d.a.name)}</i>`);
+      if (p && d.killer === p && d.a !== p) {
+        const s = game.stats; hud.banner(`${d.a.name.toUpperCase()} DEFEATED`, s.streak > 1 ? `STREAK x${s.streak}  ·  +${100 * Math.min(5, s.streak)}` : '+100'); Sound.play('kill'); buzz([30, 40, 60]);
+        if (s.best > best) { best = s.best; store.set('best', best); }
+      }
+      if (d.a === p) { deadTimer = 1.5; buzz(200); cam.shake = 0.6; }
+    } else if (type === 'stance') { const v = views.get(d.a.id); if (v) fx.burst(v.pos.x, 1.1, v.pos.z, STYLE_COLOR[d.a.stance], 8, 1.6, 0.2, 0.4, 0, 0.5); if (d.a === p) Sound.play('stance'); }
+    else if (type === 'ward') { if (d.a === p) Sound.play('wardUp', d.a.ward ? 1 : 0.5); }
+    else if (type === 'spec') { if (d.a === p && p.specArmed) Sound.play('spec', 0.6); }
+    else if (type === 'thaw') { fx.burst(d.a.x + 0.5, 0.5, d.a.y + 0.5, 0xbfeaff, 14, 2.5, 0.24, 0.6, 6, 1.5); }
+    else if (type === 'pickup') { fx.burst(d.x + 0.5, 0.6, d.y + 0.5, 0xffd76a, 20, 2.4, 0.28, 0.7, -1, 1.5); if (d.a === p) { Sound.play('pickup'); hud.toast('Loot: +4 food, +1 tonic, +20% special'); buzz(15); } }
+    else if (type === 'loot') fx.syncLoot(game.loot);
+    else if (type === 'msg') { if (mode === 'play') { hud.toast(d.text); Sound.play('deny'); } }
   }
-}
-function loginKey(e) {
-  if (App.mode !== 'login' || App.loginStage !== 1) return; const k = e.key;
-  if (k === 'Enter') { doLogin(); return; } if (k === 'Tab') { App.field ^= 1; e.preventDefault(); return; }
-  const f = App.field === 0 ? 'user' : 'pass';
-  if (k === 'Backspace') App[f] = App[f].slice(0, -1); else if (k.length === 1 && App[f].length < 12) { App[f] += k; e.preventDefault(); }
-}
-function doLogin() {
-  const nm = App.user.trim() || 'Pk_Player'; App.loginStage = 2;
-  setTimeout(() => { startGame(nm); }, 700);
-}
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
-/* ---------------- game start ---------------- */
-function startGame(name) {
-  if (!App.gameInit) { initWorldState(); App.gameInit = true; }
-  const pl = G.player; pl.name = name; respawnNow(pl);
-  UI.tab = 3; UI.menu = null; G.dialog = null; UI.chatInput = '';
-  G.msgs.length = 0; gameMsg('Welcome to RuneScape.');
-  gameMsg('You are at the Grand Exchange, Varrock - a multi-combat PvP zone.', 'game');
-  gameMsg('Right-click players to attack. Ice Barrage + special attacks win fights!');
-  App.mode = 'game'; G.lastTick = performance.now(); pl.protectUntil = G.tick + 25;
-}
-function respawnNow(a) {
-  a.dead = false; a.hp = a.maxHp; a.pp = a.stats.pray; a.cur = Object.assign({}, a.stats); a.run = 100; a.spec = 100; a.frozen = 0; a.skull = 0; a.anim = null; a.prayers.clear(); a.overhead = null;
-  const sp = spawnPoint(true); a.x = sp.x; a.y = sp.y; a.path.length = 0; a.target = null; a.seg.length = 0; a.splats.length = 0; applyLoadout(a, a.loadoutKind || 'main');
-}
-function initWorldState() {
-  initLoS(); createPlayer(); createClerks(); G.player.loadoutKind = 'main'; UI.botCount = 0; setBotCount(6);
-}
+  function newGame(opts) {
+    for (const id of Array.from(views.keys())) dropView(id);
+    timers.length = 0; hud.cache = {}; acc = 0; deadTimer = 0;
+    game = new Game(opts); game.on(onEvent); fx.syncLoot(game.loot);
+    for (const a of game.actors) addView(a);
+    window.__hm = { game, cam, views, world };
+  }
 
-/* ---------------- window fitting ---------------- */
-function fit() {
-  const wrap = document.getElementById('wrap'); const dpr = window.devicePixelRatio || 1;
-  let s = Math.min(innerWidth / W, innerHeight / H); s = Math.max(0.5, Math.min(s, 6));
-  let sd = s * dpr; const r = Math.round(sd);
-  if (Math.abs(sd - r) < 0.1 * dpr || UI.sharp) sd = UI.sharp && sd >= 1 ? Math.floor(sd) : (Math.abs(sd - r) < 0.1 * dpr ? r : sd);
-  s = sd / dpr; App.scale = s;
-  const integer = sd === Math.floor(sd) && sd >= 1;
-  for (const c of [App.glCanvas, INP.canvas]) if (c) c.style.imageRendering = integer ? 'pixelated' : 'auto';
-  wrap.style.transform = 'translate(' + Math.floor((innerWidth - W * s) / 2) + 'px,' + Math.floor((innerHeight - H * s) / 2) + 'px) scale(' + s + ')';
-}
+  /* ---------------- player actions ---------------- */
+  const playing = () => mode === 'play' && game.player && !game.player.dead;
+  function tapWorld(x, y) {
+    if (!playing()) return; const p = game.player;
+    // fighters first: generous touch targets around each projected body
+    let bestA = null, bd = 1e9;
+    for (const v of views.values()) {
+      const a = v.a; if (a === p || a.dead) continue;
+      tmp.copy(v.pos); const f = screenOf(tmp); tmp.copy(v.pos); tmp.y = 1.9; const h = screenOf(tmp); if (!f || !h) continue;
+      const hh = Math.max(30, f.y - h.y), rad = Math.max(coarse ? 30 : 20, hh * 0.5), cx = (f.x + h.x) / 2, cy = (f.y + h.y) / 2;
+      if (Math.abs(x - cx) < rad && y > h.y - rad * 0.6 && y < f.y + rad * 0.5) { const dd = Math.hypot(x - cx, y - cy); if (dd < bd) { bd = dd; bestA = a; } }
+    }
+    if (bestA) { game.cmdAttack(bestA); const v = views.get(bestA.id); fx.marker(v.pos.x, v.pos.z, 0xff4433); Sound.play('ui'); buzz(8); return; }
+    // otherwise walk: intersect the tap ray with the ground plane
+    tmp.set(x / world.w * 2 - 1, -(y / world.h) * 2 + 1, 0.5).unproject(world.camera).sub(world.camera.position).normalize();
+    if (tmp.y > -0.02) return; const t = -world.camera.position.y / tmp.y, gx = world.camera.position.x + tmp.x * t, gz = world.camera.position.z + tmp.z * t;
+    if (Math.hypot(gx - C, gz - C) > 30) return;
+    game.cmdMove(Math.floor(gx), Math.floor(gz)); const dst = p.path.length ? p.path[p.path.length - 1] : p;
+    fx.marker(dst.x + 0.5, dst.y + 0.5, 0xffe066); Sound.play('ui', 0.5);
+  }
+  function cycleTarget() {
+    if (!playing()) return; const p = game.player;
+    const list = game.actors.filter(a => a !== p && !a.dead).sort((a, b) => cheb(a.x, a.y, p.x, p.y) - cheb(b.x, b.y, p.x, p.y)); if (!list.length) return;
+    const t = list[(list.indexOf(p.target) + 1) % Math.min(list.length, 4)]; game.cmdAttack(t); const v = views.get(t.id); if (v) fx.marker(v.pos.x, v.pos.z, 0xff4433); Sound.play('ui'); buzz(8);
+  }
+  const act = {
+    stance: s => { if (playing()) { game.setStance(game.player, s); buzz(8); } },
+    ward: s => { if (playing()) { game.setWard(game.player, s); buzz(8); } },
+    eat: () => { if (playing()) { const p = game.player; if (!game.eat(p)) { Sound.play('deny'); hud.toast(p.food <= 0 ? 'No food left - grab loot from fallen fighters.' : p.hp >= p.maxHp ? 'Already at full health.' : 'Still chewing...'); } } },
+    tonic: () => { if (playing()) { const p = game.player; if (!game.tonic(p)) { Sound.play('deny'); hud.toast(p.tonics <= 0 ? 'No tonics left.' : p.focus >= 100 ? 'Focus is already full.' : 'Not yet...'); } } },
+    spec: () => { if (playing()) { game.toggleSpec(game.player); buzz(12); } },
+    cycle: cycleTarget,
+    pause: () => { if (mode === 'play') { mode = 'pause'; hud.setOptions(settings); hud.show('pause'); Sound.play('ui'); } },
+    resume: () => { if (mode === 'pause') { mode = 'play'; hud.show('game'); last = performance.now(); } },
+    play: diff => { Sound.unlock(); newGame({ difficulty: diff }); mode = 'play'; hud.show('game'); const p = game.player; cam.yaw = Math.atan2(p.x - C, p.y - C); cam.pitch = 0.82; cam.dist = 13; cam.x = p.x + 0.5; cam.z = p.y + 0.5; Sound.play('spawn'); hud.toast('Tap a rival to attack. Match your ward to their weapon.'); },
+    respawn: () => { if (mode === 'dead') { game.respawnPlayer(); mode = 'play'; hud.show('game'); hud.cache = {}; } },
+    quit: () => { newGame({ spectate: true, difficulty: 'normal' }); mode = 'title'; hud.show('title', { best }); },
+    quality: q => { settings.quality = q; autoQuality = false; store.set('quality', q); world.setQuality(q); hud.setOptions(settings); },
+    sound: () => { settings.sound = !settings.sound; store.set('sound', settings.sound); Sound.setEnabled(settings.sound); hud.setOptions(settings); },
+    haptics: () => { settings.haptics = !settings.haptics; store.set('haptics', settings.haptics); hud.setOptions(settings); buzz(20); }
+  };
+  const hud = new HUD(act);
+  const KEYS = { '1': () => act.stance('melee'), '2': () => act.stance('ranged'), '3': () => act.stance('magic'), q: () => act.ward('melee'), w: () => act.ward('ranged'), e: () => act.ward('magic'),
+    f: act.eat, r: act.tonic, ' ': act.spec, Tab: act.cycle, Escape: () => (mode === 'pause' ? act.resume() : act.pause()), p: () => (mode === 'pause' ? act.resume() : act.pause()) };
+  const input = initInput(canvas, cam, { tap: tapWorld, gesture: () => Sound.unlock(), key: k => { if (KEYS[k] && mode !== 'title') { KEYS[k](); return true; } return false; } });
+  document.addEventListener('pointerdown', () => Sound.unlock(), { once: true });
+  addEventListener('resize', () => world.resize()); addEventListener('orientationchange', () => setTimeout(() => world.resize(), 250));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { act.pause(); Sound.suspend(); } else { Sound.resume(); last = performance.now(); } });
 
-/* ---------------- main loop ---------------- */
-function frame(t) {
+  newGame({ spectate: true, difficulty: 'normal' }); hud.show('title', { best });
+
+  /* ---------------- frame loop ---------------- */
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const running = mode !== 'pause';
+    if (running) {
+      acc += dt; let guard = 0; while (acc >= TICK && guard++ < 4) { game.step(); acc -= TICK; } if (acc >= TICK) acc = 0;
+      for (let i = timers.length - 1; i >= 0; i--) { const t = timers[i]; t.t -= dt; if (t.t <= 0) { timers.splice(i, 1); t.fn(); } }
+      if (deadTimer > 0) { deadTimer -= dt; if (deadTimer <= 0 && game.player && game.player.dead) { mode = 'dead'; const s = game.stats, k = game.player.lastAttacker; hud.show('dead', { by: k && k.name, streak: s.lastStreak || 0, kills: s.kills, best }); } }
+    }
+    const frac = acc / TICK, p = game.player, sdt = running ? dt : 0;
+    for (const v of views.values()) {
+      const a = v.a; renderPos(a, frac, rp); v.pos.set(rp.x, 0, rp.y); v.chest.set(rp.x, a.dead ? 0.4 : 1.15, rp.y);
+      v.ch.update(sdt, { x: rp.x, z: rp.y, face: a.face, dead: a.dead, frozen: a.frozen > 0, stance: a.stance });
+    }
+    // camera
+    input.update(dt);
+    if (mode === 'title') { cam.yaw += dt * 0.07; cam.pitch = 0.42; cam.dist = 27; cam.x = C + 0.5; cam.z = C + 0.5; }
+    else if (p) { const pv = views.get(p.id); if (pv) { const k = 1 - Math.exp(-dt * 9); cam.x += (pv.pos.x - cam.x) * k; cam.z += (pv.pos.z - cam.z) * k; } }
+    cam.shake = Math.max(0, cam.shake - dt * 1.6);
+    const ch = Math.cos(cam.pitch) * cam.dist, sh = cam.shake * cam.shake * 1.2, c3 = world.camera;
+    c3.position.set(cam.x + Math.sin(cam.yaw) * ch + (Math.random() - 0.5) * sh, Math.sin(cam.pitch) * cam.dist + 1 + (Math.random() - 0.5) * sh, cam.z + Math.cos(cam.yaw) * ch + (Math.random() - 0.5) * sh);
+    c3.lookAt(cam.x, 1.1, cam.z); c3.updateMatrixWorld();
+    world.setHole(mode !== 'title' && p && views.get(p.id) ? views.get(p.id).chest : null);
+    // rings, effects, world animation
+    const tv = p && p.target && !p.target.dead ? views.get(p.target.id) : null;
+    fx.targetRing.visible = !!tv; if (tv) fx.targetRing.position.set(tv.pos.x, 0.07, tv.pos.z);
+    const pv = p && !p.dead && mode !== 'title' ? views.get(p.id) : null; fx.selfRing.visible = !!pv; if (pv) fx.selfRing.position.set(pv.pos.x, 0.07, pv.pos.z);
+    if (running) {
+      for (const f of world.flames) if (Math.random() < dt * 14) fx.spark(f.x + (Math.random() - 0.5) * 0.3, 1.6, f.z + (Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3, 1.2 + Math.random(), (Math.random() - 0.5) * 0.3, 1, 0.55, 0.15, 0.2, 0.9, -0.4);
+      for (const v of views.values()) if (v.a.specArmed && Math.random() < dt * 20) fx.spark(v.pos.x + (Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 1.6, v.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 1, 0.8, 0.3, 0.2, 0.5);
+      fx.update(dt, world.time, world.h); world.update(dt);
+    }
+    // HUD
+    if (mode !== 'title') {
+      for (const v of views.values()) {
+        const a = v.a; tmp.copy(v.pos); tmp.y = 2.05; const s = a.dead ? null : screenOf(tmp);
+        hud.setPlate(a, s ? s.x : 0, s ? s.y : 0, !!s, !!(p && p.target === a));
+      }
+      hud.update(game, dt);
+      mmT -= dt; if (mmT <= 0) { mmT = 0.1; hud.minimap(game, cam.yaw, a => views.get(a.id) ? views.get(a.id).pos : { x: a.x, z: a.y }); }
+    }
+    world.render();
+    // automatic quality step-down on slow devices (only until the player picks a setting themselves)
+    if (autoQuality && running) {
+      fpsT += dt; fpsN++;
+      if (fpsT >= 4) { const fps = fpsN / fpsT; fpsT = 0; fpsN = 0; if (fps < 30 && settings.quality !== 'low') { settings.quality = settings.quality === 'high' ? 'med' : 'low'; world.setQuality(settings.quality); } }
+    }
+  }
   requestAnimationFrame(frame);
-  const ctx = App.ctx; const dt = Math.min(0.1, (t - (App.prev || t)) / 1000); App.prev = t; G.now = t;
-  if (App.mode === 'load') { drawLoading(ctx); return; }
-  if (App.mode === 'login') { App.glCanvas.style.visibility = 'hidden'; drawLogin(ctx); return; }
-  App.glCanvas.style.visibility = 'visible';
-  // ticks
-  if (t - G.lastTick > 3000) G.lastTick = t;
-  while (t - G.lastTick >= TICK_MS) { G.lastTick += TICK_MS; gameTick(); }
-  const frac = (t - G.lastTick) / TICK_MS;
-  const cam = App.cam, pl = G.player;
-  updateCameraKeys(dt);
-  const rp = renderPos(pl, frac); const gh = groundH(rp[0], rp[1]);
-  cam.tx = rp[0]; cam.ty = gh + 0.6; cam.tz = -rp[1]; cam.update();
-  drawDynamic(frac, dt, cam); updateScreenInfo(cam, frac);
-  const R = App.R; R.begin(cam);
-  for (const g of WORLD.statics) R.drawGPU(g);
-  R.drawDynamic(DYN);
-  R.setDepthWrite(false); R.drawDynamic(BLD); R.setDepthWrite(true);
-  updateHover();
-  drawUI(ctx, cam);
 }
 
-async function boot() {
-  const ui = document.getElementById('ui'), glc = document.getElementById('gl');
-  App.ctx = ui.getContext('2d'); App.ctx.imageSmoothingEnabled = false; App.glCanvas = glc; INP.canvas = ui; INP.glCanvas = glc;
-  fit(); addEventListener('resize', fit); window.fitClient = fit;
-  await initFonts(); requestAnimationFrame(frame);
-  const steps = [
-    ['Loading textures', () => { App.R = new Renderer(glc); App.R.fogCol = [0.02, 0.02, 0.02]; App.R.fogRange = [34, 62]; }],
-    ['Constructing the Grand Exchange', () => buildWorld(App.R)],
-    ['Preparing interface', () => { buildAllIcons(); buildFrame(); }],
-    ['Loading items', () => { for (const id in ITEMS) itemIcon(id); }],
-    ['Preparing camera', () => { App.cam = new Camera(); App.cam.yaw = 0; App.cam.pitch = 0.95; App.cam.dist = 17; INP.cam = App.cam; }]
-  ];
-  for (let i = 0; i < steps.length; i++) { App.status = steps[i][0] + '.'; App.progress = i / steps.length; await tick(); await tick(); steps[i][1](); }
-  App.progress = 1; App.status = 'Loaded'; await tick();
-  ui.addEventListener('mousedown', onDown); addEventListener('mouseup', onUp); addEventListener('mousemove', onMove);
-  ui.addEventListener('wheel', onWheel, { passive: false }); ui.addEventListener('contextmenu', e => e.preventDefault());
-  addEventListener('keydown', onKeyDown); addEventListener('keyup', onKeyUp);
-  ui.style.cursor = 'none';
-  const q = new URLSearchParams(location.search);
-  setTimeout(() => { App.mode = 'login'; if (q.get('auto')) { App.loginStage = 1; startGame(App.user); } }, 350);
+try { boot(); } catch (err) {
+  console.error(err); const f = document.getElementById('fatal'); f.classList.remove('hidden');
+  f.textContent = 'Hollowmere Arena could not start.\n\nThis game needs WebGL - try a current version of Chrome, Safari or Firefox.\n\n' + (err && err.message || err);
 }
-boot().catch(err => { console.error(err); document.body.insertAdjacentHTML('beforeend', '<pre style="position:fixed;left:0;top:0;color:#f88;background:#200;padding:8px;z-index:9">' + (err && err.stack || err) + '</pre>'); });

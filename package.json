@@ -1,0 +1,15 @@
+{
+  "name": "hollowmere-arena",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Hollowmere Arena - a mobile-first 3D tick-combat arena brawler",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "dev": "node tools/build.mjs --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "three": "^0.187.0"
+  }
+}
