@@ -134,15 +134,15 @@ export class World3D {
       for (const [name, size] of [['position', 3], ['normal', 3], ['uv', 2]]) { const a = src.attributes[name], out = new Float32Array(a.count * size); for (let i = 0; i < a.count; i++) { out[i * size] = a.getX(i); out[i * size + 1] = a.getY(i); if (size === 3) out[i * size + 2] = a.getZ(i); } g.setAttribute(name, new THREE.BufferAttribute(out, size)); }
       g.setIndex(src.index ? Array.from(src.index.array) : Array.from({ length: src.attributes.position.count }, (_, i) => i)); cache.set(src, g); return g;
     };
-    const put = (name, x, y, z, ry, sc, group = '') => {
+    const put = (name, x, y, z, ry, sc, group = '', sy = 1) => {
       const node = Assets.env[name]; if (!node) { console.warn('missing model', name); return; }
-      node.updateMatrixWorld(true); M.compose(v.set(x, y, z), q.setFromEuler(e.set(0, ry, 0)), s.set(sc, sc, sc));
+      node.updateMatrixWorld(true); M.compose(v.set(x, y, z), q.setFromEuler(e.set(0, ry, 0)), s.set(sc, sc * sy, sc));
       node.traverse(o => {
         if (!o.isMesh) return; const g = floatGeo(o).clone().applyMatrix4(mm.multiplyMatrices(M, o.matrixWorld));
         const key = o.material.uuid + '|' + (group || (Math.floor(x / 32) + ',' + Math.floor(z / 32))); let b = buckets.get(key); if (!b) buckets.set(key, b = { mat: o.material, list: [], far: !!group }); b.list.push(g);
       });
     };
-    for (const p of props) put(p.m, p.x, p.y, p.z, p.ry, p.s);
+    for (const p of props) put(p.m, p.x, p.y, p.z, p.ry, p.s, '', p.sy || 1);
     // paving: town square, bank floor, and the worn plaza of the ruins
     const rnd = mulberry32(5), small = ['floor_tile_small', 'floor_tile_small_broken_A', 'floor_tile_small_broken_B', 'floor_tile_small_weeds_A', 'floor_tile_small_weeds_B', 'floor_tile_small'];
     const pave = (cx, cz, worn) => { if (rnd() > worn) put('floor_tile_large', cx, 0.06, cz, Math.floor(rnd() * 4) * Math.PI / 2, 0.5); else for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) if (rnd() > worn * 0.25) put(small[Math.floor(rnd() * small.length)], cx + dx, 0.06, cz + dz, Math.floor(rnd() * 4) * Math.PI / 2, 0.5); };

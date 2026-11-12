@@ -38,13 +38,14 @@ export function takeItem(inv, id, n = 1) {
 }
 export function newSave() {
   const inv = new Array(INV_SIZE).fill(null); addItem(inv, 'bread', 8); addItem(inv, 'tonic', 2);
-  return { v: 2, eq: { blade: 'blade0', bow: 'bow0', staff: 'staff0', plate: 'plate0', leather: 'leather0', robe: 'robe0' }, inv, coins: 60, bank: { coins: 0, items: { roast: 4 } }, xp: 0, kills: 0, deaths: 0, best: 0, bossKills: 0, skills: { wood: 0, mine: 0, fish: 0, cook: 0 }, count: {}, tasks: {} };
+  return { v: 2, eq: { blade: 'blade0', bow: 'bow0', staff: 'staff0', plate: 'plate0', leather: 'leather0', robe: 'robe0' }, inv, coins: 60, bank: { coins: 0, items: { roast: 4 } }, xp: 0, kills: 0, deaths: 0, best: 0, bossKills: 0, skills: { wood: 0, mine: 0, fish: 0, cook: 0, smith: 0 }, count: {}, tasks: {} };
 }
 export const levelOf = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp / 90)));
 export const xpForLevel = l => (l - 1) * (l - 1) * 90;
 
 /* ---- gathering skills ---- */
-export const SKILLS = { wood: { name: 'Woodcutting', verb: 'CHOPPING' }, mine: { name: 'Mining', verb: 'MINING' }, fish: { name: 'Fishing', verb: 'FISHING' }, cook: { name: 'Cooking', verb: 'COOKING' } };
+export const SKILLS = { wood: { name: 'Woodcutting', verb: 'CHOPPING' }, mine: { name: 'Mining', verb: 'MINING' }, fish: { name: 'Fishing', verb: 'FISHING' }, cook: { name: 'Cooking', verb: 'COOKING' }, smith: { name: 'Smithing', verb: 'FORGING' } };
+export const FORGE = [null, { ore: 6, logs: 2, lvl: 1 }, { ore: 18, logs: 6, lvl: 5 }, { ore: 45, logs: 15, lvl: 12 }, { ore: 110, logs: 35, lvl: 20 }];
 export const NODE = { tree: { skill: 'wood', item: 'logs', xp: 25, cap: [3, 6], regrow: 45, name: 'Tree' }, rock: { skill: 'mine', item: 'ore', xp: 35, cap: [2, 4], regrow: 40, name: 'Ore rock' },
   fish: { skill: 'fish', item: 'rawfish', xp: 30, name: 'Fishing spot' }, fire: { skill: 'cook', item: 'trout', xp: 30, name: 'Campfire' } };
 export const skillLevel = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp / 40)));
@@ -57,6 +58,7 @@ export const TASKS = [
   { id: 'bank', t: 'Deposit coins in the vault', r: 30, ok: s => s.bank.coins > 0 },
   { id: 'wood', t: 'Chop 10 logs in the eastern forest', r: 50, ok: s => c(s, 'logs') >= 10 },
   { id: 'ore', t: 'Mine 10 ore at the north-east mine', r: 80, ok: s => c(s, 'ore') >= 10 },
+  { id: 'forge', t: 'Forge a piece of gear at the Smith from your own ore', r: 120, ok: s => c(s, 'forged') >= 1 },
   { id: 'undead', t: 'Defeat 5 undead in the Barrow Yard', r: 60, ok: s => c(s, 'undead') >= 5 },
   { id: 'steel', t: 'Wield a Steel (or better) weapon', r: 60, ok: s => ['blade', 'bow', 'staff'].some(k => ITEMS[s.eq[k]].tier >= 1) },
   { id: 'warden', t: 'Defeat the Barrow Warden', r: 250, ok: s => s.bossKills >= 1 },

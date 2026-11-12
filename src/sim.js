@@ -2,7 +2,7 @@
    Rendering-free and event driven, so it also runs headless (tools/simtest.mjs). */
 import { STYLES, ACC, SPECIALS, WARD_REDUCE, DEADEYE_WARD_REDUCE, EAT_DELAY, BOT_NAMES, rint, pick, chance, clamp, lerp } from './data.js';
 import { SPAWN, WILDS, GRAVE, npcSpots, nodes as WORLD_NODES, zoneAt, canStep, hasLoS, findPath, cheb, randomFreeTile, DIRS } from './world.js';
-import { ITEMS, TIERS, SLOTS, WEAPON_SLOT, ARMOUR_SLOT, INV_SIZE, weaponMul, weaponAcc, armourCut, addItem, takeItem, countItem, newSave, levelOf, sellPrice, NODE, SKILLS, TASKS, skillLevel } from './items.js';
+import { ITEMS, TIERS, SLOTS, WEAPON_SLOT, ARMOUR_SLOT, INV_SIZE, weaponMul, weaponAcc, armourCut, addItem, takeItem, countItem, newSave, levelOf, sellPrice, NODE, SKILLS, TASKS, FORGE, skillLevel } from './items.js';
 import { botThink, monsterThink } from './ai.js';
 
 let NEXT_ID = 1;
@@ -18,7 +18,7 @@ export class Game {
   constructor(opts = {}) {
     this.tick = 0; this.actors = []; this.hitQ = []; this.loot = []; this.listeners = []; this.respawns = []; this.usedNames = new Set(); this.dirty = false;
     this.save = opts.save || newSave(); this.player = null; this.streak = 0; this.rev = 0;
-    const sv = this.save; sv.skills = Object.assign({ wood: 0, mine: 0, fish: 0, cook: 0 }, sv.skills); sv.count = sv.count || {}; sv.tasks = sv.tasks || {};
+    const sv = this.save; sv.skills = Object.assign({ wood: 0, mine: 0, fish: 0, cook: 0, smith: 0 }, sv.skills); sv.count = sv.count || {}; sv.tasks = sv.tasks || {};
     this.nodes = WORLD_NODES.map((n, i) => Object.assign({ id: i, left: NODE[n.type].cap ? NODE[n.type].cap[0] + rint(NODE[n.type].cap[1]) : 0, depleted: false, regrowAt: 0 }, n));
     if (!opts.spectate) {
       const p = this.player = this.makeActor({ name: 'You', kind: 'player', isPlayer: true, look: 'hero', team: 'ffa', x: SPAWN.x, y: SPAWN.y });
@@ -123,6 +123,15 @@ if (a.isPlayer) { // smallest food that covers the wound, otherwise the biggest 
     const s = this.save, price = ITEMS[id].price; if (s.coins + s.bank.coins < price) { this.emit('msg', { text: 'Not enough coins.' }); return false; }
     if (!addItem(this.player.inv, id)) { this.emit('msg', { text: 'Your bag is full.' }); return false; }
     const c = Math.min(s.coins, price); s.coins -= c; s.bank.coins -= price - c; this.refreshPlayer(); this.emit('trade', {}); return true;
+  }
+  /* smith your own gear from ore and logs instead of paying coins */
+  forge(id) {
+    const p = this.player, s = this.save, F = FORGE[ITEMS[id].tier], lvl = skillLevel(s.skills.smith);
+    if (lvl < F.lvl) { this.emit('msg', { text: `Needs Smithing level ${F.lvl}. Forge simpler pieces first.` }); return false; }
+    if (countItem(p.inv, 'ore') < F.ore || countItem(p.inv, 'logs') < F.logs) { this.emit('msg', { text: `Needs ${F.ore} ore and ${F.logs} logs in your bag.` }); return false; }
+    takeItem(p.inv, 'ore', F.ore); takeItem(p.inv, 'logs', F.logs); if (!addItem(p.inv, id)) { addItem(p.inv, 'ore', F.ore); addItem(p.inv, 'logs', F.logs); this.emit('msg', { text: 'Your bag is full.' }); return false; }
+    s.skills.smith += F.ore * 22; s.count.forged = (s.count.forged || 0) + 1; const l2 = skillLevel(s.skills.smith); if (l2 > lvl) this.emit('skill', { name: 'Smithing', level: l2 });
+    this.refreshPlayer(); this.emit('trade', {}); return true;
   }
   sell(i) { const p = this.player, s = p.inv[i]; if (!s) return; this.save.coins += sellPrice(s.id); s.n--; if (s.n <= 0) p.inv[i] = null; this.refreshPlayer(); this.emit('trade', {}); }
 

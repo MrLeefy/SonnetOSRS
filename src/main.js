@@ -161,7 +161,7 @@ async function boot() {
     cycle: cycleTarget,
     useSlot: i => { if (playing()) game.useSlot(i); }, dropSlot: i => { if (playing()) game.dropSlot(i); },
     deposit: i => game.deposit(i), withdraw: id => game.withdraw(id), depositAll: () => { game.depositAll(); Sound.play('pickup', 0.6); }, coins: toBank => { game.moveCoins(toBank); Sound.play('pickup', 0.6); },
-    buy: id => game.buy(id), sell: i => game.sell(i),
+    buy: id => game.buy(id), sell: i => game.sell(i), forge: id => game.forge(id),
     pause: () => { if (mode === 'play') { mode = 'pause'; hud.setOptions(settings); hud.show('pause'); Sound.play('ui'); persist(); } },
     resume: () => { if (mode === 'pause') { mode = 'play'; hud.show('game'); last = performance.now(); } },
     play: () => { Sound.unlock(); newGame({ save: save || undefined }); mode = 'play'; hud.show('game'); const p = game.player; cam.yaw = 0; cam.pitch = 0.82; cam.dist = 13; cam.x = p.x + 0.5; cam.z = p.y + 0.5; Sound.play('spawn');

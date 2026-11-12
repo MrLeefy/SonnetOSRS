@@ -41,7 +41,7 @@ export function blockAt(x, y) { return inMap(x, y) ? grid[y * N + x] : 2; }
 export function passable(x, y) { return inMap(x, y) && grid[y * N + x] === 0; }
 function setBlock(x, y, v) { x = Math.floor(x); y = Math.floor(y); if (inMap(x, y)) grid[y * N + x] = Math.max(grid[y * N + x], v); }
 function rect(x0, y0, w, h, v = 2) { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) setBlock(x, y, v); }
-function P(m, x, z, ry = 0, s = 0.5, y = 0) { props.push({ m, x, z, y, ry, s }); }
+function P(m, x, z, ry = 0, s = 0.5, y = 0, sy = 1) { props.push({ m, x, z, y, ry, s, sy }); }
 const free = (x, y) => blockAt(Math.floor(x), Math.floor(y)) === 0;
 
 (function build() {
@@ -106,9 +106,9 @@ const free = (x, y) => blockAt(Math.floor(x), Math.floor(y)) === 0;
 
   /* ---------------- forest and mine (resource areas) ---------------- */
   P('building_lumbermill_blue', 88, 70, -Math.PI / 2, B); rect(85, 67, 7, 7); P('resource_lumber', 83.5, 71.5, 0.5, 4); setBlock(83, 71, 1);
-  for (let i = 0; i < 46; i++) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * FOREST.r, x = Math.floor(FOREST.x + Math.cos(a) * r), y = Math.floor(FOREST.y + Math.sin(a) * r); if (!free(x, y) || roadDist(x, y) < 2) continue; setBlock(x, y, 2); if (i % 9 === 8) P('tree_single_A_cut', x + 0.5, y + 0.5, rnd() * 6, 4.5); else nodes.push({ type: 'tree', x, y, m: pick(['tree_single_A', 'tree_single_B', 'tree_single_B']), ry: rnd() * 6, s: R(3.8, 5.2) }); }
+  for (let i = 0; i < 46; i++) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * FOREST.r, x = Math.floor(FOREST.x + Math.cos(a) * r), y = Math.floor(FOREST.y + Math.sin(a) * r); if (!free(x, y) || roadDist(x, y) < 2) continue; setBlock(x, y, 2); if (i % 9 === 8) P('tree_single_A_cut', x + 0.5, y + 0.5, rnd() * 6, 2.4); else nodes.push({ type: 'tree', x, y, m: pick(['tree_single_A', 'tree_single_B', 'tree_single_B']), ry: rnd() * 6, s: R(2.0, 2.7), sy: R(1.4, 1.8) }); }
   P('mountain_B', 86, 33, 0.6, 8); rect(80, 27, 13, 12); P('building_mine_blue', 81, 40.5, Math.PI, 5); rect(77, 37, 8, 6);
-  for (let i = 0; i < 26; i++) { const a = rnd() * 6.28, x = Math.floor(MINE.x + Math.cos(a) * R(4, 8)), y = Math.floor(MINE.y + 3 + Math.sin(a) * R(3, 7)); if (!free(x, y) || roadDist(x, y) < 1.5) continue; setBlock(x, y, 1); if (i % 4 === 3) P('resource_stone', x + 0.5, y + 0.5, rnd() * 6, 3.5); else nodes.push({ type: 'rock', x, y, m: pick(['rock_single_C', 'rock_single_E']), ry: rnd() * 6, s: R(4.5, 6) }); }
+  for (let i = 0; i < 26; i++) { const a = rnd() * 6.28, x = Math.floor(MINE.x + Math.cos(a) * R(4, 8)), y = Math.floor(MINE.y + 3 + Math.sin(a) * R(3, 7)); if (!free(x, y) || roadDist(x, y) < 1.5) continue; setBlock(x, y, 1); if (i % 4 === 3) P('resource_stone', x + 0.5, y + 0.5, rnd() * 6, 3.5); else nodes.push({ type: 'rock', x, y, m: pick(['rock_single_C', 'rock_single_E']), ry: rnd() * 6, s: R(3.2, 4.2) }); }
 
   // fishing spots just off the southern and eastern shore, and a cooking fire beside the tavern
   for (const ang of [0.5, 0.8, 1.1, 1.9, 2.2, 2.5, 2.8]) for (let d = 30; d < 50; d += 0.5) {
@@ -122,8 +122,8 @@ const free = (x, y) => blockAt(Math.floor(x), Math.floor(y)) === 0;
     const x = Math.floor(R(3, 93)), y = Math.floor(R(3, 93)); if (!free(x, y) || roadDist(x, y) < 2.2 || zoneAt(x, y) === 'town') continue;
     if (Math.hypot(x - W.x, y - W.y) < 17 || Math.hypot(x - G.x, y - G.y) < 11) continue;
     const t = rnd();
-    if (t < 0.62) { setBlock(x, y, 2); P(pick(['tree_single_A', 'tree_single_B', 'hw_tree_pine_yellow_medium']), x + 0.5, y + 0.5, rnd() * 6, t < 0.5 ? R(3.4, 5.2) : 0.5); }
-    else if (t < 0.85) { setBlock(x, y, 1); P(pick(['rock_single_C', 'rock_single_E', 'rock_single_A']), x + 0.5, y + 0.5, rnd() * 6, R(3.5, 6)); }
+    if (t < 0.62) { setBlock(x, y, 2); if (t < 0.48) P(pick(['tree_single_A', 'tree_single_B']), x + 0.5, y + 0.5, rnd() * 6, R(2.0, 2.9), 0, R(1.4, 1.8)); else P(pick(['hw_tree_pine_yellow_medium', 'hw_tree_pine_orange_large']), x + 0.5, y + 0.5, rnd() * 6, R(0.42, 0.6)); }
+    else if (t < 0.85) { setBlock(x, y, 1); P(pick(['rock_single_C', 'rock_single_E', 'rock_single_A']), x + 0.5, y + 0.5, rnd() * 6, R(2.0, 3.4)); }
     else if (zoneAt(x, y) === 'wilds') { setBlock(x, y, 1); P(pick(['rubble_half', 'hw_gravestone', 'column']), x + 0.5, y + 0.5, rnd() * 6, 0.4); }
   }
 })();

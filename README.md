@@ -3,7 +3,10 @@
 A mobile-first 3D adventure with tick-based "read and react" combat. Gear up in a safe town, bank your coins,
 hunt the undead of the Barrow Yard, and risk what you carry against rival fighters in the Ashen Wilds.
 
-**Play:** open `dist/index.html` in a current mobile or desktop browser (needs WebGL2). It is one self-contained
+**Play on a phone:** host the repo with GitHub Pages (Settings -> Pages -> Deploy from a branch -> pick the branch, folder `/ (root)`), then open
+`https://<user>.github.io/<repo>/`. Viewing the file on github.com only shows its source.
+
+**Play locally:** open `dist/index.html` in a current mobile or desktop browser (needs WebGL2). It is one self-contained
 file - no install, no network. Portrait and landscape both work. Progress saves on the device.
 
 ## The island
@@ -34,6 +37,7 @@ Dying outside town drops the coins and supplies you were carrying (worn gear is 
 - **Specials** cost 50% energy: Twin Fang, Deadeye, Frostbind.
 - **Skills**: Woodcutting, Mining, Fishing and Cooking each level up with use (higher level = more successes). Tap a tree, rock,
   ripple or the campfire by the tavern. Logs and ore sell at the Market; cooked trout is free food.
+- **Smithing**: at the Smith, forge gear from your own ore and logs instead of paying coins; higher tiers need a higher Smithing level.
 - **Tasks** (bag button, Tasks tab) walk a new character through every activity and pay coins.
 
 ## Development

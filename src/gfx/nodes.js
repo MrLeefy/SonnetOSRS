@@ -5,14 +5,14 @@ import { Assets } from '../assets.js';
 export class Nodes {
   constructor(scene, list, wrap) {
     this.scene = scene; this.v = new Map(); this.ripples = []; this.flames = [];
-    const ore = new Map(), plain = new Map(), inst = (name, n, s, tint) => {
-      const o = Assets.env[name].clone(true); o.position.set(n.x + 0.5, 0, n.y + 0.5); o.rotation.y = n.ry || 0; o.scale.setScalar(s);
+    const ore = new Map(), plain = new Map(), inst = (name, n, s, tint, sy = 1) => {
+      const o = Assets.env[name].clone(true); o.position.set(n.x + 0.5, 0, n.y + 0.5); o.rotation.y = n.ry || 0; o.scale.set(s, s * sy, s);
       o.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; if (tint) { if (!ore.has(m.material)) { const c = wrap(m.material.clone()); c.color.set(tint); ore.set(m.material, c); } m.material = ore.get(m.material); } else { if (!plain.has(m.material)) plain.set(m.material, wrap(m.material.clone())); m.material = plain.get(m.material); } } });
       scene.add(o); return o;
     };
     const ringGeo = new THREE.RingGeometry(0.25, 0.33, 24); ringGeo.rotateX(-Math.PI / 2);
     for (const n of list) {
-      if (n.type === 'tree') this.v.set(n.id, { full: inst(n.m, n, n.s), empty: inst('tree_single_A_cut', n, n.s * 0.9) });
+      if (n.type === 'tree') this.v.set(n.id, { full: inst(n.m, n, n.s, null, n.sy), empty: inst('tree_single_A_cut', n, n.s) });
       else if (n.type === 'rock') this.v.set(n.id, { full: inst(n.m, n, n.s, 0xd9925a), empty: inst(n.m, n, n.s * 0.7) });
       else if (n.type === 'fish') for (let i = 0; i < 2; i++) { const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: 0.8, depthWrite: false })); m.position.set(n.x + 0.5, -0.46, n.y + 0.5); scene.add(m); this.ripples.push({ m, ph: i * 0.5 + n.id }); }
       else if (n.type === 'fire') {

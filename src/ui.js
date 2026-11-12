@@ -1,7 +1,7 @@
 /* ui.js - DOM HUD: bars, action pads, target frame, overhead plates, damage numbers, menus */
 import { STYLES, SPECIALS, STYLE_IDS } from './data.js';
 import { N, TOWN, WILDS, GRAVE, PLAZA_R, blockAt, landDist, roadDist, zoneAt, ZONE_NAMES } from './world.js';
-import { ITEMS, TIERS, SLOTS, SMITH_STOCK, MARKET_STOCK, sellPrice, levelOf, xpForLevel, SKILLS, TASKS, skillLevel, skillXp } from './items.js';
+import { ITEMS, TIERS, SLOTS, SMITH_STOCK, MARKET_STOCK, sellPrice, levelOf, xpForLevel, SKILLS, TASKS, FORGE, skillLevel, skillXp } from './items.js';
 
 const G = {
   melee: '<path d="M20 4 9.5 14.5M20 4h-4.5M20 4v4.5M6.5 11.5l6 6M8.5 15.5 4 20"/>',
@@ -183,7 +183,7 @@ export class HUD {
       h += `<div class="recs"><div><b>${sv.kills}</b><small>RIVALS SLAIN</small></div><div><b>${sv.best}</b><small>BEST STREAK</small></div><div><b>${sv.bossKills}</b><small>WARDENS</small></div><div><b>${sv.deaths}</b><small>DEATHS</small></div></div>`;
     } else if (m === 'skills') {
       const row = (name, l, x, x0, x1, note) => `<div class="sk"><div><b>${name}</b><span>Level ${l}</span></div><div class="xp"><i style="width:${Math.min(100, (x - x0) / (x1 - x0) * 100)}%"></i></div><small>${note}</small></div>`;
-      const notes = { wood: 'Tap a tree in the eastern forest. Logs sell at the Market.', mine: 'Tap a copper-coloured rock at the north-east mine. Ore sells well.', fish: 'Tap a ripple just off the shore.', cook: 'Tap the campfire beside the tavern with raw trout in your bag.' };
+      const notes = { smith: 'At the Smith, forge gear from ore and logs instead of paying coins.', wood: 'Tap a tree in the eastern forest. Logs sell at the Market.', mine: 'Tap a copper-coloured rock at the north-east mine. Ore sells well.', fish: 'Tap a ripple just off the shore.', cook: 'Tap the campfire beside the tavern with raw trout in your bag.' };
       h = row('Combat', p.level, sv.xp, xpForLevel(p.level), xpForLevel(p.level + 1), `${p.maxHp} max health. Earned by dealing damage.`);
       for (const k in SKILLS) { const l = skillLevel(sv.skills[k]); h += row(SKILLS[k].name, l, sv.skills[k], skillXp(l), skillXp(l + 1), notes[k] + ' Higher levels succeed more often.'); }
     } else if (m === 'tasks') {
@@ -197,6 +197,9 @@ export class HUD {
       const stock = this.shop === 'smith' ? SMITH_STOCK : MARKET_STOCK, wealth = sv.coins + sv.bank.coins;
       h = '<div class="sec"><span>For sale - tap to buy</span><span>bank coins count too</span></div>' + stock.map(id => { const it = ITEMS[id], own = it.slot && (p.eq[it.slot] === id || p.inv.some(x => x && x.id === id));
         return `<button class="row2${wealth < it.price ? ' no' : ''}${own ? ' own' : ''}" data-act="buy" data-id="${id}"><img src="${this.icons[id]}" alt=""><span class="d"><b style="color:${it.slot ? TIERS[it.tier].css : '#fff'}">${it.name}</b>${it.desc}</span><span class="p">${it.price}</span></button>`; }).join('');
+      if (this.shop === 'smith') { const sl = skillLevel(sv.skills.smith), ore = p.inv.reduce((n, x) => n + (x && x.id === 'ore' ? x.n : 0), 0), logs = p.inv.reduce((n, x) => n + (x && x.id === 'logs' ? x.n : 0), 0);
+        h += `<div class="sec"><span>Forge it yourself - Smithing ${sl}</span><span>${ore} ore, ${logs} logs in bag</span></div>` + stock.map(id => { const it = ITEMS[id], F = FORGE[it.tier], ok = sl >= F.lvl && ore >= F.ore && logs >= F.logs;
+          return `<button class="row2${ok ? '' : ' no'}" data-act="forge" data-id="${id}"><img src="${this.icons[id]}" alt=""><span class="d"><b style="color:${TIERS[it.tier].css}">${it.name}</b>${F.ore} ore + ${F.logs} logs${sl < F.lvl ? ' - needs Smithing ' + F.lvl : ''}</span><span class="p">Forge</span></button>`; }).join(''); }
       h += '<div class="sec"><span>Your bag - tap to sell</span></div>' + this.bagGrid('sel');
       if (s) d = `<div class="d"><b>${ITEMS[s.id].name}</b>${ITEMS[s.id].desc}</div><button class="act go" data-act="sell" data-i="${this.sel}">Sell for ${sellPrice(s.id)}</button>`;
     }
@@ -206,7 +209,7 @@ export class HUD {
     const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act, i = +b.dataset.i, id = b.dataset.id, h = this.h;
     if (a === 'sel') { if (this.sel === i && this.mode === 'bag') h.useSlot(i); else this.sel = i; }
     else if (a === 'use') h.useSlot(i); else if (a === 'drop') { h.dropSlot(i); this.sel = -1; } else if (a === 'dep') h.deposit(i); else if (a === 'wd') h.withdraw(id);
-    else if (a === 'depAll') h.depositAll(); else if (a === 'coinsIn') h.coins(true); else if (a === 'coinsOut') h.coins(false); else if (a === 'buy') h.buy(id); else if (a === 'sell') h.sell(i);
+    else if (a === 'depAll') h.depositAll(); else if (a === 'coinsIn') h.coins(true); else if (a === 'coinsOut') h.coins(false); else if (a === 'buy') h.buy(id); else if (a === 'forge') h.forge(id); else if (a === 'sell') h.sell(i);
     this.renderPanel();
   }
 }
