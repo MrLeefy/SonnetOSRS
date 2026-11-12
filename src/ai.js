@@ -1,13 +1,15 @@
 /* ai.js - bot brains. Bots read their target's stance and ward, switch their own, eat, kite, flee and use specials. */
-import { STYLES, ACC, SPECIALS, ARCHETYPES, rint, chance, clamp } from './data.js';
-import { C, ARENA_R, passable, canStep, findPath, cheb, DIRS } from './world.js';
+import { STYLES, ACC, SPECIALS, rint, chance, clamp } from './data.js';
+import { passable, canStep, findPath, cheb, zoneAt, DIRS } from './world.js';
+const inHome = (b, x, y, pad = 0) => Math.hypot(x - b.home.x, y - b.home.y) <= b.home.r + pad;
 
 function chooseTarget(g, b) {
   let best = null, bs = 1e9;
-  const onPlayer = g.actors.filter(o => o.ai && !o.dead && o !== b && o.target === g.player).length;
+  const onPlayer = g.player ? g.actors.filter(o => o.ai && !o.dead && o !== b && o.target === g.player).length : 0;
   for (const o of g.actors) {
-    if (o === b || o.dead || g.tick < o.protectUntil) continue;
-    if (o.isPlayer && onPlayer >= g.diff.gank && b.lastAttacker !== o) continue;
+    if (o === b || o.dead || o.team !== 'ffa' || g.tick < o.protectUntil || zoneAt(o.x, o.y) === 'town' || !inHome(b, o.x, o.y, 2)) continue;
+    if (cheb(b.x, b.y, o.x, o.y) > 16) continue;
+    if (o.isPlayer && onPlayer >= 2 && b.lastAttacker !== o) continue;
     let sc = cheb(b.x, b.y, o.x, o.y) + Math.random() * 7;
     if (o === b.lastAttacker) sc -= 6;
     if (o.hp < 40) sc -= 2;
@@ -21,7 +23,7 @@ function wander(g, b) {
   ai.wander = 2 + rint(5);
   for (let k = 0; k < 6; k++) {
     const x = b.x + rint(13) - 6, y = b.y + rint(13) - 6;
-    if (passable(x, y) && Math.hypot(x - C, y - C) < ARENA_R - 3) { b.path = findPath(b.x, b.y, (px, py) => px === x && py === y, x, y); return; }
+    if (passable(x, y) && inHome(b, x, y, -2)) { b.path = findPath(b.x, b.y, (px, py) => px === x && py === y, x, y, 500); return; }
   }
 }
 
@@ -31,7 +33,7 @@ function stepAway(b, t) {
     if (!canStep(b.x, b.y, dx, dy)) continue;
     const nx = b.x + dx, ny = b.y + dy, nx2 = nx + dx, ny2 = ny + dy;
     const two = canStep(nx, ny, dx, dy);
-    const d = Math.hypot((two ? nx2 : nx) - t.x, (two ? ny2 : ny) - t.y) + Math.random() * 0.6 - Math.hypot(nx - C, ny - C) * 0.04;
+    const d = Math.hypot((two ? nx2 : nx) - t.x, (two ? ny2 : ny) - t.y) + Math.random() * 0.6 - Math.hypot(nx - b.home.x, ny - b.home.y) * 0.04;
     if (d > bd + 0.3 && (!best || d > best.d)) best = { d, path: two ? [{ x: nx, y: ny }, { x: nx2, y: ny2 }] : [{ x: nx, y: ny }] };
   }
   if (best) { b.path = best.path; b.ai.holdPath = true; return true; }
@@ -41,7 +43,7 @@ function stepAway(b, t) {
 /* pick the stance with the best expected damage against the target right now */
 function bestStance(b, t, dist) {
   let best = b.stance, bs = -1;
-  for (const s of ARCHETYPES[b.arch].stances) {
+  for (const s of b.stances) {
     const S = STYLES[s]; let v = ACC[s][t.stance] * S.max / S.speed;
     if (t.ward === s) v *= 0.4;
     if (s === 'melee' && dist > 2 && !(t.frozen > 2)) v *= b.frozen > 0 ? 0.05 : 0.6;
@@ -61,7 +63,8 @@ export function botThink(g, b) {
   if (ai.retarget > 0) ai.retarget--;
   let t = b.target;
   if (t && (t.dead || cheb(b.x, b.y, t.x, t.y) > 30)) t = b.target = null;
-  if (t && t.isPlayer && g.tick < t.protectUntil) t = b.target = null;
+  if (t && (g.tick < t.protectUntil || zoneAt(t.x, t.y) === 'town' || !inHome(b, t.x, t.y, 4))) t = b.target = null;
+  if (!inHome(b, b.x, b.y, 3)) { b.target = null; if (!b.path.length) b.path = findPath(b.x, b.y, (x, y) => inHome(b, x, y, -6), b.home.x, b.home.y, 1500); return; }
   if (!t && ai.retarget <= 0) { t = b.target = chooseTarget(g, b); ai.retarget = 2 + rint(3); }
   else if (t && ai.retarget <= 0 && b.lastAttacker && b.lastAttacker !== t && !b.lastAttacker.dead && g.tick - b.lastHurtTick < 3 && chance(0.35)) { t = b.target = b.lastAttacker; ai.retarget = 8; }
   if (!t) { if (b.ward && g.tick - b.lastHurtTick > 6) g.setWard(b, b.ward); wander(g, b); return; }
@@ -71,8 +74,8 @@ export function botThink(g, b) {
   if (ai.flee > 0) {
     ai.flee--; b.target = null; ai.retarget = 5;
     if (b.frozen <= 0 && !b.path.length) {
-      const ax = clamp(Math.round(b.x + Math.sign(b.x - t.x || 1) * 8), 0, 47), ay = clamp(Math.round(b.y + Math.sign(b.y - t.y || 1) * 8), 0, 47);
-      b.path = findPath(b.x, b.y, (x, y) => x === ax && y === ay, ax, ay);
+      const ax = clamp(Math.round(b.x + Math.sign(b.x - t.x || 1) * 8), 0, 95), ay = clamp(Math.round(b.y + Math.sign(b.y - t.y || 1) * 8), 0, 95);
+      b.path = findPath(b.x, b.y, (x, y) => x === ax && y === ay, ax, ay, 600);
     }
     return;
   }
@@ -95,4 +98,15 @@ export function botThink(g, b) {
   }
   // ---- specials ----
   if (!b.specArmed && b.spec >= SPECIALS[b.stance].cost && b.atkCd <= 1 && dist <= STYLES[b.stance].range && t.ward !== b.stance && chance(0.12 + skill * 0.3)) g.toggleSpec(b);
+}
+
+/* graveyard undead: guard their yard, chase intruders, give up and heal when dragged too far */
+export function monsterThink(g, b) {
+  const ai = b.ai, p = g.player; let t = b.target;
+  if (t && (t.dead || !inHome(b, t.x, t.y, 3) || zoneAt(t.x, t.y) === 'town')) { t = b.target = null; b.hp = b.maxHp; b.dmgFrom.clear(); }
+  if (!t && p && !p.dead && cheb(b.x, b.y, p.x, p.y) <= (b.boss ? 5 : 6) && inHome(b, p.x, p.y, 0) && g.tick >= p.protectUntil) t = b.target = p;
+  if (t) return;
+  if (!inHome(b, b.x, b.y, 0)) { if (!b.path.length) b.path = findPath(b.x, b.y, (x, y) => inHome(b, x, y, -4), b.home.x, b.home.y, 1200); return; }
+  if (b.boss || b.path.length || ai.wander-- > 0) return; ai.wander = 4 + rint(8);
+  const x = b.x + rint(9) - 4, y = b.y + rint(9) - 4; if (passable(x, y) && inHome(b, x, y, -4)) b.path = findPath(b.x, b.y, (px, py) => px === x && py === y, x, y, 300);
 }

@@ -1,87 +1,93 @@
-/* sim.js - the tick-based game simulation. No rendering in here: it emits events that the
-   renderer, HUD and audio listen to, so it can also run headless (see tools/simtest.mjs). */
-import {
-  STYLES, ACC, SPECIALS, WARD_REDUCE, DEADEYE_WARD_REDUCE, MAX_HP, FOOD_HEAL, FOOD_MAX, FOOD_START,
-  TONIC_FOCUS, TONIC_MAX, TONIC_START, EAT_DELAY, DIFFICULTY, ARCHETYPES, BOT_NAMES, SKIN, HAIR, TEAM,
-  rint, pick, chance, clamp, lerp
-} from './data.js';
-import { C, passable, canStep, hasLoS, findPath, cheb, randomFreeTile, DIRS } from './world.js';
-import { botThink } from './ai.js';
+/* sim.js - the tick-based world simulation: movement, combat, zones, loot, inventory, bank and shops.
+   Rendering-free and event driven, so it also runs headless (tools/simtest.mjs). */
+import { STYLES, ACC, SPECIALS, WARD_REDUCE, DEADEYE_WARD_REDUCE, EAT_DELAY, BOT_NAMES, rint, pick, chance, clamp, lerp } from './data.js';
+import { SPAWN, WILDS, GRAVE, npcSpots, zoneAt, canStep, hasLoS, findPath, cheb, randomFreeTile, DIRS } from './world.js';
+import { ITEMS, TIERS, SLOTS, WEAPON_SLOT, ARMOUR_SLOT, INV_SIZE, weaponMul, weaponAcc, armourCut, addItem, takeItem, countItem, newSave, levelOf, sellPrice } from './items.js';
+import { botThink, monsterThink } from './ai.js';
 
 let NEXT_ID = 1;
+const MONSTERS = {
+  minion:  { name: 'Bone Thrall',   look: 'sk_minion',  stance: 'melee',  hp: 38,  max: 8,  n: 3, respawn: 25, coins: [5, 16] },
+  archer:  { name: 'Bone Stalker',  look: 'sk_rogue',   stance: 'ranged', hp: 42,  max: 9,  n: 2, respawn: 30, coins: [8, 22] },
+  hexer:   { name: 'Bone Hexer',    look: 'sk_mage',    stance: 'magic',  hp: 40,  max: 9,  n: 1, respawn: 30, coins: [10, 26] },
+  warden:  { name: 'The Barrow Warden', look: 'sk_warrior', stance: 'melee', hp: 240, max: 22, n: 1, respawn: 160, coins: [240, 420], scale: 1.55, boss: true }
+};
+const RIVALS = 6;
 
 export class Game {
   constructor(opts = {}) {
-    this.diffId = opts.difficulty || 'normal'; this.diff = DIFFICULTY[this.diffId];
-    this.tick = 0; this.actors = []; this.hitQ = []; this.loot = []; this.listeners = [];
-    this.player = null; this.usedNames = new Set();
-    this.stats = { kills: 0, streak: 0, best: 0, deaths: 0, score: 0, dmgDealt: 0 };
-    if (!opts.spectate) this.player = this.spawnActor({ name: opts.name || 'You', isPlayer: true, palette: { skin: SKIN[0], hair: HAIR[1], team: 0xe8c14a } });
-    for (let i = 0; i < this.diff.bots; i++) this.spawnBot();
+    this.tick = 0; this.actors = []; this.hitQ = []; this.loot = []; this.listeners = []; this.respawns = []; this.usedNames = new Set(); this.dirty = false;
+    this.save = opts.save || newSave(); this.player = null; this.streak = 0; this.rev = 0;
+    if (!opts.spectate) {
+      const p = this.player = this.makeActor({ name: 'You', kind: 'player', isPlayer: true, look: 'hero', team: 'ffa', x: SPAWN.x, y: SPAWN.y });
+      p.inv = this.save.inv; while (p.inv.length < INV_SIZE) p.inv.push(null); p.eq = this.save.eq; p.face = Math.PI; this.refreshPlayer(true);
+    }
+    const titles = { banker: 'Banker', smith: 'Smith', merchant: 'Merchant' }, looks = { banker: 'mage', smith: 'barbarian', merchant: 'rogue' };
+    for (const k in npcSpots) { const s = npcSpots[k], a = this.makeActor({ name: titles[k], kind: 'npc', npc: k, look: 'npc_' + looks[k], team: 'npc', x: s.x, y: s.y }); a.face = s.face; a.stance = k === 'banker' ? 'magic' : k === 'smith' ? 'melee' : 'ranged'; }
+    for (let i = 0; i < RIVALS; i++) this.spawnRival();
+    for (const k in MONSTERS) for (let i = 0; i < MONSTERS[k].n; i++) this.spawnMonster(k);
   }
   on(fn) { this.listeners.push(fn); }
   emit(type, d) { for (const fn of this.listeners) fn(type, d || {}); }
 
   /* ---------------- actors ---------------- */
-  spawnActor(o) {
-    const a = {
-      id: NEXT_ID++, name: o.name, isPlayer: !!o.isPlayer, palette: o.palette, arch: o.arch || null,
-      x: 0, y: 0, seg: [], path: [], face: 0,
-      hp: MAX_HP, maxHp: MAX_HP, focus: 100, spec: o.isPlayer ? 100 : 50, stance: 'melee', ward: null,
-      target: null, atkCd: 0, eatCd: 0, frozen: 0, freezeImm: 0, dead: false, deadAt: 0, specArmed: false,
-      food: o.isPlayer ? FOOD_START : 3 + rint(4), tonics: o.isPlayer ? TONIC_START : 1 + rint(2),
-      protectUntil: 0, dmgFrom: new Map(), lastAttacker: null, lastHurtTick: -99, lastAtkTick: -99, kills: 0, ai: null, moving: false
-    };
-    this.placeAtSpawn(a); this.actors.push(a); return a;
+  makeActor(o) {
+    const a = Object.assign({
+      id: NEXT_ID++, seg: [], path: [], face: 0, hp: 99, maxHp: 99, focus: 100, spec: 100, stance: 'melee', ward: null, target: null, atkCd: 0, eatCd: 0, frozen: 0, freezeImm: 0,
+      dead: false, deadAt: 0, specArmed: false, food: 0, tonics: 0, protectUntil: 0, dmgFrom: new Map(), lastAttacker: null, lastHurtTick: -99, moving: false,
+      dmgMul: 1, acc: 0, armour: { melee: 0, ranged: 0, magic: 0 }, wmax: null, tier: 0, scale: 1, interact: null, ai: null, home: null
+    }, o);
+    this.actors.push(a); return a;
   }
-  placeAtSpawn(a) {
-    let sp = null;
-    for (let i = 0; i < 40; i++) {
-      const c = a.isPlayer ? randomFreeTile(8, 13) : randomFreeTile(9, 19);
-      const near = this.actors.some(o => o !== a && !o.dead && cheb(o.x, o.y, c.x, c.y) < (a.isPlayer ? 7 : 5));
-      if (!near || i === 39) { sp = c; break; }
-    }
-    a.x = sp.x; a.y = sp.y; a.seg = []; a.path = []; a.face = Math.atan2(C - a.x, C - a.y);
-    a.protectUntil = this.tick + (a.isPlayer ? 8 : 3);
+  spawnRival() {
+    let name; for (let i = 0; i < 50; i++) { name = pick(BOT_NAMES); if (!this.usedNames.has(name)) break; } this.usedNames.add(name);
+    const tier = pick([0, 0, 1, 1, 1, 2, 2, 3]), arch = pick(['brute', 'brute', 'stalker', 'stalker', 'hexer', 'warden', 'warden']);
+    const sp = randomFreeTile(WILDS.x, WILDS.y, 3, WILDS.r - 3, (x, y) => !this.actors.some(o => !o.dead && cheb(o.x, o.y, x, y) < 5));
+    const a = this.makeActor({ name, kind: 'rival', arch, look: arch === 'brute' ? 'brute' : 'hero', team: 'ffa', x: sp.x, y: sp.y, tier, home: { x: WILDS.x, y: WILDS.y, r: WILDS.r + 1 } });
+    a.maxHp = a.hp = 70 + tier * 10; a.dmgMul = (0.72 + tier * 0.1); a.acc = tier * 0.02; for (const s in a.armour) a.armour[s] = armourCut(tier) * 0.7;
+    a.food = 2 + tier + rint(3); a.tonics = 1 + rint(2); a.spec = 40 + rint(60); a.protectUntil = this.tick + 3; a.face = Math.random() * 6.28;
+    a.stances = { brute: ['melee'], stalker: ['ranged', 'melee'], hexer: ['magic'], warden: ['melee', 'ranged', 'magic'] }[arch]; a.stance = a.stances[0];
+    a.ai = { skill: clamp(0.32 + tier * 0.13 + (Math.random() - 0.5) * 0.2, 0.1, 0.95), react: 0, retarget: rint(4), wander: rint(5), kiteCd: 0, flee: 0, restance: 0 };
+    this.emit('spawn', { a }); return a;
   }
-  spawnBot() {
-    let name; for (let i = 0; i < 50; i++) { name = pick(BOT_NAMES); if (!this.usedNames.has(name)) break; }
-    this.usedNames.add(name);
-    const pool = []; for (const k in ARCHETYPES) for (let i = 0; i < ARCHETYPES[k].w; i++) pool.push(k);
-    const arch = pick(pool);
-    const a = this.spawnActor({ name, arch, palette: { skin: pick(SKIN), hair: pick(HAIR), team: pick(TEAM) } });
-    const streak = this.stats.streak;
-    a.ai = { skill: clamp(this.diff.skill + (Math.random() - 0.5) * 0.25 + streak * 0.03, 0.1, 0.97), react: 0, retarget: rint(4), wander: rint(5), kiteCd: 0, flee: 0, restance: 0 };
-    a.stance = ARCHETYPES[arch].stances[0];
-    this.emit('spawn', { a });
-    return a;
+  spawnMonster(k) {
+    const M = MONSTERS[k], sp = randomFreeTile(GRAVE.x, GRAVE.y, M.boss ? 0 : 2, M.boss ? 3 : GRAVE.r - 2);
+    const a = this.makeActor({ name: M.name, kind: 'monster', mon: k, look: M.look, team: 'undead', x: sp.x, y: sp.y, scale: M.scale || 1, boss: !!M.boss, home: { x: GRAVE.x, y: GRAVE.y, r: GRAVE.r + 3 } });
+    a.maxHp = a.hp = M.hp; a.wmax = M.max; a.stance = M.stance; a.focus = 0; a.spec = 0; a.face = Math.random() * 6.28; a.ai = { wander: rint(6), mon: true };
+    this.emit('spawn', { a }); return a;
   }
+  /* recompute everything derived from the player's gear, level and bag */
+  refreshPlayer(full) {
+    const p = this.player, s = this.save, lvl = levelOf(s.xp); p.level = lvl; p.maxHp = 60 + Math.min(lvl, 20) * 2; if (full) p.hp = p.maxHp; p.hp = Math.min(p.hp, p.maxHp);
+    for (const st in WEAPON_SLOT) p.armour[st] = armourCut(ITEMS[p.eq[ARMOUR_SLOT[st]]].tier);
+    p.food = countItem(p.inv, 'bread') + countItem(p.inv, 'roast'); p.tonics = countItem(p.inv, 'tonic'); this.dirty = true; this.rev++;
+  }
+  weaponTier(a) { return a.isPlayer ? ITEMS[a.eq[WEAPON_SLOT[a.stance]]].tier : a.tier; }
+  safe(a) { return zoneAt(a.x, a.y) === 'town'; }
 
-  /* ---------------- player commands (applied immediately, resolved on the next tick) ---------------- */
-  cmdMove(x, y) {
-    const p = this.player; if (p.dead) return false;
-    p.target = null;
-    const path = findPath(p.x, p.y, (px, py) => px === x && py === y, x, y);
-    p.path = path; return path.length > 0;
+  /* ---------------- player commands ---------------- */
+  cmdMove(x, y) { const p = this.player; if (p.dead) return false; p.target = null; p.interact = null; p.path = findPath(p.x, p.y, (px, py) => px === x && py === y, x, y, 6000); return p.path.length > 0; }
+  cmdAttack(t) {
+    const p = this.player; if (p.dead || !t || t.dead || t === p) return;
+    if (t.kind === 'npc') { p.target = null; p.interact = t; p.path = []; return; }
+    if (this.safe(t)) { this.emit('msg', { text: `${t.name} is inside the safe zone.` }); return; }
+    if (this.safe(p)) this.emit('msg', { text: 'You cannot fight inside Hollowmere - step outside the walls.', soft: true });
+    p.interact = null; p.target = t; p.path = [];
   }
-  cmdAttack(t) { const p = this.player; if (p.dead || !t || t.dead || t === p) return; p.target = t; p.path = []; }
-  setStance(a, s) {
-    if (a.dead || a.stance === s) return; a.stance = s; a.specArmed = false; a.path = a.target ? [] : a.path;
-    this.emit('stance', { a });
-  }
+  setStance(a, s) { if (a.dead || a.stance === s) return; a.stance = s; a.specArmed = false; if (a.target) a.path = []; this.emit('stance', { a }); }
   setWard(a, w) {
     if (a.dead) return; if (w && a.focus <= 0) { if (a.isPlayer) this.emit('msg', { text: 'Out of focus - drink a tonic.' }); return; }
     a.ward = a.ward === w ? null : w; this.emit('ward', { a });
   }
   eat(a) {
-    if (a.dead || a.eatCd > 0 || a.food <= 0 || a.hp >= a.maxHp) return false;
-    a.food--; a.hp = Math.min(a.maxHp, a.hp + FOOD_HEAL); a.eatCd = EAT_DELAY; a.atkCd = Math.max(a.atkCd, 2);
-    this.emit('eat', { a, heal: FOOD_HEAL }); return true;
+    if (a.dead || a.eatCd > 0 || a.food <= 0 || a.hp >= a.maxHp) return false; let heal = 16;
+    if (a.isPlayer) { const id = (a.maxHp - a.hp >= 18 && countItem(a.inv, 'roast')) || !countItem(a.inv, 'bread') ? 'roast' : 'bread'; takeItem(a.inv, id); heal = ITEMS[id].heal; this.refreshPlayer(); } else a.food--;
+    a.hp = Math.min(a.maxHp, a.hp + heal); a.eatCd = EAT_DELAY; a.atkCd = Math.max(a.atkCd, 2); this.emit('eat', { a, heal }); return true;
   }
   tonic(a) {
     if (a.dead || a.eatCd > 0 || a.tonics <= 0 || a.focus >= 100) return false;
-    a.tonics--; a.focus = Math.min(100, a.focus + TONIC_FOCUS); a.eatCd = EAT_DELAY;
-    this.emit('tonic', { a }); return true;
+    if (a.isPlayer) { takeItem(a.inv, 'tonic'); this.refreshPlayer(); } else a.tonics--;
+    a.focus = Math.min(100, a.focus + 40); a.eatCd = EAT_DELAY; this.emit('tonic', { a }); return true;
   }
   toggleSpec(a) {
     if (a.dead) return; const sp = SPECIALS[a.stance];
@@ -90,75 +96,91 @@ export class Game {
   }
   respawnPlayer() {
     const p = this.player; if (!p.dead) return;
-    Object.assign(p, { dead: false, hp: p.maxHp, focus: 100, spec: 100, food: FOOD_START, tonics: TONIC_START, ward: null, target: null, frozen: 0, freezeImm: 0, atkCd: 0, eatCd: 0, specArmed: false, lastAttacker: null });
-    p.dmgFrom.clear(); this.placeAtSpawn(p); this.emit('spawn', { a: p });
+    Object.assign(p, { dead: false, focus: 100, spec: 100, ward: null, target: null, interact: null, frozen: 0, freezeImm: 0, atkCd: 0, eatCd: 0, specArmed: false, lastAttacker: null, x: SPAWN.x, y: SPAWN.y, seg: [], path: [], face: Math.PI });
+    p.dmgFrom.clear(); this.refreshPlayer(true); this.emit('spawn', { a: p });
   }
+  /* ---- bag, gear, bank, shops (player only) ---- */
+  useSlot(i) {
+    const p = this.player, s = p.inv[i]; if (!s || p.dead) return; const it = ITEMS[s.id];
+    if (it.kind === 'food') { if (!this.eatItem(s.id)) this.emit('msg', { text: p.hp >= p.maxHp ? 'Already at full health.' : 'Not yet...' }); }
+    else if (it.kind === 'tonic') { if (!this.tonic(p)) this.emit('msg', { text: p.focus >= 100 ? 'Focus is already full.' : 'Not yet...' }); }
+    else { const old = p.eq[it.slot]; p.eq[it.slot] = s.id; s.n--; if (s.n <= 0) p.inv[i] = null; addItem(p.inv, old); this.refreshPlayer(); this.emit('equip', { a: p, id: it.id }); }
+  }
+  eatItem(id) { const p = this.player; if (p.dead || p.eatCd > 0 || p.hp >= p.maxHp || !takeItem(p.inv, id)) return false; const heal = ITEMS[id].heal; p.hp = Math.min(p.maxHp, p.hp + heal); p.eatCd = EAT_DELAY; p.atkCd = Math.max(p.atkCd, 2); this.refreshPlayer(); this.emit('eat', { a: p, heal }); return true; }
+  dropSlot(i) { const p = this.player, s = p.inv[i]; if (!s) return; p.inv[i] = null; this.dropLoot(p.x, p.y, 0, [s]); this.refreshPlayer(); }
+  deposit(i) { const p = this.player, s = p.inv[i], b = this.save.bank; if (!s) return; b.items[s.id] = (b.items[s.id] || 0) + s.n; p.inv[i] = null; this.refreshPlayer(); }
+  depositAll() { const p = this.player, b = this.save.bank; p.inv.forEach((s, i) => { if (s) { b.items[s.id] = (b.items[s.id] || 0) + s.n; p.inv[i] = null; } }); b.coins += this.save.coins; this.save.coins = 0; this.refreshPlayer(); }
+  withdraw(id, all) { const p = this.player, b = this.save.bank, have = b.items[id] || 0; if (!have) return; const n = all ? have : Math.min(have, ITEMS[id].kind === 'food' || ITEMS[id].kind === 'tonic' ? 5 : 1); if (!addItem(p.inv, id, n)) { this.emit('msg', { text: 'Your bag is full.' }); return; } b.items[id] = have - n; if (!b.items[id]) delete b.items[id]; this.refreshPlayer(); }
+  moveCoins(toBank) { const s = this.save; if (toBank) { s.bank.coins += s.coins; s.coins = 0; } else { s.coins += s.bank.coins; s.bank.coins = 0; } this.dirty = true; this.rev++; }
+  buy(id) {
+    const s = this.save, price = ITEMS[id].price; if (s.coins + s.bank.coins < price) { this.emit('msg', { text: 'Not enough coins.' }); return false; }
+    if (!addItem(this.player.inv, id)) { this.emit('msg', { text: 'Your bag is full.' }); return false; }
+    const c = Math.min(s.coins, price); s.coins -= c; s.bank.coins -= price - c; this.refreshPlayer(); this.emit('trade', {}); return true;
+  }
+  sell(i) { const p = this.player, s = p.inv[i]; if (!s) return; this.save.coins += sellPrice(s.id); s.n--; if (s.n <= 0) p.inv[i] = null; this.refreshPlayer(); this.emit('trade', {}); }
 
   /* ---------------- combat ---------------- */
-  inRange(a, t, x = a.x, y = a.y) {
-    const d = cheb(x, y, t.x, t.y); if (d === 0) return false;
-    return d <= STYLES[a.stance].range && hasLoS(x, y, t.x, t.y);
-  }
+  inRange(a, t, x = a.x, y = a.y) { const d = cheb(x, y, t.x, t.y); return d > 0 && d <= STYLES[a.stance].range && hasLoS(x, y, t.x, t.y); }
+  canFight(a, t) { return !this.safe(a) && !this.safe(t) && this.tick >= t.protectUntil; }
   attack(a, t) {
     const style = a.stance, S = STYLES[style]; let spec = null;
     if (a.specArmed) { a.specArmed = false; if (a.spec >= SPECIALS[style].cost) { a.spec -= SPECIALS[style].cost; spec = style; } }
-    a.atkCd = S.speed; a.lastAtkTick = this.tick; a.face = Math.atan2(t.x - a.x, t.y - a.y); a.path = [];
-    const dist = cheb(a.x, a.y, t.x, t.y);
-    const delay = style === 'melee' ? 0 : 1 + Math.floor(dist / 4);
-    const mul = a.isPlayer ? 1 : this.diff.dmg;
-    const roll = (accBonus, maxMul, minFrac = 0) => {
-      const acc = Math.min(1, ACC[style][t.stance] + accBonus);
-      if (!chance(acc)) return 0;
-      const max = S.max * maxMul * mul; return Math.max(1, Math.round(lerp(minFrac * max, max, Math.random())));
-    };
+    a.atkCd = S.speed; a.face = Math.atan2(t.x - a.x, t.y - a.y); a.path = [];
+    const wt = this.weaponTier(a), mul = a.isPlayer ? weaponMul(wt) : a.dmgMul, accB = a.isPlayer ? weaponAcc(wt) : a.acc, base = a.wmax || S.max;
+    const delay = style === 'melee' ? 0 : 1 + Math.floor(cheb(a.x, a.y, t.x, t.y) / 4);
+    const roll = (accBonus, maxMul, minFrac = 0) => { if (!chance(Math.min(1, ACC[style][t.stance] + accB + accBonus))) return 0; const max = base * maxMul * mul; return Math.max(1, Math.round(lerp(minFrac * max, max, Math.random()))); };
     const hits = [];
-    if (spec === 'melee') { hits.push({ t, dmg: roll(0.2, 0.95) }, { t, dmg: roll(0.2, 0.95), late: true }); }
-    else if (spec === 'ranged') { hits.push({ t, dmg: roll(1, 1.3, 0.4), pierce: true }); }
+    if (spec === 'melee') hits.push({ t, dmg: roll(0.2, 0.95) }, { t, dmg: roll(0.2, 0.95), late: true });
+    else if (spec === 'ranged') hits.push({ t, dmg: roll(1, 1.3, 0.4), pierce: true });
     else if (spec === 'magic') {
       hits.push({ t, dmg: roll(0.2, 1.25, 0.3), freeze: 12, force: true });
-      for (const o of this.actors) if (o !== t && o !== a && !o.dead && cheb(o.x, o.y, t.x, t.y) <= 1) hits.push({ t: o, dmg: Math.round(roll(0, 0.6)), freeze: 8, force: true, splash: true });
-    } else hits.push({ t, dmg: roll(0, 1), freeze: S.freeze || 0 });
+      for (const o of this.actors) if (o !== t && o !== a && !o.dead && o.kind !== 'npc' && o.team !== (a.team === 'undead' ? 'undead' : '') && cheb(o.x, o.y, t.x, t.y) <= 1 && !this.safe(o)) hits.push({ t: o, dmg: Math.round(roll(0, 0.6)), freeze: 8, force: true, splash: true });
+    } else hits.push({ t, dmg: roll(0, 1), freeze: a.kind === 'monster' ? 3 * (S.freeze ? 1 : 0) : S.freeze || 0 });
     this.emit('attack', { a, t, style, spec, delay });
     for (const h of hits) { h.src = a; h.style = style; h.spec = spec; h.at = this.tick + delay; if (delay <= 0) this.applyHit(h); else this.hitQ.push(h); }
     if (t.ai && !t.target) t.target = a;
   }
   applyHit(h) {
-    const t = h.t, src = h.src; if (t.dead) return;
-    let dmg = h.dmg, warded = false;
-    if (this.tick < t.protectUntil) dmg = 0;
+    const t = h.t, src = h.src; if (t.dead) return; let dmg = h.dmg, warded = false;
+    if (this.tick < t.protectUntil || this.safe(t)) dmg = 0;
+    if (dmg > 0) dmg = Math.max(1, Math.round(dmg * (1 - (t.armour[t.stance] || 0))));
     if (dmg > 0 && t.ward === h.style) { warded = true; dmg = Math.max(1, Math.round(dmg * (1 - (h.pierce ? DEADEYE_WARD_REDUCE : WARD_REDUCE)))); }
-    dmg = Math.min(dmg, t.hp);
-    let froze = false;
-    if (h.freeze && dmg > 0 && (h.force || (t.frozen <= 0 && t.freezeImm <= 0))) { t.frozen = h.freeze; t.freezeImm = h.freeze + 6; t.path = []; froze = true; }
-    t.hp -= dmg; t.lastHurtTick = this.tick; t.lastAttacker = src;
-    if (t.isPlayer && !t.target && !t.path.length && !src.dead) t.target = src;   // auto-retaliate when idle
-    t.dmgFrom.set(src.id, (t.dmgFrom.get(src.id) || 0) + dmg);
-    if (src.isPlayer) this.stats.dmgDealt += dmg;
+    dmg = Math.min(dmg, t.hp); let froze = false;
+    if (h.freeze && dmg > 0 && !t.boss && (h.force || (t.frozen <= 0 && t.freezeImm <= 0))) { t.frozen = h.freeze; t.freezeImm = h.freeze + 6; t.path = []; froze = true; }
+    t.hp -= dmg; t.lastHurtTick = this.tick; t.lastAttacker = src; t.dmgFrom.set(src.id, (t.dmgFrom.get(src.id) || 0) + dmg);
+    if (t.isPlayer && !t.target && !t.path.length && !t.interact && !src.dead) t.target = src;
+    if (src.isPlayer && dmg > 0) { const l0 = src.level; this.save.xp += dmg * 4; this.refreshPlayer(); if (src.level > l0) this.emit('level', { level: src.level }); }
     this.emit('hit', { t, src, dmg, style: h.style, spec: h.spec, warded, froze, late: !!h.late, splash: !!h.splash });
     if (t.hp <= 0) this.kill(t, src);
   }
+  dropLoot(x, y, coins, items) { if (!coins && !items.length) return; this.loot.push({ id: NEXT_ID++, x, y, t: this.tick, coins, items }); this.emit('loot', {}); }
   kill(d, lastHitter) {
-    // credit goes to whoever dealt the most damage
     let killer = lastHitter, top = -1;
     for (const [id, dmg] of d.dmgFrom) { const o = this.actors.find(x => x.id === id); if (o && !o.dead && dmg > top) { top = dmg; killer = o; } }
-    d.dead = true; d.deadAt = this.tick; d.hp = 0; d.target = null; d.path = []; d.ward = null; d.frozen = 0; d.specArmed = false;
+    Object.assign(d, { dead: true, deadAt: this.tick, hp: 0, target: null, path: [], ward: null, frozen: 0, specArmed: false, interact: null });
     for (const o of this.actors) if (o.target === d) o.target = null;
-    if (killer && killer !== d) {
-      killer.kills++; killer.spec = Math.min(100, killer.spec + 30); killer.hp = Math.min(killer.maxHp, killer.hp + 15);
-      if (killer.isPlayer) {
-        const s = this.stats; s.kills++; s.streak++; s.best = Math.max(s.best, s.streak); s.score += 100 * Math.min(5, s.streak);
-      }
+    const P = this.player, mine = killer && killer.isPlayer;
+    if (killer && killer !== d) { killer.spec = Math.min(100, killer.spec + 30); killer.hp = Math.min(killer.maxHp, killer.hp + 12); }
+    if (d.kind === 'rival') {
+      const items = [{ id: 'bread', n: 1 + rint(3) }]; if (chance(0.4)) items.push({ id: 'tonic', n: 1 }); if (chance(0.3)) items.push({ id: 'roast', n: 1 + rint(2) });
+      if (chance(d.tier ? 0.24 : 0.1)) items.push({ id: pick(Object.keys(SLOTS)) + Math.max(1, d.tier), n: 1 });
+      this.dropLoot(d.x, d.y, (40 + rint(80)) * (d.tier + 1), items); this.respawns.push({ at: this.tick + 14, fn: () => this.spawnRival() });
+      if (mine) { this.streak++; this.save.kills++; this.save.best = Math.max(this.save.best, this.streak); }
+    } else if (d.kind === 'monster') {
+      const M = MONSTERS[d.mon], items = []; if (chance(0.35)) items.push({ id: 'bread', n: 1 });
+      if (M.boss) { items.push({ id: 'roast', n: 3 }, { id: pick(Object.keys(SLOTS)) + (chance(0.2) ? 3 : 2), n: 1 }); if (mine) this.save.bossKills++; }
+      this.dropLoot(d.x, d.y, M.coins[0] + rint(M.coins[1] - M.coins[0]), items); this.respawns.push({ at: this.tick + M.respawn, fn: () => this.spawnMonster(d.mon) });
+    } else if (d.isPlayer) {
+      // dying outside town costs what you were carrying (gear you are wearing is kept)
+      const items = []; d.inv.forEach((s, i) => { if (s && !ITEMS[s.id].slot) { items.push(s); d.inv[i] = null; } });
+      this.dropLoot(d.x, d.y, this.save.coins, items); this.lost = { coins: this.save.coins, items: items.length }; this.save.coins = 0; this.save.deaths++; this.lastStreak = this.streak; this.streak = 0; this.refreshPlayer();
     }
-    if (d.isPlayer) { this.stats.deaths++; this.stats.lastStreak = this.stats.streak; this.stats.streak = 0; }
-    this.loot.push({ id: NEXT_ID++, x: d.x, y: d.y, t: this.tick, food: 4, tonics: 1 });
-    this.emit('death', { a: d, killer });
-    this.emit('loot', {});
+    this.dirty = true; this.emit('death', { a: d, killer });
   }
 
   /* ---------------- per-tick ---------------- */
   moveAlong(a, stopFn) {
-    a.seg = [{ x: a.x, y: a.y }]; a.moving = false;
-    if (a.frozen > 0) { a.path = a.frozen > 0 && a.isPlayer ? a.path : []; return; }
+    a.seg = [{ x: a.x, y: a.y }]; a.moving = false; if (a.frozen > 0) { if (!a.isPlayer) a.path = []; return; }
     for (let s = 0; s < 2 && a.path.length; s++) {
       if (stopFn && stopFn()) { a.path = []; break; }
       const n = a.path[0], dx = n.x - a.x, dy = n.y - a.y;
@@ -167,51 +189,49 @@ export class Game {
     }
   }
   stepActor(a) {
-    if (a.dead) { a.seg = [{ x: a.x, y: a.y }]; return; }
+    if (a.dead || a.kind === 'npc') { a.seg = [{ x: a.x, y: a.y }]; return; }
     if (a.atkCd > 0) a.atkCd--; if (a.eatCd > 0) a.eatCd--;
-    if (a.frozen > 0) { a.frozen--; if (a.frozen === 0) this.emit('thaw', { a }); }
-    if (a.freezeImm > 0) a.freezeImm--;
-    if (a.spec < 100 && this.tick % 2 === 0) a.spec = Math.min(100, a.spec + 1);
+    if (a.frozen > 0) { a.frozen--; if (a.frozen === 0) this.emit('thaw', { a }); } if (a.freezeImm > 0) a.freezeImm--;
+    if (a.kind !== 'monster' && a.spec < 100 && this.tick % 2 === 0) a.spec = Math.min(100, a.spec + 1);
     if (a.ward) { a.focus -= 1; if (a.focus <= 0) { a.focus = 0; a.ward = null; this.emit('ward', { a }); if (a.isPlayer) this.emit('msg', { text: 'Your focus is spent - your ward drops.' }); } }
-    else if (a.focus < 100 && this.tick % 4 === 0) a.focus++;
-    if (a.ai) botThink(this, a);
-    const t = a.target;
+    else if (a.focus < 100 && this.tick % 4 === 0 && a.kind !== 'monster') a.focus++;
+    if (a.isPlayer && this.safe(a) && this.tick % 3 === 0) { if (a.hp < a.maxHp) a.hp++; if (a.focus < 100) a.focus = Math.min(100, a.focus + 2); }   // rest in town
+    if (a.ai) (a.ai.mon ? monsterThink : botThink)(this, a);
+    const t = a.target, hold = a.ai && a.ai.holdPath;
     if (t && !t.dead) {
       const d = cheb(a.x, a.y, t.x, t.y);
-      if (d === 0 && a.frozen <= 0) { // standing on top of the target: step off
-        for (const [dx, dy] of DIRS) if (canStep(a.x, a.y, dx, dy)) { a.path = [{ x: a.x + dx, y: a.y + dy }]; break; }
-      } else if (!this.inRange(a, t) && a.frozen <= 0 && !(a.ai && a.ai.holdPath)) {
-        a.path = findPath(a.x, a.y, (x, y) => this.inRange(a, t, x, y), t.x, t.y);
-      } else if (this.inRange(a, t) && !(a.ai && a.ai.holdPath)) a.path = [];
-      this.moveAlong(a, () => this.inRange(a, t) && !(a.ai && a.ai.holdPath));
+      if (d === 0 && a.frozen <= 0) { for (const [dx, dy] of DIRS) if (canStep(a.x, a.y, dx, dy)) { a.path = [{ x: a.x + dx, y: a.y + dy }]; break; } }
+      else if (!this.inRange(a, t) && a.frozen <= 0 && !hold) a.path = findPath(a.x, a.y, (x, y) => this.inRange(a, t, x, y), t.x, t.y, a.isPlayer ? 6000 : 900);
+      else if (this.inRange(a, t) && !hold) a.path = [];
+      this.moveAlong(a, () => this.inRange(a, t) && !hold);
       if (this.inRange(a, t)) {
         if (!a.moving) a.face = Math.atan2(t.x - a.x, t.y - a.y);
-        if (a.atkCd <= 0 && this.tick >= t.protectUntil) { if (a.protectUntil > this.tick) a.protectUntil = this.tick; this.attack(a, t); }
+        if (a.atkCd <= 0 && this.canFight(a, t)) { if (a.protectUntil > this.tick) a.protectUntil = this.tick; this.attack(a, t); }
       }
-    } else { a.target = null; this.moveAlong(a); }
+    } else {
+      a.target = null; const n = a.interact;
+      if (n) { if (cheb(a.x, a.y, n.x, n.y) <= 2) { a.path = []; a.interact = null; a.face = Math.atan2(n.x - a.x, n.y - a.y); this.emit('interact', { npc: n }); } else if (!a.path.length) a.path = findPath(a.x, a.y, (x, y) => cheb(x, y, n.x, n.y) <= 2 && (x === n.x || y !== n.y), n.x, n.y, 6000); }
+      this.moveAlong(a);
+    }
     if (a.ai) a.ai.holdPath = false;
-    // loot pickup
-    for (let i = this.loot.length - 1; i >= 0; i--) {
-      const l = this.loot[i];
-      if (l.x === a.x && l.y === a.y) {
-        a.food = Math.min(FOOD_MAX, a.food + l.food); a.tonics = Math.min(TONIC_MAX, a.tonics + l.tonics); a.spec = Math.min(100, a.spec + 20);
-        this.loot.splice(i, 1); this.emit('pickup', { a, x: l.x, y: l.y }); this.emit('loot', {});
+    if (a.isPlayer) {
+      for (let i = this.loot.length - 1; i >= 0; i--) {
+        const l = this.loot[i]; if (l.x !== a.x || l.y !== a.y) continue; const got = [];
+        if (l.coins) { this.save.coins += l.coins; got.push(l.coins + ' coins'); l.coins = 0; }
+        l.items = l.items.filter(s => { if (addItem(a.inv, s.id, s.n)) { got.push((s.n > 1 ? s.n + ' x ' : '') + ITEMS[s.id].name); return false; } return true; });
+        if (!l.items.length) this.loot.splice(i, 1); else this.emit('msg', { text: 'Your bag is full.' });
+        if (got.length) { this.refreshPlayer(); this.emit('pickup', { a, x: l.x, y: l.y, text: got.join(', ') }); this.emit('loot', {}); }
       }
+      const z = zoneAt(a.x, a.y); if (z !== this.zone) { const from = this.zone; this.zone = z; this.emit('zone', { zone: z, from }); }
     }
   }
   step() {
     this.tick++;
-    if (this.hitQ.length) {
-      const due = this.hitQ.filter(h => h.at <= this.tick); this.hitQ = this.hitQ.filter(h => h.at > this.tick);
-      for (const h of due) this.applyHit(h);
-    }
+    if (this.hitQ.length) { const due = this.hitQ.filter(h => h.at <= this.tick); this.hitQ = this.hitQ.filter(h => h.at > this.tick); for (const h of due) this.applyHit(h); }
     for (const a of this.actors.slice()) this.stepActor(a);
-    // fallen bots are replaced by fresh challengers
-    for (let i = this.actors.length - 1; i >= 0; i--) {
-      const a = this.actors[i];
-      if (a.dead && !a.isPlayer && this.tick - a.deadAt >= 7) { this.actors.splice(i, 1); this.usedNames.delete(a.name); this.emit('remove', { a }); this.spawnBot(); }
-    }
-    const n = this.loot.length; this.loot = this.loot.filter(l => this.tick - l.t < 100); if (this.loot.length !== n) this.emit('loot', {});
+    for (let i = this.actors.length - 1; i >= 0; i--) { const a = this.actors[i]; if (a.dead && !a.isPlayer && this.tick - a.deadAt >= 7) { this.actors.splice(i, 1); this.usedNames.delete(a.name); this.emit('remove', { a }); } }
+    if (this.respawns.length) { const due = this.respawns.filter(r => r.at <= this.tick); this.respawns = this.respawns.filter(r => r.at > this.tick); for (const r of due) r.fn(); }
+    const n = this.loot.length; this.loot = this.loot.filter(l => this.tick - l.t < 200); if (this.loot.length !== n) this.emit('loot', {});
     this.emit('tick', {});
   }
 }

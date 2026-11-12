@@ -1,50 +1,56 @@
-# Hollowmere Arena
+# Hollowmere
 
-A mobile-first 3D arena brawler with tick-based "read and react" combat: tap to move, tap a rival to fight,
-swap stance to beat their armour and raise the right ward before their hit lands.
+A mobile-first 3D adventure with tick-based "read and react" combat. Gear up in a safe town, bank your coins,
+hunt the undead of the Barrow Yard, and risk what you carry against rival fighters in the Ashen Wilds.
 
-**Play:** open `dist/index.html` in any current mobile or desktop browser (needs WebGL). It is one self-contained
-file - no install, no network. Works in portrait and landscape; add it to your home screen for a full-screen feel.
+**Play:** open `dist/index.html` in a current mobile or desktop browser (needs WebGL2). It is one self-contained
+file - no install, no network. Portrait and landscape both work. Progress saves on the device.
 
-## How to play
+## The island
+
+| Area | What it is |
+|---|---|
+| **Hollowmere** (town) | Safe zone - nobody can fight here, and you slowly recover. Banker (vault), Smith (gear), Merchant (food and tonics). |
+| **Barrow Yard** (west) | Undead: thralls, stalkers, hexers and the Barrow Warden boss. Best place to start earning coins. |
+| **The Ashen Wilds** (north) | PvP ruins. Rival fighters hunt each other and you; better-geared rivals carry more and may drop gear. |
+| Forest and mine (east) | Built and walkable; reserved for gathering skills later. |
+
+Dying outside town drops the coins and supplies you were carrying (worn gear is kept) - bank first.
+
+## Controls
 
 | | Touch | Keyboard / mouse |
 |---|---|---|
-| Move | tap the ground | click |
-| Attack | tap a fighter, or the crosshair button for the nearest | click / `Tab` |
+| Move / attack / talk | tap ground, foe or townsperson | click |
 | Camera | drag to orbit, pinch to zoom, twist to turn | drag, wheel, arrow keys |
-| Stance (Blade / Bow / Staff) | right pad | `1` `2` `3` |
-| Ward (vs Blade / Bow / Staff) | left pad | `Q` `W` `E` |
-| Eat / Tonic / Special | buttons | `F` / `R` / `Space` |
-| Pause | top right | `Esc` or `P` |
+| Stance (Blade / Crossbow / Staff) | right pad | `1` `2` `3` |
+| Ward (vs each attack type) | left pad | `Q` `W` `E` |
+| Eat / Tonic / Special / Next target | buttons | `F` / `R` / `Space` / `Tab` |
+| Bag and gear | bag button | `B` |
 
-- **Stance** sets both your weapon and your armour. Blade beats Bow leathers, Bow beats Staff robes, Staff beats Blade plate.
-- **Wards** remove 60% of one attack type, checked when the hit lands - so you can react to an arrow or spell in flight.
-  They drain focus while raised. The icon over a rival's head shows what *they* are warding: hit them with something else.
-- **Staff** hits root their target in place. Rooted fighters can still attack, so switch to Bow or Staff.
-- **Specials** cost 50% energy: *Twin Fang* (two fast accurate strikes), *Deadeye* (never misses, mostly ignores wards),
-  *Frostbind* (heavy blast that roots everything around the target).
-- Kills heal you, refill special energy and drop golden loot (food, tonic, energy). Chain kills for a streak multiplier.
-- Rivals come in four kinds - Brutes, Stalkers, Hexers and stance-switching Wardens - and get sharper as your streak grows.
+- **Stance** swaps weapon and armour. Blade beats Crossbow leathers, Crossbow beats Staff robes, Staff beats Blade plate.
+- **Wards** remove 60% of one attack type, checked when the hit lands. They drain focus while raised.
+- **Gear** comes in five tiers (Iron, Steel, Gilded, Ember, Voidglass) for each of three weapons and three armours.
+- **Specials** cost 50% energy: Twin Fang, Deadeye, Frostbind.
 
 ## Development
 
 ```
 npm install
-npm run build        # bundles src/ into dist/index.html
-npm run dev          # rebuild on change
-node tools/simtest.mjs   # headless smoke test of the combat simulation
+npm run build            # bundles src/ + assets/ into dist/index.html
+node tools/simtest.mjs   # headless smoke test of the simulation
+node tools/assets.mjs <dir with the KayKit pack repos>   # only when changing which models are used
 ```
 
 | File | What it does |
 |---|---|
-| `src/data.js` | all tuning numbers: styles, accuracy table, specials, difficulty |
-| `src/world.js` | arena layout, collision grid, pathfinding, line of sight |
-| `src/sim.js` | the 600 ms tick simulation (rendering-free, event driven) |
-| `src/ai.js` | rival behaviour: targeting, wards, stance swaps, kiting, specials |
-| `src/gfx/` | three.js scene, procedural low-poly fighters and animation, particles and projectiles |
-| `src/ui.js`, `src/style.css`, `src/index.html` | touch HUD and menus |
-| `src/input.js`, `src/audio.js`, `src/main.js` | gestures, procedural sound, main loop |
+| `src/world.js` | island layout, zones, collision grid, prop placement, pathfinding |
+| `src/sim.js`, `src/ai.js` | 600 ms tick simulation: combat, zones, loot, bag, bank, shops; rival and monster behaviour |
+| `src/items.js` | gear tiers, consumables, save format |
+| `src/gfx/` | three.js scene, skeletal characters, effects, item icon renderer |
+| `src/ui.js`, `src/style.css`, `src/index.html` | touch HUD, panels and menus |
 
-Graphics quality (Low / Medium / High) is in the pause menu and steps down automatically on slow devices.
-All models, textures and sounds are generated in code; the only dependency is [three.js](https://threejs.org) (MIT), bundled into the build.
+## Credits
+
+3D models and animations: KayKit packs by Kay Lousberg (www.kaylousberg.com), CC0 - see `assets/README.md`.
+Rendering: [three.js](https://threejs.org) (MIT). Sounds are synthesised in code.

@@ -7,11 +7,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Hollowmere Arena</title>
+<title>Hollowmere</title>
 <style>/*CSS*/</style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="loading"><h1>HOLLOWMERE</h1><div class="lbar"><i id="lfill"></i></div><p>Loading the island...</p></div>
 <div id="vignette"></div>
 <div id="plates"></div>
 
@@ -27,10 +28,12 @@
     </div>
     <div class="right">
       <div class="row">
-        <div class="stats panel"><div><b id="st-kills">0</b><small>KILLS</small></div><div><b id="st-streak">0</b><small>STREAK</small></div><div><b id="st-score">0</b><small>SCORE</small></div></div>
+        <div class="stats panel"><div><b id="st-lvl">1</b><small>LEVEL</small></div><div><b id="st-coins">0</b><small>COINS</small></div><div><b id="st-streak">0</b><small>STREAK</small></div></div>
+        <button class="ibtn" id="btn-bag" aria-label="Bag"></button>
         <button class="ibtn" id="btn-pause" aria-label="Pause"></button>
       </div>
       <canvas id="minimap" width="192" height="192"></canvas>
+      <div id="zone"></div>
       <div id="feed"></div>
     </div>
   </div>
@@ -55,19 +58,24 @@
   </div>
 </div>
 
+<div id="panel" class="hidden">
+  <div class="phead"><div class="tabs" id="ptabs"><button data-tab="bag">Bag</button><button data-tab="gear">Gear</button></div><b id="ptitle"></b><span class="pcoins"><img id="pcoin-ico" alt=""><b id="pcoins">0</b></span><button id="pclose" aria-label="Close">&#10005;</button></div>
+  <div id="pbody"></div>
+  <div id="pdetail"></div>
+</div>
+
 <div class="screen" id="screen-title">
   <div class="card">
-    <h1>HOLLOWMERE<span>ARENA</span></h1>
-    <p class="tag">Read your rival. Switch your stance. Raise the right ward.</p>
+    <h1>HOLLOWMERE</h1>
+    <p class="tag">Gear up in town. Hunt the Barrow Yard. Risk it all in the Ashen Wilds.</p>
     <div class="how">
-      <div><span class="ico" data-ico="tap"></span><p><b>Tap</b> the ground to move, <b>tap a fighter</b> to attack. Drag to turn the camera, pinch to zoom.</p></div>
-      <div><span class="ico" data-ico="melee"></span><p><b>Stance</b> picks your weapon <i>and</i> armour. Blade beats Bow, Bow beats Staff, Staff beats Blade.</p></div>
-      <div><span class="ico" data-ico="wardmagic"></span><p><b>Wards</b> block 60% of one attack type. Match the weapon your rival is holding.</p></div>
-      <div><span class="ico" data-ico="spec"></span><p>Eat to heal, drink tonics for focus, and unleash your <b>special</b> when the bar is half full.</p></div>
+      <div><span class="ico" data-ico="tap"></span><p><b>Tap</b> to walk, <b>tap</b> a foe to fight or a townsperson to trade. Drag to turn, pinch to zoom.</p></div>
+      <div><span class="ico" data-ico="melee"></span><p><b>Stance</b> swaps weapon and armour. Blade beats Crossbow, Crossbow beats Staff, Staff beats Blade.</p></div>
+      <div><span class="ico" data-ico="wardmagic"></span><p><b>Wards</b> block 60% of one attack type. Match the weapon your foe is holding.</p></div>
+      <div><span class="ico" data-ico="bag"></span><p>Town is <b>safe</b>. Die outside and you drop your coins and supplies - so <b>bank</b> them first.</p></div>
     </div>
-    <div class="seg" id="diff"><button data-d="easy">Easy</button><button data-d="normal" class="on">Normal</button><button data-d="hard">Hard</button></div>
-    <button class="big" id="btn-play">ENTER THE ARENA</button>
-    <div class="sub"><span id="best-line"></span><button class="link" id="btn-fs">Fullscreen</button></div>
+    <button class="big" id="btn-play">ENTER HOLLOWMERE</button>
+    <div class="sub"><span id="best-line"></span><button class="link" id="btn-new">New character</button><button class="link" id="btn-fs">Fullscreen</button></div>
   </div>
 </div>
 
@@ -86,9 +94,10 @@
   <div class="card narrow">
     <h2 class="red">Defeated</h2>
     <p id="dead-by"></p>
+    <p id="dead-lost" class="lost"></p>
     <div class="deadstats"><div><b id="d-streak">0</b><small>STREAK</small></div><div><b id="d-kills">0</b><small>KILLS</small></div><div><b id="d-best">0</b><small>BEST</small></div></div>
     <p class="tip" id="dead-tip"></p>
-    <button class="big" id="btn-respawn">FIGHT AGAIN</button>
+    <button class="big" id="btn-respawn">WAKE IN TOWN</button>
     <button class="ghost" id="btn-quit2">Quit to title</button>
   </div>
 </div>

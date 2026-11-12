@@ -22,5 +22,5 @@ const emit = {
     });
   }
 };
-const opts = { entryPoints: [join(root, 'src/main.js')], bundle: true, minify: true, format: 'iife', target: 'es2019', write: false, legalComments: 'none', plugins: [emit] };
+const opts = { entryPoints: [join(root, 'src/main.js')], bundle: true, minify: true, format: 'iife', target: 'es2019', write: false, legalComments: 'none', loader: { '.glb': 'binary' }, plugins: [emit] };
 if (process.argv.includes('--watch')) { const ctx = await context(opts); await ctx.watch(); console.log('watching src/ ...'); } else await build(opts);

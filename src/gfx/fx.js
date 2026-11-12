@@ -1,6 +1,7 @@
 /* fx.js - particles, projectiles, ground markers, loot orbs and ward flashes */
 import * as THREE from 'three';
 import { STYLES } from '../data.js';
+import { Assets } from '../assets.js';
 
 const MAXP = 900;
 export class FX {
@@ -67,7 +68,7 @@ export class FX {
   syncLoot(list) {
     const ids = new Set(list.map(l => l.id));
     for (const [id, m] of this.loot) if (!ids.has(id)) { this.scene.remove(m); this.loot.delete(id); }
-    for (const l of list) if (!this.loot.has(l.id)) { const m = new THREE.Mesh(this.lootGeo, this.lootMat); m.position.set(l.x + 0.5, 0.5, l.y + 0.5); m.castShadow = true; this.scene.add(m); this.loot.set(l.id, m); }
+    for (const l of list) if (!this.loot.has(l.id)) { const m = Assets.env[l.items.some(i => /\d$/.test(i.id)) || l.coins > 200 ? 'chest_gold' : 'chest'].clone(true); m.scale.setScalar(0.42); m.position.set(l.x + 0.5, 0, l.y + 0.5); m.rotation.y = l.id; this.scene.add(m); this.loot.set(l.id, m); }
   }
   update(dt, time, h) {
     this.pmat.uniforms.scale.value = h * 0.9;
@@ -108,7 +109,7 @@ export class FX {
       const b = this.bubbles[i]; b.t += dt; const f = b.t / 0.4; b.m.scale.setScalar(0.8 + f * 0.6); b.m.material.opacity = 0.5 * (1 - f);
       if (f >= 1) { this.scene.remove(b.m); b.m.material.dispose(); this.bubbles.splice(i, 1); }
     }
-    for (const m of this.loot.values()) { m.rotation.y = time * 2; m.position.y = 0.5 + Math.sin(time * 3 + m.position.x) * 0.1; if (Math.random() < dt * 6) this.spark(m.position.x + (Math.random() - 0.5) * 0.4, 0.3, m.position.z + (Math.random() - 0.5) * 0.4, 0, 0.9, 0, 1, 0.8, 0.3, 0.16, 0.8); }
+    for (const m of this.loot.values()) { m.position.y = Math.abs(Math.sin(time * 3 + m.position.x)) * 0.08; if (Math.random() < dt * 6) this.spark(m.position.x + (Math.random() - 0.5) * 0.4, 0.3, m.position.z + (Math.random() - 0.5) * 0.4, 0, 0.9, 0, 1, 0.8, 0.3, 0.16, 0.8); }
     const pulse = 1.45 + Math.sin(time * 6) * 0.1; this.targetRing.scale.setScalar(pulse); this.targetRing.rotation.y = time;
   }
 }
