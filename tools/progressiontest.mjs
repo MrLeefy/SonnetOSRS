@@ -60,7 +60,7 @@ assert.ok(skillLevel(g.save.skills.ranged) >= 1);
 
 Object.assign(p, npcSpots.banker);
 assert.equal(g.quest('barrow'), true);
-g.save.count.undead += 5; g.save.bossKills += 1;
+g.save.count.undead = (g.save.count.undead || 0) + 5; g.save.bossKills += 1;
 assert.equal(g.quest('barrow'), true);
 assert.equal(g.save.quests.barrow.done, true);
 assert.equal(QUESTS.reduce((n, q) => n + (g.save.quests[q.id]?.done ? q.points : 0), 0), 4);
