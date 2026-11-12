@@ -35,7 +35,7 @@ assert.equal(g.craft('salve'), true);
 assert.ok(g.save.skills.herb > herb0);
 assert.equal(countItem(p.inv, 'salve'), 1);
 assert.equal(g.quest('hearth'), true);
-assert.equal(questStatus(QUESTS[1], g.save, p.inv).state, 'active');
+assert.equal(questStatus(QUESTS[1], g.save, p.inv).state, 'ready');
 addItem(p.inv, 'herbs', 2);
 assert.equal(g.quest('hearth'), true);
 assert.equal(g.save.quests.hearth.done, true);
