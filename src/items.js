@@ -15,7 +15,10 @@ export const ITEMS = {
   rawfish: { id: 'rawfish', name: 'Raw trout', kind: 'res', price: 8, sell: 3, desc: 'Cook it on the campfire in town.' },
   logs: { id: 'logs', name: 'Logs', kind: 'res', price: 14, sell: 6, desc: 'Timber. The Merchant buys it.' },
   ore: { id: 'ore', name: 'Iron ore', kind: 'res', price: 30, sell: 14, desc: 'Raw ore. The Merchant buys it.' },
-  tonic: { id: 'tonic', name: 'Focus tonic', kind: 'tonic', focus: 40, price: 30, desc: 'Restores 40 focus.' }
+  tonic: { id: 'tonic', name: 'Focus tonic', kind: 'tonic', focus: 40, price: 30, desc: 'Restores 40 focus.' },
+  herbs: { id: 'herbs', name: 'Woodland herbs', kind: 'res', price: 12, sell: 5, desc: 'Gathered while chopping trees. Used in Herblore.' },
+  bolts: { id: 'bolts', name: 'Reinforced bolts', kind: 'res', price: 5, sell: 2, desc: 'One is consumed per Crossbow attack for +12% damage. Fletch at the Smith.' },
+  salve: { id: 'salve', name: 'Herbal salve', kind: 'food', heal: 30, price: 75, sell: 30, desc: 'Heals 30. Mix trout and woodland herbs at the Market.' }
 };
 for (const slot in SLOTS) TIERS.forEach((t, i) => {
   const s = SLOTS[slot], id = slot + i;
@@ -38,18 +41,25 @@ export function takeItem(inv, id, n = 1) {
 }
 export function newSave() {
   const inv = new Array(INV_SIZE).fill(null); addItem(inv, 'bread', 8); addItem(inv, 'tonic', 2);
-  return { v: 2, eq: { blade: 'blade0', bow: 'bow0', staff: 'staff0', plate: 'plate0', leather: 'leather0', robe: 'robe0' }, inv, coins: 60, bank: { coins: 0, items: { roast: 4 } }, xp: 0, kills: 0, deaths: 0, best: 0, bossKills: 0, skills: { wood: 0, mine: 0, fish: 0, cook: 0, smith: 0 }, count: {}, tasks: {} };
+  return { v: 2, eq: { blade: 'blade0', bow: 'bow0', staff: 'staff0', plate: 'plate0', leather: 'leather0', robe: 'robe0' }, inv, coins: 60, bank: { coins: 0, items: { roast: 4 } }, xp: 0, kills: 0, deaths: 0, best: 0, bossKills: 0, skills: { wood: 0, mine: 0, fish: 0, cook: 0, smith: 0, fletch: 0, herb: 0, melee: 0, ranged: 0, magic: 0, defence: 0 }, count: {}, tasks: {}, quests: {} };
 }
 export const levelOf = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp / 90)));
 export const xpForLevel = l => (l - 1) * (l - 1) * 90;
 
 /* ---- gathering skills ---- */
-export const SKILLS = { wood: { name: 'Woodcutting', verb: 'CHOPPING' }, mine: { name: 'Mining', verb: 'MINING' }, fish: { name: 'Fishing', verb: 'FISHING' }, cook: { name: 'Cooking', verb: 'COOKING' }, smith: { name: 'Smithing', verb: 'FORGING' } };
+export const SKILLS = { wood: { name: 'Woodcutting', verb: 'CHOPPING' }, mine: { name: 'Mining', verb: 'MINING' }, fish: { name: 'Fishing', verb: 'FISHING' }, cook: { name: 'Cooking', verb: 'COOKING' }, smith: { name: 'Smithing', verb: 'FORGING' },
+  fletch: { name: 'Fletching', verb: 'FLETCHING' }, herb: { name: 'Herblore', verb: 'MIXING' },
+  melee: { name: 'Melee', verb: 'TRAINING' }, ranged: { name: 'Ranged', verb: 'TRAINING' },
+  magic: { name: 'Magic', verb: 'TRAINING' }, defence: { name: 'Defence', verb: 'TRAINING' } };
 export const FORGE = [null, { ore: 6, logs: 2, lvl: 1 }, { ore: 18, logs: 6, lvl: 5 }, { ore: 45, logs: 15, lvl: 12 }, { ore: 110, logs: 35, lvl: 20 }];
 export const NODE = { tree: { skill: 'wood', item: 'logs', xp: 25, cap: [3, 6], regrow: 45, name: 'Tree' }, rock: { skill: 'mine', item: 'ore', xp: 35, cap: [2, 4], regrow: 40, name: 'Ore rock' },
   fish: { skill: 'fish', item: 'rawfish', xp: 30, name: 'Fishing spot' }, fire: { skill: 'cook', item: 'trout', xp: 30, name: 'Campfire' } };
 export const skillLevel = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp / 40)));
 export const skillXp = l => (l - 1) * (l - 1) * 40;
+export const RECIPES = [
+  { id: 'bolts', station: 'smith', skill: 'fletch', level: 1, costs: { logs: 2, ore: 1 }, makes: 12, xp: 36 },
+  { id: 'salve', station: 'market', skill: 'herb', level: 1, costs: { herbs: 2, trout: 1 }, makes: 1, xp: 55 }
+];
 /* ---- starter tasks: a guided tour of everything there is to do ---- */
 const c = (s, k) => (s.count && s.count[k]) || 0;
 export const TASKS = [
@@ -63,5 +73,9 @@ export const TASKS = [
   { id: 'steel', t: 'Wield a Steel (or better) weapon', r: 60, ok: s => ['blade', 'bow', 'staff'].some(k => ITEMS[s.eq[k]].tier >= 1) },
   { id: 'warden', t: 'Defeat the Barrow Warden', r: 250, ok: s => s.bossKills >= 1 },
   { id: 'rival', t: 'Win a fight in the Ashen Wilds', r: 150, ok: s => s.kills >= 1 },
-  { id: 'lvl10', t: 'Reach combat level 10', r: 200, ok: s => levelOf(s.xp) >= 10 }
+  { id: 'lvl10', t: 'Reach combat level 10', r: 200, ok: s => levelOf(s.xp) >= 10 },
+  { id: 'herb', t: 'Find 2 woodland herbs while chopping', r: 30, ok: s => c(s, 'herbs') >= 2 },
+  { id: 'fletch', t: 'Fletch a batch of reinforced bolts', r: 45, ok: s => c(s, 'crafted_bolts') >= 1 },
+  { id: 'salve', t: 'Mix an herbal salve at the Market', r: 65, ok: s => c(s, 'crafted_salve') >= 1 },
+  { id: 'mastery', t: 'Reach level 5 in any combat mastery', r: 100, ok: s => ['melee', 'ranged', 'magic', 'defence'].some(k => skillLevel((s.skills || {})[k] || 0) >= 5) }
 ];

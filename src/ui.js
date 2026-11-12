@@ -1,7 +1,8 @@
 /* ui.js - DOM HUD: bars, action pads, target frame, overhead plates, damage numbers, menus */
 import { STYLES, SPECIALS, STYLE_IDS } from './data.js';
 import { N, TOWN, WILDS, GRAVE, PLAZA_R, blockAt, landDist, roadDist, zoneAt, ZONE_NAMES } from './world.js';
-import { ITEMS, TIERS, SLOTS, SMITH_STOCK, MARKET_STOCK, sellPrice, levelOf, xpForLevel, SKILLS, TASKS, FORGE, skillLevel, skillXp } from './items.js';
+import { ITEMS, TIERS, SLOTS, SMITH_STOCK, MARKET_STOCK, sellPrice, levelOf, xpForLevel, SKILLS, TASKS, FORGE, RECIPES, skillLevel, skillXp, countItem } from './items.js';
+import { QUESTS, questStatus } from './quests.js';
 
 const G = {
   melee: '<path d="M20 4 9.5 14.5M20 4h-4.5M20 4v4.5M6.5 11.5l6 6M8.5 15.5 4 20"/>',
@@ -183,9 +184,19 @@ export class HUD {
       h += `<div class="recs"><div><b>${sv.kills}</b><small>RIVALS SLAIN</small></div><div><b>${sv.best}</b><small>BEST STREAK</small></div><div><b>${sv.bossKills}</b><small>WARDENS</small></div><div><b>${sv.deaths}</b><small>DEATHS</small></div></div>`;
     } else if (m === 'skills') {
       const row = (name, l, x, x0, x1, note) => `<div class="sk"><div><b>${name}</b><span>Level ${l}</span></div><div class="xp"><i style="width:${Math.min(100, (x - x0) / (x1 - x0) * 100)}%"></i></div><small>${note}</small></div>`;
-      const notes = { smith: 'At the Smith, forge gear from ore and logs instead of paying coins.', wood: 'Tap a tree in the eastern forest. Logs sell at the Market.', mine: 'Tap a copper-coloured rock at the north-east mine. Ore sells well.', fish: 'Tap a ripple just off the shore.', cook: 'Tap the campfire beside the tavern with raw trout in your bag.' };
+      const notes = { smith: 'At the Smith, forge gear from ore and logs instead of paying coins.', wood: 'Tap a tree in the eastern forest. Logs sell at the Market.', mine: 'Tap a copper-coloured rock at the north-east mine. Ore sells well.', fish: 'Tap a ripple just off the shore.', cook: 'Tap the campfire beside the tavern with raw trout in your bag.',
+        fletch: 'Craft reinforced bolts at the Smith for extra Crossbow damage.', herb: 'Mix herbs and cooked trout into healing salves at the Market.',
+        melee: 'Deal Blade damage to improve melee accuracy and strength.', ranged: 'Deal Crossbow damage to improve ranged accuracy and strength.',
+        magic: 'Deal Staff damage to improve magic accuracy and strength.', defence: 'Take hits to train your damage resistance.' };
       h = row('Combat', p.level, sv.xp, xpForLevel(p.level), xpForLevel(p.level + 1), `${p.maxHp} max health. Earned by dealing damage.`);
       for (const k in SKILLS) { const l = skillLevel(sv.skills[k]); h += row(SKILLS[k].name, l, sv.skills[k], skillXp(l), skillXp(l + 1), notes[k] + ' Higher levels succeed more often.'); }
+    } else if (m === 'quests') {
+      const points = QUESTS.reduce((n, q) => n + (sv.quests[q.id]?.done ? q.points : 0), 0);
+      h = '<div class="sec"><span>Adventure Journal</span><span>' + points + ' / ' + QUESTS.reduce((n,q)=>n+q.points,0) + ' quest points</span></div>';
+      h += QUESTS.map(q => { const st = questStatus(q, sv, p.inv);
+        const heading = st.state === 'locked' ? 'Locked: finish the previous quest' : st.state === 'available' ? 'Not started · Talk to the ' + q.giver : st.state === 'ready' ? 'Ready! Return to the ' + q.giver : st.progress;
+        return '<div class="quest-card ' + st.state + '"><b>' + q.name + '</b><small>' + q.story + '</small><p>' + heading + '</p><span>+' + q.points + ' QP · ' + q.reward.coins + ' coins · ' + q.giver + '</span></div>';
+      }).join('');
     } else if (m === 'tasks') {
       h = TASKS.map(t => `<div class="task${sv.tasks[t.id] ? ' done' : ''}"><i>${sv.tasks[t.id] ? '&#10003;' : ''}</i><span>${t.t}</span><b>+${t.r}</b></div>`).join(''); $('btn-bag').classList.remove('hasnew');
     } else if (m === 'bank') {
@@ -200,8 +211,24 @@ export class HUD {
       if (this.shop === 'smith') { const sl = skillLevel(sv.skills.smith), ore = p.inv.reduce((n, x) => n + (x && x.id === 'ore' ? x.n : 0), 0), logs = p.inv.reduce((n, x) => n + (x && x.id === 'logs' ? x.n : 0), 0);
         h += `<div class="sec"><span>Forge it yourself - Smithing ${sl}</span><span>${ore} ore, ${logs} logs in bag</span></div>` + stock.map(id => { const it = ITEMS[id], F = FORGE[it.tier], ok = sl >= F.lvl && ore >= F.ore && logs >= F.logs;
           return `<button class="row2${ok ? '' : ' no'}" data-act="forge" data-id="${id}"><img src="${this.icons[id]}" alt=""><span class="d"><b style="color:${TIERS[it.tier].css}">${it.name}</b>${F.ore} ore + ${F.logs} logs${sl < F.lvl ? ' - needs Smithing ' + F.lvl : ''}</span><span class="p">Forge</span></button>`; }).join(''); }
+      const station = this.shop === 'smith' ? 'smith' : 'market';
+      const recipes = RECIPES.filter(r => r.station === station);
+      h += '<div class="sec"><span>Crafting & professions</span><span>uses bag supplies</span></div>' + recipes.map(r => {
+        const it = ITEMS[r.id], lvl = skillLevel(sv.skills[r.skill]), ok = lvl >= r.level && Object.entries(r.costs).every(([id, n]) => countItem(p.inv, id) >= n);
+        return '<button class="row2' + (ok ? '' : ' no') + '" data-act="craft" data-id="' + r.id + '"><img src="' + this.icons[r.id] + '" alt=""><span class="d"><b>' + it.name + ' x' + r.makes + '</b>' + Object.entries(r.costs).map(([id, n]) => n + ' ' + ITEMS[id].name).join(' + ') + ' · ' + SKILLS[r.skill].name + ' ' + r.level + '</span><span class="p">Craft</span></button>';
+      }).join('');
       h += '<div class="sec"><span>Your bag - tap to sell</span></div>' + this.bagGrid('sel');
       if (s) d = `<div class="d"><b>${ITEMS[s.id].name}</b>${ITEMS[s.id].desc}</div><button class="act go" data-act="sell" data-i="${this.sel}">Sell for ${sellPrice(s.id)}</button>`;
+    }
+    if (m === 'bank' || m === 'shop') {
+      const giver = m === 'bank' ? 'banker' : this.shop === 'smith' ? 'smith' : 'merchant';
+      const quests = QUESTS.filter(q => q.giver === giver);
+      h = quests.map(q => {
+        const st = questStatus(q, sv, p.inv);
+        const hint = st.state === 'locked' ? 'Complete the previous quest first' : st.state === 'available' ? q.story : st.progress;
+        const action = st.state === 'available' ? 'Accept quest' : st.state === 'ready' ? 'Turn in' : st.state === 'done' ? 'Complete' : st.state === 'locked' ? 'Locked' : 'In progress';
+        return '<div class="quest-card ' + st.state + '"><b>' + q.name + '</b><small>' + hint + '</small><button class="act' + (st.state === 'ready' ? ' go' : '') + '" data-act="quest" data-id="' + q.id + '"' + (st.state === 'locked' || st.state === 'done' ? ' disabled' : '') + '>' + action + '</button></div>';
+      }).join('') + h;
     }
     const body = $('pbody'), top = body.scrollTop; body.innerHTML = h; body.scrollTop = top; $('pdetail').innerHTML = d;
   }
@@ -209,7 +236,7 @@ export class HUD {
     const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act, i = +b.dataset.i, id = b.dataset.id, h = this.h;
     if (a === 'sel') { if (this.sel === i && this.mode === 'bag') h.useSlot(i); else this.sel = i; }
     else if (a === 'use') h.useSlot(i); else if (a === 'drop') { h.dropSlot(i); this.sel = -1; } else if (a === 'dep') h.deposit(i); else if (a === 'wd') h.withdraw(id);
-    else if (a === 'depAll') h.depositAll(); else if (a === 'coinsIn') h.coins(true); else if (a === 'coinsOut') h.coins(false); else if (a === 'buy') h.buy(id); else if (a === 'forge') h.forge(id); else if (a === 'sell') h.sell(i);
+    else if (a === 'depAll') h.depositAll(); else if (a === 'coinsIn') h.coins(true); else if (a === 'coinsOut') h.coins(false); else if (a === 'buy') h.buy(id); else if (a === 'forge') h.forge(id); else if (a === 'craft') h.craft(id); else if (a === 'quest') h.quest(id); else if (a === 'sell') h.sell(i);
     this.renderPanel();
   }
 }

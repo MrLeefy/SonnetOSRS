@@ -101,6 +101,8 @@ async function boot() {
     else if (type === 'gather') { if (d.item) { splatAt(d.a, '+1 ' + ITEMS[d.item].name, 'heal'); Sound.play('pickup', 0.7); buzz(10); } else { hud.toast(d.text); Sound.play('deny'); } }
     else if (type === 'skill') { hud.banner(d.name.toUpperCase() + ' ' + d.level, 'SKILL LEVEL UP'); Sound.play('kill'); }
     else if (type === 'task') { hud.banner('TASK COMPLETE', `${d.task.t.toUpperCase()}  +${d.task.r} COINS`); Sound.play('kill'); document.getElementById('btn-bag').classList.add('hasnew'); }
+    else if (type === 'quest') { hud.banner(d.phase === 'complete' ? 'QUEST COMPLETE' : 'QUEST STARTED', d.quest.name.toUpperCase()); Sound.play(d.phase === 'complete' ? 'kill' : 'ui'); document.getElementById('btn-bag').classList.add('hasnew'); }
+    else if (type === 'craft') { hud.toast('Created ' + d.n + ' ' + d.item.name); Sound.play('pickup', 0.6); }
     else if (type === 'equip') { const v = views.get(p.id); if (v) v.ch.setGear(gearTints(p)); Sound.play('stance'); hud.toast('Equipped ' + ITEMS[d.id].name); }
     else if (type === 'trade') Sound.play('pickup', 0.6);
     else if (type === 'level') { hud.banner('LEVEL ' + d.level, 'MAX HEALTH ' + p.maxHp); Sound.play('kill'); const v = views.get(p.id); if (v) fx.burst(v.pos.x, 1, v.pos.z, 0xffd76a, 40, 3, 0.3, 1, -2, 2); }
@@ -161,7 +163,7 @@ async function boot() {
     cycle: cycleTarget,
     useSlot: i => { if (playing()) game.useSlot(i); }, dropSlot: i => { if (playing()) game.dropSlot(i); },
     deposit: i => game.deposit(i), withdraw: id => game.withdraw(id), depositAll: () => { game.depositAll(); Sound.play('pickup', 0.6); }, coins: toBank => { game.moveCoins(toBank); Sound.play('pickup', 0.6); },
-    buy: id => game.buy(id), sell: i => game.sell(i), forge: id => game.forge(id),
+    buy: id => game.buy(id), sell: i => game.sell(i), forge: id => game.forge(id), craft: id => game.craft(id), quest: id => game.quest(id),
     pause: () => { if (mode === 'play') { mode = 'pause'; hud.setOptions(settings); hud.show('pause'); Sound.play('ui'); persist(); } },
     resume: () => { if (mode === 'pause') { mode = 'play'; hud.show('game'); last = performance.now(); } },
     play: () => { Sound.unlock(); newGame({ save: save || undefined }); mode = 'play'; hud.show('game'); const p = game.player; cam.yaw = 0; cam.pitch = 0.82; cam.dist = 13; cam.x = p.x + 0.5; cam.z = p.y + 0.5; Sound.play('spawn');

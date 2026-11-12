@@ -38,6 +38,10 @@ Dying outside town drops the coins and supplies you were carrying (worn gear is 
 - **Skills**: Woodcutting, Mining, Fishing and Cooking each level up with use (higher level = more successes). Tap a tree, rock,
   ripple or the campfire by the tavern. Logs and ore sell at the Market; cooked trout is free food.
 - **Smithing**: at the Smith, forge gear from your own ore and logs instead of paying coins; higher tiers need a higher Smithing level.
+- **Fletching**: turn logs and ore into reinforced bolts at the Smith. Bolts boost Crossbow attacks and are consumed one at a time.
+- **Herblore**: find herbs while chopping trees, then mix cooked trout and herbs into stronger healing salves at the Market.
+- **Combat masteries**: Melee, Ranged, Magic and Defence earn their own XP. Attacking improves style damage and accuracy; taking hits trains defence.
+- **Story quests**: accept and hand in three chained NPC quests (Smith, Merchant, Banker) for quest points, money and gear. The Quests tab tracks progress and prerequisite unlocks. Legacy local saves remain compatible.
 - **Tasks** (bag button, Tasks tab) walk a new character through every activity and pay coins.
 
 ## Development

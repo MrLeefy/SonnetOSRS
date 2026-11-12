@@ -28,7 +28,7 @@ export function renderIcons(renderer) {
     ctx.beginPath(); ctx.ellipse(-4, 0, 42, 21, 0, 0, 7); ctx.stroke(); ctx.fill(); ctx.fillStyle = belly; ctx.beginPath(); ctx.ellipse(-4, 7, 36, 11, 0, 0, Math.PI); ctx.fill();
     ctx.fillStyle = body; ctx.beginPath(); ctx.moveTo(-10, -19); ctx.lineTo(8, -32); ctx.lineTo(14, -18); ctx.closePath(); ctx.stroke(); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-30, -5, 6, 0, 7); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(-31, -5, 3, 0, 7); ctx.fill(); ctx.restore(); return cv.toDataURL('image/png'); };
-  for (const id in ITEMS) { const it = ITEMS[id]; out[id] = it.slot ? shot(it.slot, TIERS[it.tier].c) : id === 'rawfish' ? fish('#7fa6bd', '#dfeef5') : id === 'trout' ? fish('#c9843a', '#f2c98a') : id === 'ore' ? shot('ore', 0xd9925a) : shot(id); }
+  for (const id in ITEMS) { const it = ITEMS[id]; out[id] = it.slot ? shot(it.slot, TIERS[it.tier].c) : id === 'rawfish' ? fish('#7fa6bd', '#dfeef5') : id === 'trout' ? fish('#c9843a', '#f2c98a') : id === 'ore' ? shot('ore', 0xd9925a) : id === 'herbs' ? shot('logs', 0x55b976) : id === 'bolts' ? shot('bow', 0xd4aa65) : id === 'salve' ? shot('tonic', 0x85df7a) : shot(id); }
   out.coins = shot('coins'); renderer.setRenderTarget(oldTarget); renderer.setClearAlpha(oldClear); rt.dispose();
   return out;
 }

@@ -140,7 +140,7 @@ label { display: block; font-size: 10px; letter-spacing: 0.16em; opacity: 0.7; m
 #panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: 64vh; display: flex; flex-direction: column; background: rgba(13, 17, 24, 0.94); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; padding: 8px calc(10px + var(--sr)) calc(8px + var(--sb)) calc(10px + var(--sl)); z-index: 5; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); touch-action: pan-y; }
 @media (min-aspect-ratio: 1/1) { #panel { left: auto; top: 0; max-height: none; width: min(48vw, 430px); border-radius: 18px 0 0 18px; border-top: 0; border-left: 1px solid var(--line); padding-top: calc(8px + var(--st)); } }
 .phead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .phead #ptitle { flex: 1; font-size: 15px; letter-spacing: 0.06em; text-align: center; }
-.tabs { display: flex; background: rgba(255, 255, 255, 0.07); border-radius: 10px; padding: 3px; } .tabs button { padding: 7px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; opacity: 0.7; } .tabs button.on { background: var(--gold); color: #1a1408; opacity: 1; }
+.tabs { display: flex; background: rgba(255, 255, 255, 0.07); border-radius: 10px; padding: 3px; } .tabs button { padding: 7px 8px; border-radius: 8px; font-weight: 700; font-size: 12px; opacity: 0.7; white-space: nowrap; } .tabs button.on { background: var(--gold); color: #1a1408; opacity: 1; }
 .pcoins { display: flex; align-items: center; gap: 3px; font-size: 14px; color: var(--gold); } .pcoins img { width: 22px; height: 22px; }
 #pclose { width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); font-size: 15px; }
 #pbody { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; min-height: 0; }
@@ -163,3 +163,18 @@ label { display: block; font-size: 10px; letter-spacing: 0.16em; opacity: 0.7; m
 .task { display: flex; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.055); border-radius: 12px; padding: 9px 11px; margin-bottom: 5px; font-size: 13px; } .task i { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); flex: none; font-style: normal; font-size: 13px; line-height: 17px; text-align: center; }
 .task span { flex: 1; } .task b { color: var(--gold); } .task.done { opacity: 0.55; } .task.done i { background: #58d05a; border-color: #58d05a; color: #0d1118; } .task.done span { text-decoration: line-through; }
 .hasnew::after { content: ''; position: absolute; right: 5px; top: 5px; width: 9px; height: 9px; border-radius: 50%; background: #58d05a; box-shadow: 0 0 6px #58d05a; } .ibtn { position: relative; }
+
+/* 2026 Adventure Journal: scrollable mobile tabs and readable NPC quest cards */
+#ptabs { min-width: 0; overflow-x: auto; flex-shrink: 1; scrollbar-width: none; }
+#ptabs::-webkit-scrollbar { display: none; }
+.quest-card { background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 10px 12px; margin: 0 0 8px; }
+.quest-card b { display: block; font-size: 14px; color: var(--gold); }
+.quest-card small { display: block; margin: 5px 0; font-size: 11px; opacity: .88; line-height: 1.4; }
+.quest-card p { margin: 5px 0; font-size: 12px; line-height: 1.4; }
+.quest-card span { font-size: 11px; opacity: .7; }
+.quest-card .act { margin-top: 7px; }
+.quest-card.done { border-color: rgba(88,208,90,.28); }
+.quest-card.done b { color: #76dd80; }
+.quest-card.locked { opacity: .58; }
+.quest-card.ready { border-color: rgba(255,215,106,.6); }
+@media (max-width: 390px) { .phead { gap: 4px; } #ptabs button { padding: 7px 6px; font-size: 11px; } .pcoins { font-size: 11px; } .pcoins img { width: 17px; height: 17px; } }

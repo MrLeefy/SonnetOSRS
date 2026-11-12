@@ -2,7 +2,8 @@
    Rendering-free and event driven, so it also runs headless (tools/simtest.mjs). */
 import { STYLES, ACC, SPECIALS, WARD_REDUCE, DEADEYE_WARD_REDUCE, EAT_DELAY, BOT_NAMES, rint, pick, chance, clamp, lerp } from './data.js';
 import { SPAWN, WILDS, GRAVE, npcSpots, nodes as WORLD_NODES, zoneAt, canStep, hasLoS, findPath, cheb, randomFreeTile, DIRS } from './world.js';
-import { ITEMS, TIERS, SLOTS, WEAPON_SLOT, ARMOUR_SLOT, INV_SIZE, weaponMul, weaponAcc, armourCut, addItem, takeItem, countItem, newSave, levelOf, sellPrice, NODE, SKILLS, TASKS, FORGE, skillLevel } from './items.js';
+import { ITEMS, TIERS, SLOTS, WEAPON_SLOT, ARMOUR_SLOT, INV_SIZE, weaponMul, weaponAcc, armourCut, addItem, takeItem, countItem, newSave, levelOf, sellPrice, NODE, SKILLS, TASKS, FORGE, RECIPES, skillLevel } from './items.js';
+import { QUESTS, questStatus } from './quests.js';
 import { botThink, monsterThink } from './ai.js';
 
 let NEXT_ID = 1;
@@ -18,7 +19,7 @@ export class Game {
   constructor(opts = {}) {
     this.tick = 0; this.actors = []; this.hitQ = []; this.loot = []; this.listeners = []; this.respawns = []; this.usedNames = new Set(); this.dirty = false;
     this.save = opts.save || newSave(); this.player = null; this.streak = 0; this.rev = 0;
-    const sv = this.save; sv.skills = Object.assign({ wood: 0, mine: 0, fish: 0, cook: 0, smith: 0 }, sv.skills); sv.count = sv.count || {}; sv.tasks = sv.tasks || {};
+    const sv = this.save; sv.skills = Object.assign({ wood: 0, mine: 0, fish: 0, cook: 0, smith: 0, fletch: 0, herb: 0, melee: 0, ranged: 0, magic: 0, defence: 0 }, sv.skills); sv.count = sv.count || {}; sv.tasks = sv.tasks || {}; sv.quests = sv.quests || {};
     this.nodes = WORLD_NODES.map((n, i) => Object.assign({ id: i, left: NODE[n.type].cap ? NODE[n.type].cap[0] + rint(NODE[n.type].cap[1]) : 0, depleted: false, regrowAt: 0 }, n));
     if (!opts.spectate) {
       const p = this.player = this.makeActor({ name: 'You', kind: 'player', isPlayer: true, look: 'hero', team: 'ffa', x: SPAWN.x, y: SPAWN.y });
@@ -61,7 +62,7 @@ export class Game {
   /* recompute everything derived from the player's gear, level and bag */
   refreshPlayer(full) {
     const p = this.player, s = this.save, lvl = levelOf(s.xp); p.level = lvl; p.maxHp = 60 + Math.min(lvl, 20) * 2; if (full) p.hp = p.maxHp; p.hp = Math.min(p.hp, p.maxHp);
-    for (const st in WEAPON_SLOT) p.armour[st] = armourCut(ITEMS[p.eq[ARMOUR_SLOT[st]]].tier);
+    for (const st in WEAPON_SLOT) p.armour[st] = Math.min(0.55, armourCut(ITEMS[p.eq[ARMOUR_SLOT[st]]].tier) + (skillLevel(s.skills.defence) - 1) * 0.002);
     p.food = p.inv.reduce((n, x) => n + (x && ITEMS[x.id].kind === 'food' ? x.n : 0), 0); p.tonics = countItem(p.inv, 'tonic'); this.dirty = true; this.rev++;
     for (const t of TASKS) if (!s.tasks[t.id] && t.ok(s)) { s.tasks[t.id] = 1; s.coins += t.r; this.emit('task', { task: t }); }
   }
@@ -111,7 +112,15 @@ if (a.isPlayer) { // smallest food that covers the wound, otherwise the biggest 
     const p = this.player, s = p.inv[i]; if (!s || p.dead) return; const it = ITEMS[s.id];
     if (it.kind === 'food') { if (!this.eatItem(s.id)) this.emit('msg', { text: p.hp >= p.maxHp ? 'Already at full health.' : 'Not yet...' }); }
     else if (it.kind === 'tonic') { if (!this.tonic(p)) this.emit('msg', { text: p.focus >= 100 ? 'Focus is already full.' : 'Not yet...' }); }
-    else { const old = p.eq[it.slot]; p.eq[it.slot] = s.id; s.n--; if (s.n <= 0) p.inv[i] = null; addItem(p.inv, old); this.refreshPlayer(); this.emit('equip', { a: p, id: it.id }); }
+    else if (!it.slot) this.emit('msg', { text: it.desc || 'This item is a crafting material.' });
+    else {
+      // Simulate the swap first: a full bag must never destroy worn equipment.
+      const next = p.inv.map(x => x ? { ...x } : null), old = p.eq[it.slot];
+      next[i].n--; if (!next[i].n) next[i] = null;
+      if (old && !addItem(next, old)) { this.emit('msg', { text: 'Free a bag slot before changing gear.' }); return; }
+      p.inv.splice(0, p.inv.length, ...next); p.eq[it.slot] = s.id;
+      this.refreshPlayer(); this.emit('equip', { a: p, id: it.id });
+    }
   }
   eatItem(id) { const p = this.player; if (p.dead || p.eatCd > 0 || p.hp >= p.maxHp || !takeItem(p.inv, id)) return false; const heal = ITEMS[id].heal; p.hp = Math.min(p.maxHp, p.hp + heal); p.eatCd = EAT_DELAY; p.atkCd = Math.max(p.atkCd, 2); this.refreshPlayer(); this.emit('eat', { a: p, heal }); return true; }
   dropSlot(i) { const p = this.player, s = p.inv[i]; if (!s) return; p.inv[i] = null; this.dropLoot(p.x, p.y, 0, [s]); this.refreshPlayer(); }
@@ -133,6 +142,47 @@ if (a.isPlayer) { // smallest food that covers the wound, otherwise the biggest 
     s.skills.smith += F.ore * 22; s.count.forged = (s.count.forged || 0) + 1; const l2 = skillLevel(s.skills.smith); if (l2 > lvl) this.emit('skill', { name: 'Smithing', level: l2 });
     this.refreshPlayer(); this.emit('trade', {}); return true;
   }
+  craft(id) {
+    const recipe = RECIPES.find(r => r.id === id), p = this.player, s = this.save;
+    if (!recipe || !p || p.dead) return false;
+    const spot = npcSpots[recipe.station === 'smith' ? 'smith' : 'merchant'];
+    if (cheb(p.x, p.y, spot.x, spot.y) > 3) { this.emit('msg', { text: 'Return to the workbench to craft.' }); return false; }
+    const lvl = skillLevel(s.skills[recipe.skill]);
+    if (lvl < recipe.level) { this.emit('msg', { text: 'Requires ' + recipe.skill + ' level ' + recipe.level + '.' }); return false; }
+    const next = p.inv.map(x => x ? { ...x } : null);
+    if (Object.entries(recipe.costs).some(([item, n]) => countItem(next, item) < n)) {
+      this.emit('msg', { text: 'You need ' + Object.entries(recipe.costs).map(([k, n]) => n + ' ' + ITEMS[k].name).join(' and ') + '.' }); return false;
+    }
+    for (const [item, n] of Object.entries(recipe.costs)) takeItem(next, item, n);
+    if (!addItem(next, recipe.id, recipe.makes)) { this.emit('msg', { text: 'Your bag is full.' }); return false; }
+    p.inv.splice(0, p.inv.length, ...next);
+    s.skills[recipe.skill] += recipe.xp;
+    s.count['crafted_' + recipe.id] = (s.count['crafted_' + recipe.id] || 0) + 1;
+    if (skillLevel(s.skills[recipe.skill]) > lvl) this.emit('skill', { name: SKILLS[recipe.skill].name, level: skillLevel(s.skills[recipe.skill]) });
+    this.refreshPlayer(); this.emit('craft', { item: ITEMS[id], n: recipe.makes }); return true;
+  }
+  quest(id) {
+    const q = QUESTS.find(x => x.id === id), p = this.player, s = this.save;
+    if (!q || !p || p.dead) return false;
+    const npc = npcSpots[q.giver];
+    if (cheb(p.x, p.y, npc.x, npc.y) > 3) { this.emit('msg', { text: 'Speak to the ' + q.giver + ' in town.' }); return false; }
+    const st = questStatus(q, s, p.inv);
+    if (st.state === 'locked' || st.state === 'done') return false;
+    if (st.state === 'available') {
+      s.quests[id] = { done: false, start: { undead: s.count.undead || 0, bossKills: s.bossKills || 0 } };
+      this.refreshPlayer(); this.emit('quest', { quest: q, phase: 'start' }); return true;
+    }
+    if (st.state !== 'ready') { this.emit('msg', { text: 'Not finished yet: ' + st.progress }); return false; }
+    const next = p.inv.map(x => x ? { ...x } : null);
+    for (const [item, n] of Object.entries(q.items)) if (!takeItem(next, item, n)) return false;
+    p.inv.splice(0, p.inv.length, ...next);
+    for (const item of q.reward.items) if (!addItem(p.inv, item.id, item.n)) {
+      s.bank.items[item.id] = (s.bank.items[item.id] || 0) + item.n;
+      this.emit('msg', { text: ITEMS[item.id].name + ' was deposited in your vault (bag full).' });
+    }
+    s.coins += q.reward.coins; s.quests[id].done = true;
+    this.refreshPlayer(); this.emit('quest', { quest: q, phase: 'complete' }); return true;
+  }
   sell(i) { const p = this.player, s = p.inv[i]; if (!s) return; this.save.coins += sellPrice(s.id); s.n--; if (s.n <= 0) p.inv[i] = null; this.refreshPlayer(); this.emit('trade', {}); }
 
   /* ---------------- combat ---------------- */
@@ -142,7 +192,12 @@ if (a.isPlayer) { // smallest food that covers the wound, otherwise the biggest 
     const style = a.stance, S = STYLES[style]; let spec = null;
     if (a.specArmed) { a.specArmed = false; if (a.spec >= SPECIALS[style].cost) { a.spec -= SPECIALS[style].cost; spec = style; } }
     a.atkCd = S.speed; a.face = Math.atan2(t.x - a.x, t.y - a.y); a.path = [];
-    const wt = this.weaponTier(a), mul = a.isPlayer ? weaponMul(wt) : a.dmgMul, accB = a.isPlayer ? weaponAcc(wt) : a.acc, base = a.wmax || S.max;
+    const wt = this.weaponTier(a), mastery = a.isPlayer ? skillLevel(this.save.skills[style]) - 1 : 0;
+    let mul = a.isPlayer ? weaponMul(wt) * (1 + mastery * 0.01) : a.dmgMul;
+    const accB = a.isPlayer ? weaponAcc(wt) + mastery * 0.0025 : a.acc, base = a.wmax || S.max;
+    if (a.isPlayer && style === 'ranged' && countItem(a.inv, 'bolts') > 0) {
+      takeItem(a.inv, 'bolts'); mul *= 1.12; this.refreshPlayer();
+    }
     const delay = style === 'melee' ? 0 : 1 + Math.floor(cheb(a.x, a.y, t.x, t.y) / 4);
     const roll = (accBonus, maxMul, minFrac = 0) => { if (!chance(Math.min(1, ACC[style][t.stance] + accB + accBonus))) return 0; const max = base * maxMul * mul; return Math.max(1, Math.round(lerp(minFrac * max, max, Math.random()))); };
     const hits = [];
@@ -165,7 +220,21 @@ if (a.isPlayer) { // smallest food that covers the wound, otherwise the biggest 
     if (h.freeze && dmg > 0 && !t.boss && (h.force || (t.frozen <= 0 && t.freezeImm <= 0))) { t.frozen = h.freeze; t.freezeImm = h.freeze + 6; t.path = []; froze = true; }
     t.hp -= dmg; t.lastHurtTick = this.tick; t.lastAttacker = src; t.dmgFrom.set(src.id, (t.dmgFrom.get(src.id) || 0) + dmg);
     if (t.isPlayer && !t.target && !t.path.length && !t.interact && !src.dead) { t.target = src; t.gather = null; }
-    if (src.isPlayer && dmg > 0) { const l0 = src.level; this.save.xp += dmg * 4; this.refreshPlayer(); if (src.level > l0) this.emit('level', { level: src.level }); }
+    if (src.isPlayer && dmg > 0) {
+      const l0 = src.level, old = skillLevel(this.save.skills[h.style]);
+      this.save.xp += dmg * 4; this.save.skills[h.style] += dmg * 3;
+      this.refreshPlayer();
+      if (src.level > l0) this.emit('level', { level: src.level });
+      const next = skillLevel(this.save.skills[h.style]);
+      if (next > old) this.emit('skill', { name: SKILLS[h.style].name, level: next });
+    }
+    if (t.isPlayer && dmg > 0) {
+      const old = skillLevel(this.save.skills.defence);
+      this.save.skills.defence += dmg * (warded ? 2 : 1);
+      this.refreshPlayer();
+      const next = skillLevel(this.save.skills.defence);
+      if (next > old) this.emit('skill', { name: 'Defence', level: next });
+    }
     this.emit('hit', { t, src, dmg, style: h.style, spec: h.spec, warded, froze, late: !!h.late, splash: !!h.splash });
     if (t.hp <= 0) this.kill(t, src);
   }
@@ -257,6 +326,9 @@ if (a.isPlayer) { // smallest food that covers the wound, otherwise the biggest 
       if (!chance(Math.min(0.9, 0.35 + lvl * 0.015))) return;
       if (!addItem(a.inv, N.item)) { a.gather = null; this.emit('msg', { text: 'Your bag is full.' }); return; }
       s.skills[N.skill] += N.xp; s.count[N.item] = (s.count[N.item] || 0) + 1; this.emit('gather', { a, n, item: N.item });
+       if (n.type === 'tree' && chance(0.22) && addItem(a.inv, 'herbs')) {
+         s.count.herbs = (s.count.herbs || 0) + 1; this.emit('gather', { a, n, item: 'herbs' });
+       }
       if (N.cap && --n.left <= 0) { n.depleted = true; n.regrowAt = this.tick + N.regrow; a.gather = null; this.emit('node', { n }); }
     }
     const l2 = skillLevel(s.skills[N.skill]); if (l2 > lvl) this.emit('skill', { name: SKILLS[N.skill].name, level: l2 });
