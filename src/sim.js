@@ -1,8 +1,8 @@
 /* sim.js - the tick-based world simulation: movement, combat, zones, loot, inventory, bank and shops.
    Rendering-free and event driven, so it also runs headless (tools/simtest.mjs). */
 import { STYLES, ACC, SPECIALS, WARD_REDUCE, DEADEYE_WARD_REDUCE, EAT_DELAY, BOT_NAMES, rint, pick, chance, clamp, lerp } from './data.js';
-import { SPAWN, WILDS, GRAVE, npcSpots, zoneAt, canStep, hasLoS, findPath, cheb, randomFreeTile, DIRS } from './world.js';
-import { ITEMS, TIERS, SLOTS, WEAPON_SLOT, ARMOUR_SLOT, INV_SIZE, weaponMul, weaponAcc, armourCut, addItem, takeItem, countItem, newSave, levelOf, sellPrice } from './items.js';
+import { SPAWN, WILDS, GRAVE, npcSpots, nodes as WORLD_NODES, zoneAt, canStep, hasLoS, findPath, cheb, randomFreeTile, DIRS } from './world.js';
+import { ITEMS, TIERS, SLOTS, WEAPON_SLOT, ARMOUR_SLOT, INV_SIZE, weaponMul, weaponAcc, armourCut, addItem, takeItem, countItem, newSave, levelOf, sellPrice, NODE, SKILLS, TASKS, skillLevel } from './items.js';
 import { botThink, monsterThink } from './ai.js';
 
 let NEXT_ID = 1;
@@ -18,6 +18,8 @@ export class Game {
   constructor(opts = {}) {
     this.tick = 0; this.actors = []; this.hitQ = []; this.loot = []; this.listeners = []; this.respawns = []; this.usedNames = new Set(); this.dirty = false;
     this.save = opts.save || newSave(); this.player = null; this.streak = 0; this.rev = 0;
+    const sv = this.save; sv.skills = Object.assign({ wood: 0, mine: 0, fish: 0, cook: 0 }, sv.skills); sv.count = sv.count || {}; sv.tasks = sv.tasks || {};
+    this.nodes = WORLD_NODES.map((n, i) => Object.assign({ id: i, left: NODE[n.type].cap ? NODE[n.type].cap[0] + rint(NODE[n.type].cap[1]) : 0, depleted: false, regrowAt: 0 }, n));
     if (!opts.spectate) {
       const p = this.player = this.makeActor({ name: 'You', kind: 'player', isPlayer: true, look: 'hero', team: 'ffa', x: SPAWN.x, y: SPAWN.y });
       p.inv = this.save.inv; while (p.inv.length < INV_SIZE) p.inv.push(null); p.eq = this.save.eq; p.face = Math.PI; this.refreshPlayer(true);
@@ -60,15 +62,18 @@ export class Game {
   refreshPlayer(full) {
     const p = this.player, s = this.save, lvl = levelOf(s.xp); p.level = lvl; p.maxHp = 60 + Math.min(lvl, 20) * 2; if (full) p.hp = p.maxHp; p.hp = Math.min(p.hp, p.maxHp);
     for (const st in WEAPON_SLOT) p.armour[st] = armourCut(ITEMS[p.eq[ARMOUR_SLOT[st]]].tier);
-    p.food = countItem(p.inv, 'bread') + countItem(p.inv, 'roast'); p.tonics = countItem(p.inv, 'tonic'); this.dirty = true; this.rev++;
+    p.food = p.inv.reduce((n, x) => n + (x && ITEMS[x.id].kind === 'food' ? x.n : 0), 0); p.tonics = countItem(p.inv, 'tonic'); this.dirty = true; this.rev++;
+    for (const t of TASKS) if (!s.tasks[t.id] && t.ok(s)) { s.tasks[t.id] = 1; s.coins += t.r; this.emit('task', { task: t }); }
   }
   weaponTier(a) { return a.isPlayer ? ITEMS[a.eq[WEAPON_SLOT[a.stance]]].tier : a.tier; }
   safe(a) { return zoneAt(a.x, a.y) === 'town'; }
 
   /* ---------------- player commands ---------------- */
-  cmdMove(x, y) { const p = this.player; if (p.dead) return false; p.target = null; p.interact = null; p.path = findPath(p.x, p.y, (px, py) => px === x && py === y, x, y, 6000); return p.path.length > 0; }
+  cmdGather(n) { const p = this.player; if (p.dead) return; p.target = null; p.interact = null; p.path = []; p.gather = n; p.gCd = 1; }
+  cmdMove(x, y) { const p = this.player; if (p.dead) return false; p.target = null; p.interact = null; p.gather = null; p.path = findPath(p.x, p.y, (px, py) => px === x && py === y, x, y, 6000); return p.path.length > 0; }
   cmdAttack(t) {
     const p = this.player; if (p.dead || !t || t.dead || t === p) return;
+    p.gather = null;
     if (t.kind === 'npc') { p.target = null; p.interact = t; p.path = []; return; }
     if (this.safe(t)) { this.emit('msg', { text: `${t.name} is inside the safe zone.` }); return; }
     if (this.safe(p)) this.emit('msg', { text: 'You cannot fight inside Hollowmere - step outside the walls.', soft: true });
@@ -81,7 +86,9 @@ export class Game {
   }
   eat(a) {
     if (a.dead || a.eatCd > 0 || a.food <= 0 || a.hp >= a.maxHp) return false; let heal = 16;
-    if (a.isPlayer) { const id = (a.maxHp - a.hp >= 18 && countItem(a.inv, 'roast')) || !countItem(a.inv, 'bread') ? 'roast' : 'bread'; takeItem(a.inv, id); heal = ITEMS[id].heal; this.refreshPlayer(); } else a.food--;
+if (a.isPlayer) { // smallest food that covers the wound, otherwise the biggest we have
+      const foods = a.inv.filter(x => x && ITEMS[x.id].kind === 'food').map(x => ITEMS[x.id]).sort((x, y) => x.heal - y.heal), need = a.maxHp - a.hp, it = foods.find(f => f.heal >= need) || foods[foods.length - 1];
+      takeItem(a.inv, it.id); heal = it.heal; this.refreshPlayer(); } else a.food--;
     a.hp = Math.min(a.maxHp, a.hp + heal); a.eatCd = EAT_DELAY; a.atkCd = Math.max(a.atkCd, 2); this.emit('eat', { a, heal }); return true;
   }
   tonic(a) {
@@ -148,7 +155,7 @@ export class Game {
     dmg = Math.min(dmg, t.hp); let froze = false;
     if (h.freeze && dmg > 0 && !t.boss && (h.force || (t.frozen <= 0 && t.freezeImm <= 0))) { t.frozen = h.freeze; t.freezeImm = h.freeze + 6; t.path = []; froze = true; }
     t.hp -= dmg; t.lastHurtTick = this.tick; t.lastAttacker = src; t.dmgFrom.set(src.id, (t.dmgFrom.get(src.id) || 0) + dmg);
-    if (t.isPlayer && !t.target && !t.path.length && !t.interact && !src.dead) t.target = src;
+    if (t.isPlayer && !t.target && !t.path.length && !t.interact && !src.dead) { t.target = src; t.gather = null; }
     if (src.isPlayer && dmg > 0) { const l0 = src.level; this.save.xp += dmg * 4; this.refreshPlayer(); if (src.level > l0) this.emit('level', { level: src.level }); }
     this.emit('hit', { t, src, dmg, style: h.style, spec: h.spec, warded, froze, late: !!h.late, splash: !!h.splash });
     if (t.hp <= 0) this.kill(t, src);
@@ -157,7 +164,7 @@ export class Game {
   kill(d, lastHitter) {
     let killer = lastHitter, top = -1;
     for (const [id, dmg] of d.dmgFrom) { const o = this.actors.find(x => x.id === id); if (o && !o.dead && dmg > top) { top = dmg; killer = o; } }
-    Object.assign(d, { dead: true, deadAt: this.tick, hp: 0, target: null, path: [], ward: null, frozen: 0, specArmed: false, interact: null });
+    Object.assign(d, { dead: true, deadAt: this.tick, hp: 0, target: null, path: [], ward: null, frozen: 0, specArmed: false, interact: null, gather: null });
     for (const o of this.actors) if (o.target === d) o.target = null;
     const P = this.player, mine = killer && killer.isPlayer;
     if (killer && killer !== d) { killer.spec = Math.min(100, killer.spec + 30); killer.hp = Math.min(killer.maxHp, killer.hp + 12); }
@@ -169,6 +176,7 @@ export class Game {
     } else if (d.kind === 'monster') {
       const M = MONSTERS[d.mon], items = []; if (chance(0.35)) items.push({ id: 'bread', n: 1 });
       if (M.boss) { items.push({ id: 'roast', n: 3 }, { id: pick(Object.keys(SLOTS)) + (chance(0.2) ? 3 : 2), n: 1 }); if (mine) this.save.bossKills++; }
+      if (mine) this.save.count.undead = (this.save.count.undead || 0) + 1;
       this.dropLoot(d.x, d.y, M.coins[0] + rint(M.coins[1] - M.coins[0]), items); this.respawns.push({ at: this.tick + M.respawn, fn: () => this.spawnMonster(d.mon) });
     } else if (d.isPlayer) {
       // dying outside town costs what you were carrying (gear you are wearing is kept)
@@ -209,7 +217,8 @@ export class Game {
         if (a.atkCd <= 0 && this.canFight(a, t)) { if (a.protectUntil > this.tick) a.protectUntil = this.tick; this.attack(a, t); }
       }
     } else {
-      a.target = null; const n = a.interact;
+      a.target = null; const n = a.interact, gn = a.gather;
+      if (gn) { if (cheb(a.x, a.y, gn.x, gn.y) <= 1) { a.path = []; this.gatherTick(a, gn); } else if (!a.path.length) { a.path = findPath(a.x, a.y, (x, y) => cheb(x, y, gn.x, gn.y) <= 1, gn.x, gn.y, 8000); const e = a.path[a.path.length - 1]; if (!e || cheb(e.x, e.y, gn.x, gn.y) > 1) { a.gather = null; a.path = []; this.emit('msg', { text: 'You cannot reach that.' }); } } }
       if (n) { if (cheb(a.x, a.y, n.x, n.y) <= 2) { a.path = []; a.interact = null; a.face = Math.atan2(n.x - a.x, n.y - a.y); this.emit('interact', { npc: n }); } else if (!a.path.length) a.path = findPath(a.x, a.y, (x, y) => cheb(x, y, n.x, n.y) <= 2 && (x === n.x || y !== n.y), n.x, n.y, 6000); }
       this.moveAlong(a);
     }
@@ -225,8 +234,28 @@ export class Game {
       const z = zoneAt(a.x, a.y); if (z !== this.zone) { const from = this.zone; this.zone = z; this.emit('zone', { zone: z, from }); }
     }
   }
+  /* one attempt at chopping / mining / fishing / cooking */
+  gatherTick(a, n) {
+    const N = NODE[n.type], s = this.save, lvl = skillLevel(s.skills[N.skill]); a.face = Math.atan2(n.x - a.x, n.y - a.y);
+    if (n.depleted) { a.gather = null; this.emit('msg', { text: n.type === 'tree' ? 'This tree has been felled - it will grow back.' : 'This rock is spent for now.', soft: true }); return; }
+    if (n.type === 'fire' && !countItem(a.inv, 'rawfish')) { a.gather = null; this.emit('msg', { text: 'You have nothing to cook. Catch fish at the shore.' }); return; }
+    if (--a.gCd > 0) return; a.gCd = n.type === 'fire' ? 2 : 3; this.emit('swing', { a, n });
+    if (n.type === 'fire') {
+      takeItem(a.inv, 'rawfish'); const burnt = chance(Math.max(0, 0.36 - lvl * 0.02));
+      if (!burnt) { addItem(a.inv, 'trout'); s.skills.cook += N.xp; s.count.trout = (s.count.trout || 0) + 1; }
+      this.emit('gather', { a, n, item: burnt ? null : 'trout', text: burnt ? 'You burn the trout.' : null });
+    } else {
+      if (!chance(Math.min(0.9, 0.35 + lvl * 0.015))) return;
+      if (!addItem(a.inv, N.item)) { a.gather = null; this.emit('msg', { text: 'Your bag is full.' }); return; }
+      s.skills[N.skill] += N.xp; s.count[N.item] = (s.count[N.item] || 0) + 1; this.emit('gather', { a, n, item: N.item });
+      if (N.cap && --n.left <= 0) { n.depleted = true; n.regrowAt = this.tick + N.regrow; a.gather = null; this.emit('node', { n }); }
+    }
+    const l2 = skillLevel(s.skills[N.skill]); if (l2 > lvl) this.emit('skill', { name: SKILLS[N.skill].name, level: l2 });
+    this.refreshPlayer();
+  }
   step() {
     this.tick++;
+    if (this.tick % 5 === 0) for (const n of this.nodes) if (n.depleted && this.tick >= n.regrowAt) { n.depleted = false; n.left = NODE[n.type].cap[0] + rint(NODE[n.type].cap[1]); this.emit('node', { n }); }
     if (this.hitQ.length) { const due = this.hitQ.filter(h => h.at <= this.tick); this.hitQ = this.hitQ.filter(h => h.at > this.tick); for (const h of due) this.applyHit(h); }
     for (const a of this.actors.slice()) this.stepActor(a);
     for (let i = this.actors.length - 1; i >= 0; i--) { const a = this.actors[i]; if (a.dead && !a.isPlayer && this.tick - a.deadAt >= 7) { this.actors.splice(i, 1); this.usedNames.delete(a.name); this.emit('remove', { a }); } }

@@ -9,6 +9,8 @@ import { World3D } from './gfx/scene.js';
 import { Character } from './gfx/character.js';
 import { FX, STYLE_COLOR } from './gfx/fx.js';
 import { renderIcons } from './gfx/icons.js';
+import { Nodes } from './gfx/nodes.js';
+import { nodes as WORLD_NODES } from './world.js';
 import { HUD } from './ui.js';
 import { initInput } from './input.js';
 import { Sound } from './audio.js';
@@ -26,6 +28,7 @@ async function boot() {
   await loadAssets(f => { $('lfill').style.width = Math.round(f * 85) + '%'; });
   const canvas = $('c'), world = new World3D(canvas, settings.quality), fx = new FX(world.scene);
   const cam = { yaw: 0, pitch: 0.82, dist: 13, minDist: 6, maxDist: 26, x: SPAWN.x, z: SPAWN.y, shake: 0 };
+  const nodeFx = new Nodes(world.scene, WORLD_NODES.map((n, i) => Object.assign({ id: i, depleted: false }, n)), m => world.seeThrough(m));
   const views = new Map(), timers = [], tmp = new THREE.Vector3(), rp = { x: 0, y: 0 };
   let game = null, mode = 'title', acc = 0, last = performance.now(), deadTimer = 0, fpsT = 0, fpsN = 0, mmT = 0, saveT = 0, shopNpc = null;
   let save = store.get('save2', null);
@@ -92,6 +95,12 @@ async function boot() {
     else if (type === 'thaw') { fx.burst(d.a.x + 0.5, 0.5, d.a.y + 0.5, 0xbfeaff, 14, 2.5, 0.24, 0.6, 6, 1.5); }
     else if (type === 'pickup') { fx.burst(d.x + 0.5, 0.6, d.y + 0.5, 0xffd76a, 24, 2.4, 0.28, 0.7, -1, 1.5); Sound.play('pickup'); hud.toast('Looted: ' + d.text); buzz(15); const v = views.get(p.id); if (v && !v.ch.act) v.ch.play('pickup'); }
     else if (type === 'loot') fx.syncLoot(game.loot);
+    else if (type === 'node') nodeFx.sync(d.n);
+    else if (type === 'swing') { const v = views.get(d.a.id); if (v) v.ch.play(d.n.type === 'fish' ? 'pickup' : d.n.type === 'fire' ? 'eat' : 'melee'); Sound.play(d.n.type === 'tree' || d.n.type === 'rock' ? 'swing' : 'ui', 0.6);
+      if (d.n.type === 'tree' || d.n.type === 'rock') later(0.3, () => { fx.burst(d.n.x + 0.5, 1, d.n.y + 0.5, d.n.type === 'tree' ? 0xc9a36a : 0xd9d2c4, 8, 2.2, 0.2, 0.45, 9, 1.2); Sound.play('hitRanged', 0.5); }); else if (d.n.type === 'fish') fx.burst(d.n.x + 0.5, -0.3, d.n.y + 0.5, 0xdff6ff, 6, 1.5, 0.18, 0.5, 6, 2); }
+    else if (type === 'gather') { if (d.item) { splatAt(d.a, '+1 ' + ITEMS[d.item].name, 'heal'); Sound.play('pickup', 0.7); buzz(10); } else { hud.toast(d.text); Sound.play('deny'); } }
+    else if (type === 'skill') { hud.banner(d.name.toUpperCase() + ' ' + d.level, 'SKILL LEVEL UP'); Sound.play('kill'); }
+    else if (type === 'task') { hud.banner('TASK COMPLETE', `${d.task.t.toUpperCase()}  +${d.task.r} COINS`); Sound.play('kill'); document.getElementById('btn-bag').classList.add('hasnew'); }
     else if (type === 'equip') { const v = views.get(p.id); if (v) v.ch.setGear(gearTints(p)); Sound.play('stance'); hud.toast('Equipped ' + ITEMS[d.id].name); }
     else if (type === 'trade') Sound.play('pickup', 0.6);
     else if (type === 'level') { hud.banner('LEVEL ' + d.level, 'MAX HEALTH ' + p.maxHp); Sound.play('kill'); const v = views.get(p.id); if (v) fx.burst(v.pos.x, 1, v.pos.z, 0xffd76a, 40, 3, 0.3, 1, -2, 2); }
@@ -109,7 +118,7 @@ async function boot() {
   function newGame(opts) {
     for (const id of Array.from(views.keys())) dropView(id);
     timers.length = 0; hud.cache = {}; acc = 0; deadTimer = 0;
-    game = new Game(opts); game.on(onEvent); fx.syncLoot(game.loot);
+    game = new Game(opts); game.on(onEvent); fx.syncLoot(game.loot); nodeFx.syncAll(game.nodes);
     for (const a of game.actors) addView(a);
     window.__hm = { game, cam, views, world, hud };
   }
@@ -127,6 +136,10 @@ async function boot() {
       if (Math.abs(x - cx) < rad && y > h.y - rad * 0.6 && y < f.y + rad * 0.5) { const dd = Math.hypot(x - cx, y - cy); if (dd < bd) { bd = dd; bestA = a; } }
     }
     if (bestA) { game.cmdAttack(bestA); const v = views.get(bestA.id); fx.marker(v.pos.x, v.pos.z, bestA.kind === 'npc' ? 0x6ee0ff : 0xff4433); Sound.play('ui'); buzz(8); return; }
+    // resource nodes: trees, ore, fishing ripples, the campfire
+    let bestN = null; bd = coarse ? 46 : 34;
+    for (const n of game.nodes) { if (Math.abs(n.x - p.x) + Math.abs(n.y - p.y) > 40) continue; tmp.set(n.x + 0.5, n.type === 'tree' ? 1.6 : n.type === 'fish' ? -0.3 : 0.6, n.y + 0.5); const s = screenOf(tmp); if (!s) continue; const dd = Math.hypot(x - s.x, (y - s.y) * (n.type === 'tree' ? 0.5 : 1)); if (dd < bd) { bd = dd; bestN = n; } }
+    if (bestN) { game.cmdGather(bestN); fx.marker(bestN.x + 0.5, bestN.y + 0.5, 0x7fe07a); Sound.play('ui'); buzz(8); return; }
     tmp.set(x / world.w * 2 - 1, -(y / world.h) * 2 + 1, 0.5).unproject(world.camera).sub(world.camera.position).normalize();
     if (tmp.y > -0.02) return; const t = -world.camera.position.y / tmp.y, gx = world.camera.position.x + tmp.x * t, gz = world.camera.position.z + tmp.z * t;
     if (Math.hypot(gx - p.x, gz - p.y) > 45) return;
@@ -204,7 +217,7 @@ async function boot() {
     const pv = p && !p.dead && mode !== 'title' ? views.get(p.id) : null; fx.selfRing.visible = !!pv; if (pv) fx.selfRing.position.set(pv.pos.x, 0.09, pv.pos.z);
     if (running) {
       for (const v of views.values()) if (v.a.specArmed && Math.random() < dt * 20) fx.spark(v.pos.x + (Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 1.4, v.pos.z + (Math.random() - 0.5) * 0.6, 0, 1, 0, 1, 0.8, 0.3, 0.2, 0.5);
-      fx.update(dt, world.time, world.h); tmp.set(cam.x, 0, cam.z); world.update(dt, tmp);
+      fx.update(dt, world.time, world.h); nodeFx.update(world.time, fx, dt); tmp.set(cam.x, 0, cam.z); world.update(dt, tmp);
     }
     if (mode !== 'title') {
       for (const v of views.values()) {

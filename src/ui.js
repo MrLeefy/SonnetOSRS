@@ -1,7 +1,7 @@
 /* ui.js - DOM HUD: bars, action pads, target frame, overhead plates, damage numbers, menus */
 import { STYLES, SPECIALS, STYLE_IDS } from './data.js';
 import { N, TOWN, WILDS, GRAVE, PLAZA_R, blockAt, landDist, roadDist, zoneAt, ZONE_NAMES } from './world.js';
-import { ITEMS, TIERS, SLOTS, SMITH_STOCK, MARKET_STOCK, sellPrice, levelOf, xpForLevel } from './items.js';
+import { ITEMS, TIERS, SLOTS, SMITH_STOCK, MARKET_STOCK, sellPrice, levelOf, xpForLevel, SKILLS, TASKS, skillLevel, skillXp } from './items.js';
 
 const G = {
   melee: '<path d="M20 4 9.5 14.5M20 4h-4.5M20 4v4.5M6.5 11.5l6 6M8.5 15.5 4 20"/>',
@@ -105,7 +105,7 @@ export class HUD {
     const threat = p.lastAttacker && !p.lastAttacker.dead && g.tick - p.lastHurtTick < 6 ? p.lastAttacker : null;
     const hint = threat && p.ward !== threat.stance && p.focus > 0 ? threat.stance : '';
     this.set('hint', hint, v => { for (const k in this.wardBtns) this.wardBtns[k].classList.toggle('hint', k === v); });
-    this.set('status', p.frozen > 0 ? 'ROOTED' : (g.tick < p.protectUntil ? 'PROTECTED' : ''), v => $('status').textContent = v);
+    this.set('status', p.frozen > 0 ? 'ROOTED' : p.gather && !p.path.length ? SKILLS[{ tree: 'wood', rock: 'mine', fish: 'fish', fire: 'cook' }[p.gather.type]].verb : '', v => $('status').textContent = v);
     const vg = p.frozen > 0 ? 'frozen' : (p.hp <= 25 && !p.dead ? 'low' : '');
     this.set('vg', vg, v => { const e = $('vignette'); e.classList.toggle('low', v === 'low'); e.classList.toggle('frozen', v === 'frozen'); });
     if (this.toastT > 0) { this.toastT -= dt; if (this.toastT <= 0) $('toast').classList.remove('show'); }
@@ -169,7 +169,7 @@ export class HUD {
   bagGrid(act) { const p = this.game.player; return '<div class="grid">' + p.inv.map((s, i) => s ? this.cell(s.id, s.n, `data-act="${act}" data-i="${i}"`, i === this.sel) : '<div class="cell"></div>').join('') + '</div>'; }
   renderPanel() {
     const g = this.game; if (!g || !g.player) return; this.rev = g.rev; const p = g.player, sv = g.save, m = this.mode; let h = '', d = '';
-    $('ptabs').style.display = m === 'bag' || m === 'gear' ? '' : 'none'; for (const b of $('ptabs').children) b.classList.toggle('on', b.dataset.tab === m);
+    $('ptabs').style.display = m === 'bank' || m === 'shop' ? 'none' : ''; for (const b of $('ptabs').children) b.classList.toggle('on', b.dataset.tab === m);
     $('ptitle').textContent = m === 'bank' ? 'Hollowmere Vault' : m === 'shop' ? (this.shop === 'smith' ? 'Smithy' : 'Market') : ''; $('pcoins').textContent = sv.coins; $('pcoin-ico').src = this.icons.coins || '';
     const s = this.sel >= 0 ? p.inv[this.sel] : null; if (!s) this.sel = -1;
     if (m === 'bag') {
@@ -181,6 +181,13 @@ export class HUD {
       const l = p.level, x0 = xpForLevel(l), x1 = xpForLevel(l + 1);
       h += `<div class="sec"><span>Level ${l}</span><span>${p.maxHp} max health</span></div><div class="xp"><i style="width:${Math.min(100, (sv.xp - x0) / (x1 - x0) * 100)}%"></i></div>`;
       h += `<div class="recs"><div><b>${sv.kills}</b><small>RIVALS SLAIN</small></div><div><b>${sv.best}</b><small>BEST STREAK</small></div><div><b>${sv.bossKills}</b><small>WARDENS</small></div><div><b>${sv.deaths}</b><small>DEATHS</small></div></div>`;
+    } else if (m === 'skills') {
+      const row = (name, l, x, x0, x1, note) => `<div class="sk"><div><b>${name}</b><span>Level ${l}</span></div><div class="xp"><i style="width:${Math.min(100, (x - x0) / (x1 - x0) * 100)}%"></i></div><small>${note}</small></div>`;
+      const notes = { wood: 'Tap a tree in the eastern forest. Logs sell at the Market.', mine: 'Tap a copper-coloured rock at the north-east mine. Ore sells well.', fish: 'Tap a ripple just off the shore.', cook: 'Tap the campfire beside the tavern with raw trout in your bag.' };
+      h = row('Combat', p.level, sv.xp, xpForLevel(p.level), xpForLevel(p.level + 1), `${p.maxHp} max health. Earned by dealing damage.`);
+      for (const k in SKILLS) { const l = skillLevel(sv.skills[k]); h += row(SKILLS[k].name, l, sv.skills[k], skillXp(l), skillXp(l + 1), notes[k] + ' Higher levels succeed more often.'); }
+    } else if (m === 'tasks') {
+      h = TASKS.map(t => `<div class="task${sv.tasks[t.id] ? ' done' : ''}"><i>${sv.tasks[t.id] ? '&#10003;' : ''}</i><span>${t.t}</span><b>+${t.r}</b></div>`).join(''); $('btn-bag').classList.remove('hasnew');
     } else if (m === 'bank') {
       const ids = Object.keys(sv.bank.items);
       h = `<div class="sec"><span>Vault - ${sv.bank.coins} coins</span><span><button data-act="coinsIn">Deposit coins</button> <button data-act="coinsOut">Withdraw coins</button></span></div>`;

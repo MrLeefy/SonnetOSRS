@@ -11,6 +11,10 @@ export const WEAPON_SLOT = { melee: 'blade', ranged: 'bow', magic: 'staff' }, AR
 export const ITEMS = {
   bread: { id: 'bread', name: 'Bread', kind: 'food', heal: 12, price: 8, desc: 'Heals 12.' },
   roast: { id: 'roast', name: 'Roast', kind: 'food', heal: 22, price: 22, desc: 'Heals 22.' },
+  trout: { id: 'trout', name: 'Cooked trout', kind: 'food', heal: 16, price: 16, sell: 7, desc: 'Heals 16. Catch and cook your own.' },
+  rawfish: { id: 'rawfish', name: 'Raw trout', kind: 'res', price: 8, sell: 3, desc: 'Cook it on the campfire in town.' },
+  logs: { id: 'logs', name: 'Logs', kind: 'res', price: 14, sell: 6, desc: 'Timber. The Merchant buys it.' },
+  ore: { id: 'ore', name: 'Iron ore', kind: 'res', price: 30, sell: 14, desc: 'Raw ore. The Merchant buys it.' },
   tonic: { id: 'tonic', name: 'Focus tonic', kind: 'tonic', focus: 40, price: 30, desc: 'Restores 40 focus.' }
 };
 for (const slot in SLOTS) TIERS.forEach((t, i) => {
@@ -21,7 +25,7 @@ for (const slot in SLOTS) TIERS.forEach((t, i) => {
 export const INV_SIZE = 20;
 export const weaponMul = t => 1 + 0.13 * t, weaponAcc = t => 0.02 * t, armourCut = t => 0.06 * t;
 export const SMITH_STOCK = Object.keys(ITEMS).filter(id => ITEMS[id].tier > 0), MARKET_STOCK = ['bread', 'roast', 'tonic'];
-export const sellPrice = id => Math.max(1, Math.floor(ITEMS[id].price * 0.4));
+export const sellPrice = id => ITEMS[id].sell || Math.max(1, Math.floor(ITEMS[id].price * 0.4));
 
 export function countItem(inv, id) { let n = 0; for (const s of inv) if (s && s.id === id) n += s.n; return n; }
 export function addItem(inv, id, n = 1) {
@@ -34,7 +38,28 @@ export function takeItem(inv, id, n = 1) {
 }
 export function newSave() {
   const inv = new Array(INV_SIZE).fill(null); addItem(inv, 'bread', 8); addItem(inv, 'tonic', 2);
-  return { v: 2, eq: { blade: 'blade0', bow: 'bow0', staff: 'staff0', plate: 'plate0', leather: 'leather0', robe: 'robe0' }, inv, coins: 60, bank: { coins: 0, items: { roast: 4 } }, xp: 0, kills: 0, deaths: 0, best: 0, bossKills: 0 };
+  return { v: 2, eq: { blade: 'blade0', bow: 'bow0', staff: 'staff0', plate: 'plate0', leather: 'leather0', robe: 'robe0' }, inv, coins: 60, bank: { coins: 0, items: { roast: 4 } }, xp: 0, kills: 0, deaths: 0, best: 0, bossKills: 0, skills: { wood: 0, mine: 0, fish: 0, cook: 0 }, count: {}, tasks: {} };
 }
 export const levelOf = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp / 90)));
 export const xpForLevel = l => (l - 1) * (l - 1) * 90;
+
+/* ---- gathering skills ---- */
+export const SKILLS = { wood: { name: 'Woodcutting', verb: 'CHOPPING' }, mine: { name: 'Mining', verb: 'MINING' }, fish: { name: 'Fishing', verb: 'FISHING' }, cook: { name: 'Cooking', verb: 'COOKING' } };
+export const NODE = { tree: { skill: 'wood', item: 'logs', xp: 25, cap: [3, 6], regrow: 45, name: 'Tree' }, rock: { skill: 'mine', item: 'ore', xp: 35, cap: [2, 4], regrow: 40, name: 'Ore rock' },
+  fish: { skill: 'fish', item: 'rawfish', xp: 30, name: 'Fishing spot' }, fire: { skill: 'cook', item: 'trout', xp: 30, name: 'Campfire' } };
+export const skillLevel = xp => Math.min(50, 1 + Math.floor(Math.sqrt(xp / 40)));
+export const skillXp = l => (l - 1) * (l - 1) * 40;
+/* ---- starter tasks: a guided tour of everything there is to do ---- */
+const c = (s, k) => (s.count && s.count[k]) || 0;
+export const TASKS = [
+  { id: 'fish', t: 'Catch a fish from the shore', r: 20, ok: s => c(s, 'rawfish') >= 1 },
+  { id: 'cook', t: 'Cook a trout on the campfire by the tavern', r: 25, ok: s => c(s, 'trout') >= 1 },
+  { id: 'bank', t: 'Deposit coins in the vault', r: 30, ok: s => s.bank.coins > 0 },
+  { id: 'wood', t: 'Chop 10 logs in the eastern forest', r: 50, ok: s => c(s, 'logs') >= 10 },
+  { id: 'ore', t: 'Mine 10 ore at the north-east mine', r: 80, ok: s => c(s, 'ore') >= 10 },
+  { id: 'undead', t: 'Defeat 5 undead in the Barrow Yard', r: 60, ok: s => c(s, 'undead') >= 5 },
+  { id: 'steel', t: 'Wield a Steel (or better) weapon', r: 60, ok: s => ['blade', 'bow', 'staff'].some(k => ITEMS[s.eq[k]].tier >= 1) },
+  { id: 'warden', t: 'Defeat the Barrow Warden', r: 250, ok: s => s.bossKills >= 1 },
+  { id: 'rival', t: 'Win a fight in the Ashen Wilds', r: 150, ok: s => s.kills >= 1 },
+  { id: 'lvl10', t: 'Reach combat level 10', r: 200, ok: s => levelOf(s.xp) >= 10 }
+];

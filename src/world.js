@@ -12,6 +12,7 @@ export const ROADS = [[48, 62, 48, 40], [43, 68, 24, 64], [54, 68, 73, 66], [56,
 
 const grid = new Uint8Array(N * N);   // 0 free, 1 blocks movement, 2 blocks movement + sight
 export const props = [];              // { m: model name, x, z, y, ry, s } - instanced by the renderer
+export const nodes = [];              // gatherable resources: { type: tree | rock | fish | fire, x, y, m, s, ry }
 export const lamps = [];              // { x, y(height), z } - glowing lanterns
 export const npcSpots = { banker: { x: 48, y: 82, face: Math.PI }, smith: { x: 41, y: 66, face: Math.PI / 2 }, merchant: { x: 55, y: 66, face: -Math.PI / 2 } };
 
@@ -105,10 +106,17 @@ const free = (x, y) => blockAt(Math.floor(x), Math.floor(y)) === 0;
 
   /* ---------------- forest and mine (resource areas) ---------------- */
   P('building_lumbermill_blue', 88, 70, -Math.PI / 2, B); rect(85, 67, 7, 7); P('resource_lumber', 83.5, 71.5, 0.5, 4); setBlock(83, 71, 1);
-  for (let i = 0; i < 46; i++) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * FOREST.r, x = Math.floor(FOREST.x + Math.cos(a) * r), y = Math.floor(FOREST.y + Math.sin(a) * r); if (!free(x, y) || roadDist(x, y) < 2) continue; setBlock(x, y, 2); P(i % 9 === 8 ? 'tree_single_A_cut' : pick(['tree_single_A', 'tree_single_B', 'tree_single_B']), x + 0.5, y + 0.5, rnd() * 6, R(3.6, 5.4)); }
+  for (let i = 0; i < 46; i++) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * FOREST.r, x = Math.floor(FOREST.x + Math.cos(a) * r), y = Math.floor(FOREST.y + Math.sin(a) * r); if (!free(x, y) || roadDist(x, y) < 2) continue; setBlock(x, y, 2); if (i % 9 === 8) P('tree_single_A_cut', x + 0.5, y + 0.5, rnd() * 6, 4.5); else nodes.push({ type: 'tree', x, y, m: pick(['tree_single_A', 'tree_single_B', 'tree_single_B']), ry: rnd() * 6, s: R(3.8, 5.2) }); }
   P('mountain_B', 86, 33, 0.6, 8); rect(80, 27, 13, 12); P('building_mine_blue', 81, 40.5, Math.PI, 5); rect(77, 37, 8, 6);
-  for (let i = 0; i < 12; i++) { const a = rnd() * 6.28, x = Math.floor(MINE.x + Math.cos(a) * R(4, 8)), y = Math.floor(MINE.y + 3 + Math.sin(a) * R(3, 7)); if (!free(x, y) || roadDist(x, y) < 1.5) continue; setBlock(x, y, 1); P(i % 4 === 3 ? 'resource_stone' : pick(['rock_single_C', 'rock_single_E']), x + 0.5, y + 0.5, rnd() * 6, i % 4 === 3 ? 3.5 : R(4, 6)); }
+  for (let i = 0; i < 26; i++) { const a = rnd() * 6.28, x = Math.floor(MINE.x + Math.cos(a) * R(4, 8)), y = Math.floor(MINE.y + 3 + Math.sin(a) * R(3, 7)); if (!free(x, y) || roadDist(x, y) < 1.5) continue; setBlock(x, y, 1); if (i % 4 === 3) P('resource_stone', x + 0.5, y + 0.5, rnd() * 6, 3.5); else nodes.push({ type: 'rock', x, y, m: pick(['rock_single_C', 'rock_single_E']), ry: rnd() * 6, s: R(4.5, 6) }); }
 
+  // fishing spots just off the southern and eastern shore, and a cooking fire beside the tavern
+  for (const ang of [0.5, 0.8, 1.1, 1.9, 2.2, 2.5, 2.8]) for (let d = 30; d < 50; d += 0.5) {
+    const x = Math.floor(48 + Math.cos(ang) * d), y = Math.floor(50 + Math.sin(ang) * d); if (landDist(x + 0.5, y + 0.5) >= 0.035) continue;
+    let ok = false; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (free(x + dx, y + dy)) ok = true;
+    if (ok) nodes.push({ type: 'fish', x, y }); break;
+  }
+  setBlock(42, 76, 1); nodes.push({ type: 'fire', x: 42, y: 76 });
   /* ---------------- scattered nature across the island ---------------- */
   for (let i = 0; i < 150; i++) {
     const x = Math.floor(R(3, 93)), y = Math.floor(R(3, 93)); if (!free(x, y) || roadDist(x, y) < 2.2 || zoneAt(x, y) === 'town') continue;

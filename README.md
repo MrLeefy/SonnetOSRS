@@ -13,7 +13,7 @@ file - no install, no network. Portrait and landscape both work. Progress saves 
 | **Hollowmere** (town) | Safe zone - nobody can fight here, and you slowly recover. Banker (vault), Smith (gear), Merchant (food and tonics). |
 | **Barrow Yard** (west) | Undead: thralls, stalkers, hexers and the Barrow Warden boss. Best place to start earning coins. |
 | **The Ashen Wilds** (north) | PvP ruins. Rival fighters hunt each other and you; better-geared rivals carry more and may drop gear. |
-| Forest and mine (east) | Built and walkable; reserved for gathering skills later. |
+| Forest, mine, shore | Gathering: chop trees for logs, mine copper-coloured rocks for ore, fish the ripples off the shore. Trees and rocks deplete and grow back. |
 
 Dying outside town drops the coins and supplies you were carrying (worn gear is kept) - bank first.
 
@@ -32,6 +32,9 @@ Dying outside town drops the coins and supplies you were carrying (worn gear is 
 - **Wards** remove 60% of one attack type, checked when the hit lands. They drain focus while raised.
 - **Gear** comes in five tiers (Iron, Steel, Gilded, Ember, Voidglass) for each of three weapons and three armours.
 - **Specials** cost 50% energy: Twin Fang, Deadeye, Frostbind.
+- **Skills**: Woodcutting, Mining, Fishing and Cooking each level up with use (higher level = more successes). Tap a tree, rock,
+  ripple or the campfire by the tavern. Logs and ore sell at the Market; cooked trout is free food.
+- **Tasks** (bag button, Tasks tab) walk a new character through every activity and pay coins.
 
 ## Development
 
@@ -47,7 +50,7 @@ node tools/assets.mjs <dir with the KayKit pack repos>   # only when changing wh
 | `src/world.js` | island layout, zones, collision grid, prop placement, pathfinding |
 | `src/sim.js`, `src/ai.js` | 600 ms tick simulation: combat, zones, loot, bag, bank, shops; rival and monster behaviour |
 | `src/items.js` | gear tiers, consumables, save format |
-| `src/gfx/` | three.js scene, skeletal characters, effects, item icon renderer |
+| `src/gfx/` | three.js scene, skeletal characters, resource nodes, effects, item icon renderer |
 | `src/ui.js`, `src/style.css`, `src/index.html` | touch HUD, panels and menus |
 
 ## Credits
