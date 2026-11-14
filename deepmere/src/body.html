@@ -1,0 +1,49 @@
+<div id="app">
+  <canvas id="gl"></canvas>
+  <div id="labels"></div>
+  <div id="flash"></div>
+  <div id="joy" hidden><i></i></div>
+  <div id="hud" hidden>
+    <div id="top">
+      <div id="bars" class="panel">
+        <div class="bar hp"><b id="hpF"></b><span>HP</span><em id="hpV">100</em></div>
+        <div class="bar en"><b id="enF"></b><span>ENERGY</span><em id="enV">100</em></div>
+      </div>
+      <div id="stats" class="panel">
+        <div><b id="sLvl">1</b><span>LEVEL</span></div>
+        <div><b id="sCoin">0</b><span>COINS</span></div>
+        <div><b id="sDepth">0</b><span>DEPTH</span></div>
+      </div>
+      <button id="bBag" class="sq" aria-label="Open bag"></button>
+      <button id="bPause" class="sq" aria-label="Pause"></button>
+    </div>
+    <div id="mid">
+      <div id="quest"></div>
+      <div id="feed"></div>
+      <canvas id="mini" width="168" height="168" aria-label="Minimap"></canvas>
+      <div id="toasts"></div>
+      <div id="side">
+        <button id="bJump" class="round" aria-label="Jump"></button>
+        <button id="bUse" class="round big" aria-label="Use tool"></button>
+      </div>
+      <button id="ctx" hidden></button>
+    </div>
+    <div id="bottom">
+      <div class="cluster">
+        <div class="row">
+          <button id="bDyn" class="sq" aria-label="Throw dynamite"></button>
+          <button id="bRation" class="sq" aria-label="Eat ration"></button>
+          <button id="bRot" class="sq" aria-label="Rotate camera"></button>
+        </div>
+        <div class="lbl">BUILD WITH</div>
+        <div class="row" id="slots"></div>
+      </div>
+      <div class="cluster">
+        <button id="bHammer" class="pill" aria-label="Sky Hammer"></button>
+        <div class="lbl r">DIG WITH</div>
+        <div class="row" id="tools"></div>
+      </div>
+    </div>
+  </div>
+  <div id="modal"><div id="card"><h1>Deepmere</h1><p class="tag">Carving the island…</p></div></div>
+</div>
